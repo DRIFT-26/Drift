@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs/daily?cron_secret=@CRON_SECRET",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/jobs/weekly?cron_secret=@CRON_SECRET",
+      "schedule": "0 12 * * 1"
+    }
+  ]
+}
