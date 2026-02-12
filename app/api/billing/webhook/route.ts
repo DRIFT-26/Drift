@@ -4,25 +4,36 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+/**
+ * Lazy init so Vercel build/TS collection doesn't crash if env vars
+ * aren't present at build time.
+ */
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("Missing STRIPE_SECRET_KEY");
+  return new Stripe(key);
+}
 
 export async function POST(req: Request) {
   const supabase = supabaseAdmin();
+  const stripe = getStripe();
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {
     return NextResponse.json({ ok: false, error: "Missing stripe-signature" }, { status: 400 });
   }
 
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    // Return 200 so Stripe doesn't retry forever while you're setting env vars
+    return NextResponse.json({ ok: false, error: "Missing STRIPE_WEBHOOK_SECRET" }, { status: 200 });
+  }
+
   const rawBody = await req.text();
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err: any) {
     return NextResponse.json(
       { ok: false, error: `Webhook signature verification failed: ${err?.message ?? String(err)}` },
