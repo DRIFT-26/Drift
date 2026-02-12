@@ -7,9 +7,7 @@ export const runtime = "nodejs"; // Node runtime for Stripe signature verificati
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
-const stripe = new Stripe(STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-06-20",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 async function markBusinessPaid(params: {
   supabase: ReturnType<typeof supabaseAdmin>;
