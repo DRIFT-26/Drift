@@ -74,11 +74,41 @@ export async function POST(req: Request) {
     }
 
     // 2) Invoice paid (Stripe may emit invoice.paid more reliably than invoice_payment.paid)
-    if (event.type === "invoice.paid" || event.type === "invoice_payment.paid") {
-      const invoice = event.data.object as Stripe.Invoice;
+    if (
+  event.type === "invoice_payment.paid" ||
+  event.type === "invoice.paid" ||
+  event.type === "invoice.payment_succeeded"
+) {
+  const invoice = event.data.object as Stripe.Invoice;
 
-      const subscriptionId =
-        typeof invoice.subscription === "string" ? invoice.subscription : null;
+  const subscriptionId =
+    typeof (invoice as any).subscription === "string"
+      ? (invoice as any).subscription
+      : null;
+
+  if (subscriptionId) {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    const businessId = (sub.metadata?.business_id as string | undefined) || undefined;
+    const customerId = typeof sub.customer === "string" ? sub.customer : null;
+
+    if (businessId) {
+      await supabase
+        .from("businesses")
+        .update({
+          is_paid: true,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: sub.id,
+        })
+        .eq("id", businessId);
+    }
+  }
+}
+
+// Stripe types vary by version; safely read from the raw payload
+const subscriptionId =
+  typeof (invoice as any).subscription === "string"
+    ? (invoice as any).subscription
+    : null;
 
       // If we have subscription, retrieve it so we can read metadata.business_id
       if (subscriptionId) {
