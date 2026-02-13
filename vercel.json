@@ -2,17 +2,11 @@
   "crons": [
     {
       "path": "/api/jobs/daily",
-      "schedule": "0 14 * * *",
-      "headers": {
-        "x-cron-secret": "${CRON_SECRET}"
-      }
+      "schedule": "0 14 * * *"
     },
     {
       "path": "/api/jobs/weekly",
-      "schedule": "0 15 * * 1",
-      "headers": {
-        "x-cron-secret": "${CRON_SECRET}"
-      }
+      "schedule": "0 15 * * 1"
     }
   ]
 }
