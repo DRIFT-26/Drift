@@ -6,38 +6,59 @@ import { renderStatusEmail } from "@/lib/email/templates";
 
 export const runtime = "nodejs";
 
-function requireCronAuth(req: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return { ok: false as const, error: "CRON_SECRET missing" };
-
-  // Vercel Cron can send: Authorization: Bearer <token>
-  const authHeader = req.headers.get("authorization") || "";
-  const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice("bearer ".length).trim()
-    : null;
-
-  // Manual testing can send: x-cron-secret: <token>
-  const headerToken = req.headers.get("x-cron-secret")?.trim() || null;
-
-  const token = bearerToken || headerToken;
-  if (token !== cronSecret) return { ok: false as const, error: "Unauthorized" };
-
-  return { ok: true as const };
-}
-
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Auth for:
+ * - Vercel Cron: Authorization: Bearer <CRON_SECRET>
+ * - Manual testing: x-cron-secret: <CRON_SECRET>
+ *
+ * Add ?debug=1 to see what headers the server received (safe prefixes only).
+ */
+function requireCronAuth(req: Request) {
+  const secret = (process.env.CRON_SECRET || "").trim();
+
+  const authHeader = (req.headers.get("authorization") || "").trim();
+  const match = authHeader.match(/^bearer\s+(.+)$/i);
+  const bearerToken = (match?.[1] || "").trim();
+
+  const xToken = (req.headers.get("x-cron-secret") || "").trim();
+
+  const token = bearerToken || xToken;
+
+  const ok = Boolean(secret) && token === secret;
+
+  return {
+    ok,
+    error: ok ? null : ("Unauthorized" as const),
+    debug: {
+      hasCronSecretEnv: Boolean(secret),
+      authHeaderPrefix: authHeader ? authHeader.slice(0, 25) : null,
+      bearerTokenPrefix: bearerToken ? bearerToken.slice(0, 10) : null,
+      hasXCronSecretHeader: Boolean(xToken),
+      xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
+      matched: ok,
+    },
+  };
+}
+
 export async function POST(req: Request) {
   const auth = requireCronAuth(req);
+
+  const url = new URL(req.url);
+  const debug = url.searchParams.get("debug") === "1";
+
   if (!auth.ok) {
-    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: auth.error, ...(debug ? { debug: auth.debug } : null) },
+      { status: 401 }
+    );
   }
 
   const supabase = supabaseAdmin();
 
-  const url = new URL(req.url);
   const dryRun = url.searchParams.get("dry_run") === "true";
   const forceEmail = url.searchParams.get("force_email") === "true";
 
@@ -81,14 +102,9 @@ export async function POST(req: Request) {
   const results: any[] = [];
 
   for (const biz of businesses ?? []) {
-    // Per-business run log
     const { data: bizRun } = await supabase
       .from("job_runs")
-      .insert({
-        job_name: "daily:business",
-        business_id: biz.id,
-        status: "started",
-      })
+      .insert({ job_name: "daily:business", business_id: biz.id, status: "started" })
       .select()
       .single();
 
@@ -117,6 +133,7 @@ export async function POST(req: Request) {
 
       const baselineStartStr = isoDate(baselineStart);
       const currentStartStr = isoDate(currentStart);
+      const windowEndStr = isoDate(today);
 
       // Find connected sources
       const { data: sources, error: sErr } = await supabase
@@ -158,7 +175,7 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Pull snapshots for baseline + current windows
+      // Pull snapshots
       const { data: baselineRows, error: baseErr } = await supabase
         .from("snapshots")
         .select("source_id,metrics,snapshot_date")
@@ -200,7 +217,7 @@ export async function POST(req: Request) {
         ? (currentRows ?? []).filter((r: any) => r.source_id === engagementSource.id)
         : [];
 
-      // Reviews metrics
+      // Reviews
       const baselineReviewTotal = sum(baselineReviews, "review_count");
       const currentReviewTotal = sum(currentReviews, "review_count");
       const baselineReviewPerWindow =
@@ -209,11 +226,10 @@ export async function POST(req: Request) {
       const baselineSent = avg(baselineReviews, "sentiment_avg");
       const currentSent = avg(currentReviews, "sentiment_avg");
 
-      // Engagement metrics
+      // Engagement
       const baselineEngAvg = avg(baselineEngRows, "engagement");
       const currentEngAvg = avg(currentEngRows, "engagement");
 
-      // Compute drift
       const drift = computeDrift({
         baselineReviewCountPer14d: baselineReviewPerWindow,
         currentReviewCount14d: currentReviewTotal,
@@ -223,7 +239,18 @@ export async function POST(req: Request) {
         currentEngagement: currentEngAvg,
       });
 
-      // Get last alert to check status change
+      // Write-through last drift
+      if (!dryRun) {
+        await supabase
+          .from("businesses")
+          .update({
+            last_drift: drift as any,
+            last_drift_at: new Date().toISOString(),
+          })
+          .eq("id", biz.id);
+      }
+
+      // Last alert
       const { data: lastAlert } = await supabase
         .from("alerts")
         .select("id,status,created_at")
@@ -234,7 +261,7 @@ export async function POST(req: Request) {
 
       const statusChanged = !lastAlert || lastAlert.status !== drift.status;
 
-      // Insert alert ONLY if status changed
+      // Insert alert only if changed
       let insertedAlert: any = null;
       if (!dryRun && statusChanged) {
         const { data: newAlert, error: aErr } = await supabase
@@ -244,7 +271,7 @@ export async function POST(req: Request) {
             status: drift.status,
             reasons: drift.reasons,
             window_start: currentStartStr,
-            window_end: isoDate(today),
+            window_end: windowEndStr,
             meta: (drift as any).meta ?? null,
           })
           .select()
@@ -254,7 +281,6 @@ export async function POST(req: Request) {
         insertedAlert = newAlert;
       }
 
-      // Send email on status change OR force_email (paid only)
       const toEmail = biz.alert_email ?? null;
       const isPaid = (biz as any).is_paid === true;
 
@@ -266,37 +292,40 @@ export async function POST(req: Request) {
           status: drift.status,
           reasons: drift.reasons,
           windowStart: currentStartStr,
-          windowEnd: isoDate(today),
+          windowEnd: windowEndStr,
         });
 
-        const sendResult = await sendDriftEmail({ to: toEmail, subject, text });
+        try {
+          const sendResult = await sendDriftEmail({ to: toEmail, subject, text });
 
-        emailId = (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
+          emailId = (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
+          emailDebug = {
+            keys: Object.keys(sendResult as any),
+            data: (sendResult as any)?.data ?? null,
+            error: (sendResult as any)?.error ?? null,
+          };
 
-        emailDebug = {
-          keys: Object.keys(sendResult as any),
-          data: (sendResult as any)?.data ?? null,
-          error: (sendResult as any)?.error ?? null,
-        };
-
-        await supabase.from("email_logs").insert({
-          business_id: biz.id,
-          email_type: "daily_alert",
-          to_email: toEmail,
-          subject,
-          status: (sendResult as any)?.error ? "error" : "sent",
-          provider: "resend",
-          provider_message_id: emailId,
-          error: (sendResult as any)?.error ? JSON.stringify((sendResult as any)?.error) : null,
-          meta: {
-            drift_status: drift.status,
-            reasons: drift.reasons,
-            window_start: currentStartStr,
-            window_end: isoDate(today),
-            force_email: forceEmail,
-            status_changed: statusChanged,
-          },
-        });
+          await supabase.from("email_logs").insert({
+            business_id: biz.id,
+            email_type: "daily_alert",
+            to_email: toEmail,
+            subject,
+            status: (sendResult as any)?.error ? "error" : "sent",
+            provider: "resend",
+            provider_message_id: emailId,
+            error: (sendResult as any)?.error ? JSON.stringify((sendResult as any)?.error) : null,
+            meta: {
+              drift_status: drift.status,
+              reasons: drift.reasons,
+              window_start: currentStartStr,
+              window_end: windowEndStr,
+              force_email: forceEmail,
+              status_changed: statusChanged,
+            },
+          });
+        } catch (e: any) {
+          emailError = e?.message ?? String(e);
+        }
       }
 
       await supabase
@@ -321,8 +350,6 @@ export async function POST(req: Request) {
         email_debug: emailDebug,
       });
     } catch (e: any) {
-      emailError = emailError ?? (e?.message ?? String(e));
-
       await supabase
         .from("job_runs")
         .update({
@@ -341,10 +368,10 @@ export async function POST(req: Request) {
         force_email: forceEmail,
         email_to: biz.alert_email ?? null,
         is_paid: (biz as any).is_paid ?? null,
-        email_attempted: emailAttempted,
-        email_error: emailError,
-        email_id: emailId,
-        email_debug: emailDebug,
+        email_attempted: false,
+        email_error: e?.message ?? String(e),
+        email_id: null,
+        email_debug: null,
       });
     }
   }
