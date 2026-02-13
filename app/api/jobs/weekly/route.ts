@@ -5,31 +5,51 @@ import { renderStatusEmail } from "@/lib/email/templates";
 
 export const runtime = "nodejs";
 
-function requireCronAuth(req: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return { ok: false as const, error: "CRON_SECRET missing" };
-
-  const authHeader = req.headers.get("authorization") || "";
-  const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice("bearer ".length).trim()
-    : null;
-
-  const headerToken = req.headers.get("x-cron-secret")?.trim() || null;
-
-  const token = bearerToken || headerToken;
-  if (token !== cronSecret) return { ok: false as const, error: "Unauthorized" };
-
-  return { ok: true as const };
-}
-
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+function requireCronAuth(req: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return { ok: false as const, error: "CRON_SECRET missing" as const };
+  }
+
+  const authHeader = req.headers.get("authorization") || "";
+  const match = authHeader.match(/^bearer\s+(.+)$/i);
+  const bearerToken = match?.[1]?.trim() || null;
+
+  const xToken = (req.headers.get("x-cron-secret") || "").trim() || null;
+
+  const token = bearerToken || xToken;
+
+  if (token && token === secret) return { ok: true as const };
+
+  return { ok: false as const, error: "Unauthorized" as const };
 }
 
 export async function POST(req: Request) {
   const auth = requireCronAuth(req);
   if (!auth.ok) {
-    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 });
+    const url = new URL(req.url);
+    const debug = url.searchParams.get("debug") === "1";
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: auth.error,
+        ...(debug
+          ? {
+              debug: {
+                hasAuthorization: Boolean(req.headers.get("authorization")),
+                authorizationPrefix: (req.headers.get("authorization") || "").slice(0, 12),
+                hasXCronSecret: Boolean(req.headers.get("x-cron-secret")),
+              },
+            }
+          : null),
+      },
+      { status: 401 }
+    );
   }
 
   const supabase = supabaseAdmin();
@@ -57,7 +77,6 @@ export async function POST(req: Request) {
   for (const biz of businesses ?? []) {
     const isPaid = (biz as any).is_paid === true;
 
-    // Weekly summaries are paid only (force_send does NOT override)
     if (!isPaid) {
       results.push({ business_id: biz.id, skipped: true, reason: "not_paid" });
       continue;
@@ -68,6 +87,7 @@ export async function POST(req: Request) {
       continue;
     }
 
+    // Window (last 7 days)
     const today = new Date();
     const windowStart = new Date(today);
     windowStart.setDate(today.getDate() - 7);
@@ -76,7 +96,7 @@ export async function POST(req: Request) {
     const windowEndStr = isoDate(today);
 
     const { text } = renderStatusEmail({
-      businessName: biz.name ?? biz.id,
+      businessName: biz.name,
       status: "stable",
       reasons: [],
       windowStart: windowStartStr,
@@ -129,7 +149,6 @@ export async function POST(req: Request) {
         email_id: emailId,
       });
     } catch (e: any) {
-      // Best-effort failure log
       try {
         await supabase.from("email_logs").insert({
           business_id: biz.id,

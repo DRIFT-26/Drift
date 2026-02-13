@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   // 1) Fetch business (for paid gating + display)
   const { data: business, error: bErr } = await supabase
     .from("businesses")
-    .select("id,name,is_paid,alert_email,timezone")
+    .select("id,name,is_paid,alert_email,timezone,last_drift,last_drift_at")
     .eq("id", business_id)
     .single();
 

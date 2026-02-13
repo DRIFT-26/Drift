@@ -4,10 +4,10 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-/**
- * Lazy init so Vercel build/collection doesn't crash if env vars
- * aren't present at build time.
- */
+// Critical: prevents Next from attempting to precompute/collect data at build time
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("Missing STRIPE_SECRET_KEY");
@@ -24,12 +24,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing session_id" }, { status: 400 });
     }
 
-    // Retrieve the Checkout Session
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    // Prefer metadata on session; fallback to pulling subscription metadata if needed
     let businessId: string | null = session.metadata?.business_id ?? null;
 
+    // Fallback: pull subscription metadata if session metadata missing
     if (!businessId) {
       const subId = typeof session.subscription === "string" ? session.subscription : null;
       if (subId) {
@@ -39,10 +38,12 @@ export async function GET(req: Request) {
     }
 
     if (!businessId) {
-      return NextResponse.json({ ok: false, error: "No business_id found on session/subscription" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "No business_id found on session/subscription" },
+        { status: 404 }
+      );
     }
 
-    // Sanity check: business exists
     const supabase = supabaseAdmin();
     const { data, error } = await supabase
       .from("businesses")
