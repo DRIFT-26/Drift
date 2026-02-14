@@ -9,57 +9,63 @@ function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function requireCronAuth(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return { ok: false as const, error: "CRON_SECRET missing" as const };
-  }
+/**
+ * Auth for:
+ * - Vercel Cron: Authorization: Bearer <CRON_SECRET>
+ * - Manual testing: x-cron-secret: <CRON_SECRET>
+ *
+ * Use ?debug=1 to see safe auth diagnostics on 401.
+ */
+type CronAuthResult =
+  | { ok: true; debug: Record<string, any> }
+  | { ok: false; error: "CRON_SECRET missing" | "Unauthorized"; debug: Record<string, any> };
 
-  const authHeader = req.headers.get("authorization") || "";
+function requireCronAuth(req: Request): CronAuthResult {
+  const secret = (process.env.CRON_SECRET || "").trim();
+
+  const authHeader = (req.headers.get("authorization") || "").trim();
   const match = authHeader.match(/^bearer\s+(.+)$/i);
-  const bearerToken = match?.[1]?.trim() || null;
+  const bearerToken = (match?.[1] || "").trim();
 
-  const xToken = (req.headers.get("x-cron-secret") || "").trim() || null;
+  const xToken = (req.headers.get("x-cron-secret") || "").trim();
 
   const token = bearerToken || xToken;
 
-  if (token && token === secret) return { ok: true as const };
+  const debug = {
+    hasCronSecretEnv: Boolean(secret),
+    authHeaderRaw: authHeader.slice(0, 60),
+    bearerParsedPrefix: bearerToken ? bearerToken.slice(0, 10) : null,
+    hasXCronSecretHeader: Boolean(xToken),
+    xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
+    matched: Boolean(secret) && token === secret,
+  };
 
-  return { ok: false as const, error: "Unauthorized" as const };
+  if (!secret) return { ok: false, error: "CRON_SECRET missing", debug };
+  if (token !== secret) return { ok: false, error: "Unauthorized", debug };
+
+  return { ok: true, debug };
 }
 
 export async function POST(req: Request) {
+  const url = new URL(req.url);
+  const debugMode = url.searchParams.get("debug") === "1";
+
   const auth = requireCronAuth(req);
   if (!auth.ok) {
-    const url = new URL(req.url);
-    const debug = url.searchParams.get("debug") === "1";
-
     return NextResponse.json(
-      {
-        ok: false,
-        error: auth.error,
-        ...(debug
-          ? {
-              debug: {
-                hasAuthorization: Boolean(req.headers.get("authorization")),
-                authorizationPrefix: (req.headers.get("authorization") || "").slice(0, 12),
-                hasXCronSecret: Boolean(req.headers.get("x-cron-secret")),
-              },
-            }
-          : null),
-      },
+      { ok: false, error: auth.error, ...(debugMode ? { debug: auth.debug } : {}) },
       { status: 401 }
     );
   }
 
   const supabase = supabaseAdmin();
 
-  const url = new URL(req.url);
   const dryRun = url.searchParams.get("dry_run") === "true";
-  const forceSend = url.searchParams.get("force_send") === "true";
+  const forceSend = url.searchParams.get("force_send") === "true"; // logged only; does not bypass paid gate
 
   const startedAt = new Date();
 
+  // Load businesses
   const { data: businesses, error: bErr } = await supabase
     .from("businesses")
     .select("id,name,timezone,is_paid,alert_email,created_at")
@@ -77,6 +83,7 @@ export async function POST(req: Request) {
   for (const biz of businesses ?? []) {
     const isPaid = (biz as any).is_paid === true;
 
+    // Weekly summaries are paid (force_send does NOT override)
     if (!isPaid) {
       results.push({ business_id: biz.id, skipped: true, reason: "not_paid" });
       continue;
@@ -87,7 +94,7 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Window (last 7 days)
+    // Window: last 7 days
     const today = new Date();
     const windowStart = new Date(today);
     windowStart.setDate(today.getDate() - 7);
@@ -149,6 +156,7 @@ export async function POST(req: Request) {
         email_id: emailId,
       });
     } catch (e: any) {
+      // best-effort failure log
       try {
         await supabase.from("email_logs").insert({
           business_id: biz.id,

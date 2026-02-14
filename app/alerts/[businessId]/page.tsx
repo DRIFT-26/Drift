@@ -1,6 +1,6 @@
 import UpgradeButton from "../UpgradeButton";
 import SendTestSummaryButton from "./SendTestSummaryButton";
-import { projectRisk } from "@/lib/drift/compute";
+import { projectRisk, estimateRevenueImpact } from "@/lib/drift/compute";
 
 async function getAlerts(businessId: string) {
   const baseUrl =
@@ -58,15 +58,15 @@ function whyItMatters(reasons: any[]) {
   const codes = reasons.map((r: any) => r.code);
 
   if (codes.includes("REV_FREQ_DROP_30")) {
-    return "Businesses often see reduced foot traffic 1–2 weeks after review activity declines.";
+    return "Review activity often softens before demand shows up in sales reporting.";
   }
 
   if (codes.includes("ENG_DROP_30")) {
-    return "Lower engagement typically precedes fewer repeat visits.";
+    return "Lower engagement typically precedes fewer repeat visits and weaker reactivation.";
   }
 
   if (codes.includes("SENTIMENT_DROP_50")) {
-    return "Negative sentiment trends can impact conversion and referrals.";
+    return "Sentiment declines can reduce conversion and referrals if left unaddressed.";
   }
 
   return "This change may indicate a shift in customer momentum.";
@@ -78,18 +78,18 @@ function suggestedNextStep(reasons: any[]) {
   const codes = reasons.map((r: any) => r.code);
 
   if (codes.includes("REV_FREQ_DROP_30") || codes.includes("REV_FREQ_DROP_15")) {
-    return "Ask 5–10 recent customers for a review this week, and make it easy (QR, link, short script).";
+    return "Ask 5–10 recent customers for a review this week. Make it easy (QR, link, short script).";
   }
 
   if (codes.includes("ENG_DROP_30") || codes.includes("ENG_DROP_15")) {
-    return "Run a quick reactivation push: limited-time offer + clear CTA to your best customers.";
+    return "Run a quick reactivation push: a limited-time offer + a clear CTA to your best customers.";
   }
 
   if (codes.includes("SENTIMENT_DROP_50") || codes.includes("SENTIMENT_DROP_25")) {
-    return "Scan the last 10 reviews/complaints, pick the top 1–2 issues, and fix + reply publicly.";
+    return "Scan the last 10 reviews/complaints, pick the top 1–2 issues, fix them, and reply publicly.";
   }
 
-  return "Review the last 7–14 days of customer touchpoints and identify what changed (hours, staffing, promos, inventory, service).";
+  return "Review the last 7–14 days of ops changes (hours, staffing, promos, inventory, service) and identify what shifted.";
 }
 
 function scoreLabel(score: number) {
@@ -99,10 +99,13 @@ function scoreLabel(score: number) {
   return { label: "Critical", note: "High risk — intervene immediately." };
 }
 
-export default async function AlertsPage(props: {
-  params: Promise<{ businessId: string }>;
-}) {
-  const { businessId } = await props.params;
+function formatMoney(cents: number) {
+  const dollars = (Number(cents) || 0) / 100;
+  return dollars.toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+export default async function AlertsPage(props: { params: { businessId: string } }) {
+  const businessId = props.params.businessId;
 
   if (!businessId) {
     return (
@@ -150,24 +153,30 @@ export default async function AlertsPage(props: {
   const business = data.business ?? null;
   const isPaid = Boolean(business?.is_paid);
 
-  // ✅ The “latest truth” should come from business.last_drift, not alerts[0]
-  const lastDrift = business?.last_drift ?? null;
-  const lastDriftAt = business?.last_drift_at ?? null;
-
-  const latestStatus = lastDrift?.status ?? null;
-  const latestReasons = lastDrift?.reasons ?? [];
-  const latestMeta = lastDrift?.meta ?? null;
+  const latest = alerts?.[0] ?? null;
+  const latestReasons = latest?.reasons ?? [];
 
   const signals = computeSignalsFromReasons(latestReasons);
   const meta = scoreLabel(signals.score);
 
-  const projectionsTop =
-    latestMeta &&
-    projectRisk({
-      reviewDrop: latestMeta.reviewDrop,
-      engagementDrop: latestMeta.engagementDrop,
-      sentimentDelta: latestMeta.sentimentDelta,
-    });
+  // monthly_revenue comes from your /api/alerts route (looks like cents)
+  const monthlyRevenue: number | null =
+    typeof business?.monthly_revenue === "number" ? business.monthly_revenue : null;
+
+  // Use the newest available meta (latest alert meta OR last_drift meta)
+  const driftMeta = latest?.meta ?? business?.last_drift?.meta ?? null;
+
+  // Estimate revenue impact (cast to any so we don’t fight TS signatures during v1)
+  const impact:
+    | { lowCents: number; highCents: number; label: "Low" | "Moderate" | "High" }
+    | null =
+    isPaid && monthlyRevenue
+      ? ((estimateRevenueImpact as any)({
+          monthlyRevenueCents: monthlyRevenue,
+          meta: driftMeta,
+          reasons: latestReasons,
+        }) as any)
+      : null;
 
   return (
     <main
@@ -228,21 +237,25 @@ export default async function AlertsPage(props: {
               Latest Status
             </div>
 
-            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontSize: 22, fontWeight: 900 }}>
-                {latestStatus ? `${statusEmoji(latestStatus)} ${String(latestStatus).toUpperCase()}` : "—"}
+                {latest ? `${statusEmoji(latest.status)} ${String(latest.status).toUpperCase()}` : "—"}
               </div>
 
-              {lastDriftAt ? (
+              {latest?.created_at ? (
                 <div style={{ fontSize: 12, color: "#667085" }}>
-                  {new Date(lastDriftAt).toLocaleString()}
+                  {new Date(latest.created_at).toLocaleString()}
                 </div>
               ) : null}
             </div>
 
-            <div style={{ marginTop: 8, color: "#475467", fontSize: 13 }}>
-              {latestStatus ? "Latest drift computed from the last 14 days." : "No drift computed yet."}
-            </div>
+            {latest?.window_start && latest?.window_end ? (
+              <div style={{ marginTop: 8, color: "#475467", fontSize: 13 }}>
+                Window: <strong>{latest.window_start}</strong> → <strong>{latest.window_end}</strong>
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, color: "#98A2B3", fontSize: 13 }}>No alerts yet.</div>
+            )}
           </div>
 
           {/* Momentum Score */}
@@ -262,7 +275,7 @@ export default async function AlertsPage(props: {
               }}
             >
               <div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                   <div style={{ fontSize: 40, fontWeight: 950, lineHeight: 1, letterSpacing: -0.8 }}>
                     {signals.score}
                   </div>
@@ -342,60 +355,67 @@ export default async function AlertsPage(props: {
           </div>
         </div>
 
-        {/* Why this matters + Suggested next step (only once) */}
+        {/* Revenue Impact */}
+        <div style={{ marginTop: 14 }}>
+          <div
+            style={{
+              border: "1px solid #EAECF0",
+              borderRadius: 14,
+              padding: "12px 12px",
+              background: "#FFFFFF",
+            }}
+          >
+            <div style={{ fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", color: "#667085" }}>
+              Estimated Revenue Impact
+            </div>
+
+            {!isPaid ? (
+              <div style={{ marginTop: 8, fontSize: 13, color: "#475467" }}>
+                Add monthly revenue to unlock revenue-at-risk projections.
+              </div>
+            ) : !monthlyRevenue ? (
+              <div style={{ marginTop: 8, fontSize: 13, color: "#475467" }}>
+                No monthly revenue set for this business yet.
+              </div>
+            ) : !impact || impact.highCents <= 0 ? (
+              <div style={{ marginTop: 8, fontSize: 13, color: "#12B76A", fontWeight: 800 }}>
+                No significant revenue risk detected.
+              </div>
+            ) : (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 26, fontWeight: 950, letterSpacing: -0.4, color: "#101828" }}>
+                  {formatMoney(impact.lowCents)} – {formatMoney(impact.highCents)}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+                  {impact.label} estimated impact based on your monthly revenue and the latest momentum signals.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Why this matters + Suggested next step */}
         {latestReasons?.length ? (
           <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
             {whyItMatters(latestReasons) ? (
               <div style={{ border: "1px solid #EAECF0", background: "#FFFFFF", borderRadius: 14, padding: 12 }}>
                 <div style={{ fontWeight: 900, color: "#101828" }}>Why this matters</div>
-                <div style={{ marginTop: 6, color: "#475467", fontSize: 13 }}>{whyItMatters(latestReasons)}</div>
+                <div style={{ marginTop: 6, color: "#475467", fontSize: 13 }}>
+                  {whyItMatters(latestReasons)}
+                </div>
               </div>
             ) : null}
 
             {suggestedNextStep(latestReasons) ? (
               <div style={{ border: "1px solid #EAECF0", background: "#FFFFFF", borderRadius: 14, padding: 12 }}>
-                <div style={{ fontWeight: 900, color: "#101828" }}>Suggested next step</div>
+                <div style={{ fontWeight: 900, color: "#101828" }}>What to do this week</div>
                 <div style={{ marginTop: 6, color: "#475467", fontSize: 13 }}>
                   {suggestedNextStep(latestReasons)}
                 </div>
               </div>
             ) : null}
-
-            {/* Projections: only if meta exists */}
-            {Array.isArray(projectionsTop) && projectionsTop.length ? (
-              <div style={{ border: "1px solid #EAECF0", background: "#FFFFFF", borderRadius: 14, padding: 12 }}>
-                <div style={{ fontWeight: 900, color: "#101828" }}>Projections (next 30 days)</div>
-                <ul style={{ margin: "8px 0 0", paddingLeft: 18, color: "#475467", fontSize: 13, lineHeight: 1.6 }}>
-                  {projectionsTop.map((p: string, i: number) => (
-                    <li key={i}>{p}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
           </div>
         ) : null}
-      </div>
-
-      {/* What DRIFT is watching */}
-      <div
-        style={{
-          border: "1px solid #EAECF0",
-          borderRadius: 18,
-          padding: 16,
-          background: "#FFFFFF",
-          boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 10, color: "#101828" }}>
-          What DRIFT is watching
-        </div>
-
-        <ul style={{ margin: 0, paddingLeft: 18, color: "#475467", fontSize: 13, lineHeight: 1.6 }}>
-          <li>Review frequency vs baseline (signals demand shift before sales show it)</li>
-          <li>Sentiment movement (quality perception + conversion impact)</li>
-          <li>Engagement drop (repeat visit / reactivation risk)</li>
-        </ul>
       </div>
 
       {/* Full Alerts List */}
@@ -416,65 +436,61 @@ export default async function AlertsPage(props: {
           <p style={{ margin: 0, color: "#667085" }}>No alerts yet.</p>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
-            {alerts.map((a: any) => {
-              const projections =
-                a?.meta &&
-                projectRisk({
-                  reviewDrop: a?.meta?.reviewDrop,
-                  engagementDrop: a?.meta?.engagementDrop,
-                  sentimentDelta: a?.meta?.sentimentDelta,
-                });
-
-              return (
-                <div
-                  key={a.id}
-                  style={{
-                    border: "1px solid #EAECF0",
-                    borderRadius: 16,
-                    padding: 14,
-                    background: "#FCFCFD",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: "#101828" }}>
-                      {statusEmoji(a.status)} {String(a.status).toUpperCase()}
-                    </div>
-                    <div style={{ color: "#667085", fontSize: 12 }}>
-                      {a.created_at ? new Date(a.created_at).toLocaleString() : ""}
-                    </div>
+            {alerts.map((a: any) => (
+              <div
+                key={a.id}
+                style={{
+                  border: "1px solid #EAECF0",
+                  borderRadius: 16,
+                  padding: 14,
+                  background: "#FCFCFD",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: "#101828" }}>
+                    {statusEmoji(a.status)} {String(a.status).toUpperCase()}
                   </div>
-
-                  <div style={{ marginTop: 8, color: "#475467", fontSize: 13 }}>
-                    Window: <strong>{a.window_start}</strong> → <strong>{a.window_end}</strong>
+                  <div style={{ color: "#667085", fontSize: 12 }}>
+                    {a.created_at ? new Date(a.created_at).toLocaleString() : ""}
                   </div>
+                </div>
 
-                  <ul style={{ marginTop: 10, marginBottom: 0, paddingLeft: 18 }}>
-                    {(a.reasons ?? []).map((r: any, idx: number) => (
-                      <li key={idx} style={{ color: "#344054", fontSize: 13, lineHeight: 1.5 }}>
-                        <code style={{ background: "#EEF2F6", padding: "2px 6px", borderRadius: 8 }}>
-                          {r.code}
-                        </code>{" "}
-                        — {r.detail}
-                        {typeof r.delta === "number" ? <> (Δ {Math.round(r.delta * 1000) / 10}%)</> : null}
-                      </li>
-                    ))}
-                  </ul>
+                <div style={{ marginTop: 8, color: "#475467", fontSize: 13 }}>
+                  Window: <strong>{a.window_start}</strong> → <strong>{a.window_end}</strong>
+                </div>
 
-                  {Array.isArray(projections) && projections.length ? (
-                    <div style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #EAECF0", background: "#FFFFFF" }}>
-                      <div style={{ fontWeight: 900, marginBottom: 6, color: "#101828" }}>
-                        Projections (next 30 days)
-                      </div>
-                      <ul style={{ margin: 0, paddingLeft: 18, color: "#475467", fontSize: 13, lineHeight: 1.6 }}>
+                <ul style={{ marginTop: 10, marginBottom: 0, paddingLeft: 18 }}>
+                  {(a.reasons ?? []).map((r: any, idx: number) => (
+                    <li key={idx} style={{ color: "#344054", fontSize: 13, lineHeight: 1.5 }}>
+                      <code style={{ background: "#EEF2F6", padding: "2px 6px", borderRadius: 8 }}>{r.code}</code>{" "}
+                      — {r.detail}
+                      {typeof r.delta === "number" ? <> (Δ {Math.round(r.delta * 1000) / 10}%)</> : null}
+                    </li>
+                  ))}
+                </ul>
+
+                {(() => {
+                  const projections = projectRisk({
+                    reviewDrop: a?.meta?.reviewDrop,
+                    engagementDrop: a?.meta?.engagementDrop,
+                    sentimentDelta: a?.meta?.sentimentDelta,
+                  });
+
+                  if (!projections?.length) return null;
+
+                  return (
+                    <div style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid #eee" }}>
+                      <div style={{ fontWeight: 800, marginBottom: 6 }}>Projections (next 30 days)</div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
                         {projections.map((p: string, i: number) => (
                           <li key={i}>{p}</li>
                         ))}
                       </ul>
                     </div>
-                  ) : null}
-                </div>
-              );
-            })}
+                  );
+                })()}
+              </div>
+            ))}
           </div>
         )}
       </div>
