@@ -1,207 +1,164 @@
+// app/api/onboard/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendDriftEmail } from "@/lib/email/resend";
+import crypto from "crypto";
 
-// Very small CSV parser (handles commas + quoted values)
-function parseCsv(text: string): Array<Record<string, string>> {
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  if (lines.length < 2) return [];
+export const runtime = "nodejs";
 
-  const parseLine = (line: string) => {
-    const out: string[] = [];
-    let cur = "";
-    let inQuotes = false;
+type OnboardBody = {
+  business_name: string;
+  email: string;
+  monthly_revenue_cents?: number | null;
+  timezone?: string;
+};
 
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
+function normalizeMoneyCents(v: any): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.round(n));
+}
 
-      if (ch === '"' && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-        continue;
-      }
-      if (ch === '"') {
-        inQuotes = !inQuotes;
-        continue;
-      }
-      if (ch === "," && !inQuotes) {
-        out.push(cur);
-        cur = "";
-        continue;
-      }
-      cur += ch;
-    }
-    out.push(cur);
-    return out.map(s => s.trim());
-  };
+function randomState() {
+  return crypto.randomBytes(24).toString("hex");
+}
 
-  const headers = parseLine(lines[0]).map(h => h.toLowerCase());
-  const rows: Array<Record<string, string>> = [];
+function stripeAuthorizeUrl(args: {
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  businessName: string;
+  email: string;
+}) {
+  const u = new URL("https://connect.stripe.com/oauth/authorize");
+  u.searchParams.set("response_type", "code");
+  u.searchParams.set("client_id", args.clientId);
+  u.searchParams.set("scope", "read_only"); // v1: read-only signals
+  u.searchParams.set("redirect_uri", args.redirectUri);
+  u.searchParams.set("state", args.state);
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = parseLine(lines[i]);
-    const row: Record<string, string> = {};
-    for (let j = 0; j < headers.length; j++) {
-      row[headers[j]] = cols[j] ?? "";
-    }
-    rows.push(row);
+  // Prefill (nice touch, optional)
+  u.searchParams.set("stripe_user[business_name]", args.businessName);
+  u.searchParams.set("stripe_user[email]", args.email);
+
+  return u.toString();
+}
+
+async function bestEffortInternalPost(req: Request, pathWithQuery: string) {
+  try {
+    const url = new URL(pathWithQuery, req.url);
+    await fetch(url, { method: "POST" });
+  } catch {
+    // ignore
   }
-  return rows;
-}
-
-function asIsoDate(s: string): string | null {
-  // Accepts YYYY-MM-DD or ISO strings; returns YYYY-MM-DD
-  if (!s) return null;
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
-
-function detectCsvType(headers: string[]) {
-  const h = headers.map(x => x.toLowerCase());
-  // Reviews: snapshot_date + review_count (and optionally sentiment_avg)
-  if (h.includes("review_count") || h.includes("sentiment_avg")) return "csv_reviews";
-  // Engagement: snapshot_date + engagement
-  if (h.includes("engagement")) return "csv_engagement";
-  return "unknown";
 }
 
 export async function POST(req: Request) {
   const supabase = supabaseAdmin();
 
-  const form = await req.formData();
-
-  const businessName = String(form.get("business_name") ?? "").trim();
-  const email = String(form.get("email") ?? "").trim();
-  const file = form.get("file") as File | null;
-
-  if (!businessName || !email || !file) {
-    return NextResponse.json({ ok: false, error: "Missing business_name, email, or file." }, { status: 400 });
+  let payload: OnboardBody;
+  try {
+    payload = (await req.json()) as OnboardBody;
+  } catch {
+    return NextResponse.json({ ok: false, error: "Expected JSON body." }, { status: 400 });
   }
 
-  const csvText = await file.text();
-  const rows = parseCsv(csvText);
+  const businessName = String(payload.business_name || "").trim();
+  const email = String(payload.email || "").trim().toLowerCase();
+  const timezone = String(payload.timezone || "America/Chicago").trim() || "America/Chicago";
+  const monthlyRevenueCents = normalizeMoneyCents(payload.monthly_revenue_cents);
 
-  if (!rows.length) {
-    return NextResponse.json({ ok: false, error: "CSV looks empty or invalid." }, { status: 400 });
+  if (!businessName || !email) {
+    return NextResponse.json({ ok: false, error: "Missing business_name or email." }, { status: 400 });
   }
 
-  const headers = Object.keys(rows[0] ?? {});
-  const csvType = detectCsvType(headers);
-
-  if (csvType === "unknown") {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "CSV format not recognized. Include columns like: snapshot_date, review_count (optional sentiment_avg) OR snapshot_date, engagement.",
-      },
-      { status: 400 }
-    );
+  const STRIPE_CLIENT_ID = (process.env.STRIPE_CLIENT_ID || "").trim();
+  if (!STRIPE_CLIENT_ID) {
+    return NextResponse.json({ ok: false, error: "STRIPE_CLIENT_ID missing (env)." }, { status: 500 });
   }
 
   // 1) Create business
   const { data: business, error: bErr } = await supabase
     .from("businesses")
     .insert({
-      owner_id: "00000000-0000-0000-0000-000000000000",
+      owner_id: "00000000-0000-0000-0000-000000000000", // TODO when auth is live
       name: businessName,
-      timezone: "America/Chicago",
+      timezone,
       alert_email: email,
+      ...(monthlyRevenueCents !== null ? { monthly_revenue_cents: monthlyRevenueCents } : {}),
     })
-    .select()
+    .select("id,name,timezone,alert_email")
     .single();
 
-  if (bErr) {
-    return NextResponse.json({ ok: false, error: `Create business failed: ${bErr.message}` }, { status: 500 });
+  if (bErr || !business?.id) {
+    return NextResponse.json(
+      { ok: false, error: `Create business failed: ${bErr?.message || "unknown"}` },
+      { status: 500 }
+    );
   }
 
-  // 2) Create source
+  // 2) Create Stripe source (pending connect)
+  const state = randomState();
+
   const { data: source, error: sErr } = await supabase
     .from("sources")
     .insert({
       business_id: business.id,
-      type: csvType,
-      is_connected: true,
-      meta: { filename: file.name },
+      type: "stripe_revenue",
+      display_name: "Stripe (Revenue)",
+      is_connected: false,
+      config: {
+        oauth_state: state,
+        created_via: "onboard",
+      },
     })
-    .select()
+    .select("id")
     .single();
 
-  if (sErr) {
-    return NextResponse.json({ ok: false, error: `Create source failed: ${sErr.message}` }, { status: 500 });
-  }
-
-  // 3) Insert snapshots from CSV
-  // Expected columns:
-  // - snapshot_date (required)
-  // - review_count (number) + optional sentiment_avg (0..1)
-  // OR
-  // - engagement (number, typically 0..1)
-  const snapshots = rows
-    .map(r => {
-      const date = asIsoDate(r["snapshot_date"] ?? r["date"] ?? "");
-      if (!date) return null;
-
-      const metrics: any = {};
-      if (csvType === "csv_reviews") {
-        const rc = Number(r["review_count"] ?? r["reviews"] ?? "");
-        if (!Number.isNaN(rc)) metrics.review_count = rc;
-
-        const sent = Number(r["sentiment_avg"] ?? r["sentiment"] ?? "");
-        if (!Number.isNaN(sent)) metrics.sentiment_avg = sent;
-      } else {
-        const eng = Number(r["engagement"] ?? "");
-        if (!Number.isNaN(eng)) metrics.engagement = eng;
-      }
-
-      return {
-        business_id: business.id,
-        source_id: source.id,
-        snapshot_date: date,
-        metrics,
-      };
-    })
-    .filter(Boolean) as Array<{ business_id: string; source_id: string; snapshot_date: string; metrics: any }>;
-
-  if (!snapshots.length) {
+  if (sErr || !source?.id) {
     return NextResponse.json(
-      { ok: false, error: "No valid snapshot rows found. Ensure snapshot_date is present and valid." },
-      { status: 400 }
+      { ok: false, error: `Create Stripe source failed: ${sErr?.message || "unknown"}` },
+      { status: 500 }
     );
   }
 
-  // Upsert by (source_id, snapshot_date) if you have unique constraint; otherwise insert.
-  const { error: snapErr } = await supabase.from("snapshots").insert(snapshots);
+  // 3) Generate Stripe Connect URL
+  const redirectUri = new URL("/api/stripe/callback", req.url).toString();
+  const connectUrl = stripeAuthorizeUrl({
+    clientId: STRIPE_CLIENT_ID,
+    redirectUri,
+    state,
+    businessName,
+    email,
+  });
 
-  if (snapErr) {
-    return NextResponse.json({ ok: false, error: `Insert snapshots failed: ${snapErr.message}` }, { status: 500 });
-  }
-
-  // 4) Send onboarding email (simple + trust-building)
+  // 4) Welcome email (non-blocking) — tells them to connect Stripe
   try {
     await sendDriftEmail({
       to: email,
-      subject: "DRIFT is now monitoring your business",
-      text: `DRIFT is now monitoring ${businessName}.\n\nYou’ll receive:\n• Alerts when momentum shifts\n• A weekly check-in when things are stable\n\n— DRIFT`,
+      subject: "Finish setup: connect Stripe",
+      text:
+        `You're almost live.\n\n` +
+        `Next step: connect Stripe so DRIFT can monitor Revenue Momentum.\n\n` +
+        `After connecting, you'll see:\n` +
+        `• Revenue Velocity (14d vs 60d)\n` +
+        `• Momentum Direction\n` +
+        `• Refund trend risk\n\n— DRIFT`,
     });
-  } catch (e: any) {
-    // Non-fatal: onboarding still succeeded
+  } catch {
+    // ignore
   }
 
-  // Trigger first compute + first status email (best-effort)
-try {
-  await fetch(new URL("/api/internal/compute-first", req.url), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ business_id: business.id }),
-  });
-} catch {}
   return NextResponse.json({
     ok: true,
     business_id: business.id,
     source_id: source.id,
-    csv_type: csvType,
-    snapshots_inserted: snapshots.length,
+    connect_url: connectUrl,
+    next: {
+      connect: connectUrl,
+      callback: "/api/stripe/callback",
+      success: `/onboard/success?businessId=${business.id}`,
+    },
   });
 }

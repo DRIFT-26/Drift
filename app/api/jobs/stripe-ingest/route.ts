@@ -1,6 +1,7 @@
+// app/api/jobs/stripe-ingest/route.ts
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import Stripe from "stripe";
 
 export const runtime = "nodejs";
 
@@ -10,23 +11,20 @@ function isoDate(d: Date) {
 
 function addDays(date: Date, days: number) {
   const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + days);
+  d.setDate(d.getDate() + days);
   return d;
 }
 
-/**
- * Auth for:
- * - Vercel Cron: Authorization: Bearer <CRON_SECRET>
- * - Manual testing: x-cron-secret: <CRON_SECRET>
- *
- * Use ?debug=1 to see safe auth diagnostics on 401.
- */
+function midnightUtc(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+}
+
 function requireCronAuth(req: Request) {
   const secret = (process.env.CRON_SECRET || "").trim();
 
   const authHeader = (req.headers.get("authorization") || "").trim();
-  const m = authHeader.match(/^bearer\s+(.+)$/i);
-  const bearerToken = (m?.[1] || "").trim();
+  const match = authHeader.match(/^bearer\s+(.+)$/i);
+  const bearerToken = (match?.[1] || "").trim();
 
   const xToken = (req.headers.get("x-cron-secret") || "").trim();
 
@@ -40,6 +38,7 @@ function requireCronAuth(req: Request) {
       hasCronSecretEnv: Boolean(secret),
       hasAuthorizationHeader: Boolean(authHeader),
       authorizationPrefix: authHeader ? authHeader.slice(0, 18) : null,
+      bearerTokenPrefix: bearerToken ? bearerToken.slice(0, 10) : null,
       hasXCronSecretHeader: Boolean(xToken),
       xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
       matched: ok,
@@ -47,91 +46,48 @@ function requireCronAuth(req: Request) {
   };
 }
 
-type StripeConfig = {
-  account_id?: string | null; // Stripe Connect (optional)
-  currency?: string; // default "usd"
+type StripeSourceConfig = {
+  // Future: Stripe Connect support
+  // stripe_account_id?: string;
 };
 
-function clamp0(n: number) {
-  return Number.isFinite(n) ? Math.max(0, n) : 0;
+function clamp01(n: number) {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
 }
 
-async function sumChargesByDay(stripe: Stripe, params: {
-  start: Date;
-  end: Date;
-  currency: string;
-  accountId?: string | null;
-}) {
-  // Stripe timestamps are seconds
-  const startSec = Math.floor(params.start.getTime() / 1000);
-  const endSec = Math.floor(addDays(params.end, 1).getTime() / 1000); // exclusive end
+function seconds(d: Date) {
+  return Math.floor(d.getTime() / 1000);
+}
 
-  const byDay = new Map<string, { gross_cents: number; refunds_cents: number; charge_count: number; refund_count: number }>();
+function isSuccessfulCharge(ch: Stripe.Charge) {
+  const status = (ch as any).status as string | undefined;
+  const succeeded = status ? status === "succeeded" : true;
+  return Boolean(ch.paid) && succeeded;
+}
 
-  // CHARGES (gross)
+async function listChargesInRange(args: { stripe: Stripe; startSec: number; endSec: number }) {
+  const { stripe, startSec, endSec } = args;
+
+  const out: Stripe.Charge[] = [];
   let startingAfter: string | undefined = undefined;
+
   for (;;) {
-    const page = await stripe.charges.list(
-      {
-        limit: 100,
-        created: { gte: startSec, lt: endSec },
-        ...(params.currency ? { } : {}),
-        ...(startingAfter ? { starting_after: startingAfter } : {}),
-      },
-      params.accountId ? { stripeAccount: params.accountId } : undefined
-    );
+    const params: Stripe.ChargeListParams = {
+      limit: 100,
+      created: { gte: startSec, lt: endSec },
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    };
 
-    for (const ch of page.data) {
-      if (!ch.paid || ch.status !== "succeeded") continue;
-      if (ch.currency !== params.currency) continue;
+    const page: Stripe.ApiList<Stripe.Charge> = await stripe.charges.list(params);
 
-      const day = isoDate(new Date(ch.created * 1000));
-      const cur = byDay.get(day) || { gross_cents: 0, refunds_cents: 0, charge_count: 0, refund_count: 0 };
-      cur.gross_cents += clamp0(ch.amount ?? 0);
-      cur.charge_count += 1;
-      byDay.set(day, cur);
-    }
+    out.push(...page.data);
 
-    if (!page.has_more) break;
-    startingAfter = page.data[page.data.length - 1]?.id;
-    if (!startingAfter) break;
+    if (!page.has_more || page.data.length === 0) break;
+    startingAfter = page.data[page.data.length - 1]!.id;
   }
 
-  // REFUNDS (separate endpoint)
-  startingAfter = undefined;
-  for (;;) {
-    const page = await stripe.refunds.list(
-      {
-        limit: 100,
-        created: { gte: startSec, lt: endSec },
-        ...(startingAfter ? { starting_after: startingAfter } : {}),
-      },
-      params.accountId ? { stripeAccount: params.accountId } : undefined
-    );
-
-    for (const rf of page.data) {
-      if (rf.currency !== params.currency) continue;
-      const day = isoDate(new Date(rf.created * 1000));
-      const cur = byDay.get(day) || { gross_cents: 0, refunds_cents: 0, charge_count: 0, refund_count: 0 };
-      cur.refunds_cents += clamp0(rf.amount ?? 0);
-      cur.refund_count += 1;
-      byDay.set(day, cur);
-    }
-
-    if (!page.has_more) break;
-    startingAfter = page.data[page.data.length - 1]?.id;
-    if (!startingAfter) break;
-  }
-
-  // Ensure all days exist with zeros
-  for (let d = new Date(params.start); d <= params.end; d = addDays(d, 1)) {
-    const key = isoDate(d);
-    if (!byDay.has(key)) {
-      byDay.set(key, { gross_cents: 0, refunds_cents: 0, charge_count: 0, refund_count: 0 });
-    }
-  }
-
-  return byDay;
+  return out;
 }
 
 export async function POST(req: Request) {
@@ -146,24 +102,30 @@ export async function POST(req: Request) {
     );
   }
 
-  const stripeKey = (process.env.STRIPE_SECRET_KEY || "").trim();
-  if (!stripeKey) {
+  const STRIPE_SECRET_KEY = (process.env.STRIPE_SECRET_KEY || "").trim();
+  if (!STRIPE_SECRET_KEY) {
     return NextResponse.json({ ok: false, error: "STRIPE_SECRET_KEY missing" }, { status: 500 });
   }
 
+  // ✅ Fix: keep Stripe init compatible with your installed stripe package typings
+  const stripe = new Stripe(STRIPE_SECRET_KEY);
+
   const supabase = supabaseAdmin();
+
   const dryRun = url.searchParams.get("dry_run") === "true";
   const days = Math.max(1, Number(url.searchParams.get("days") || 14));
 
-  const end = new Date(); // today
+  // Window: [start..end] where end is today @ 00:00 UTC (so we ingest full past days)
+  const end = midnightUtc(new Date());
   const start = addDays(end, -(days - 1));
+
   const startStr = isoDate(start);
   const endStr = isoDate(end);
 
   const filterBusinessId = url.searchParams.get("business_id");
   const filterSourceId = url.searchParams.get("source_id");
 
-  const stripe = new Stripe(stripeKey, { apiVersion: "2024-06-20" });
+  const startedAt = Date.now();
 
   let q = supabase
     .from("sources")
@@ -175,38 +137,46 @@ export async function POST(req: Request) {
   if (filterSourceId) q = q.eq("id", filterSourceId);
 
   const { data: sources, error: sErr } = await q;
+
   if (sErr) {
     return NextResponse.json({ ok: false, step: "read_sources", error: sErr.message }, { status: 500 });
   }
 
-  const startedAt = Date.now();
   const results: any[] = [];
 
   for (const source of sources ?? []) {
-    const cfg = (source.config || {}) as StripeConfig;
-    const currency = (cfg.currency || "usd").toLowerCase();
-    const accountId = cfg.account_id || null;
+    const cfg = (source.config || {}) as StripeSourceConfig;
 
     try {
-      const byDay = await sumChargesByDay(stripe, { start, end, currency, accountId });
-
       let snapshotsWritten = 0;
 
-      for (const [day, v] of byDay.entries()) {
-        const gross = v.gross_cents;
-        const refunds = v.refunds_cents;
-        const net = clamp0(gross - refunds);
+      for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
+        const dayStart = midnightUtc(d);
+        const dayEnd = addDays(dayStart, 1);
 
-        const refundRate = gross > 0 ? Math.min(1, refunds / gross) : 0;
+        const startSec = seconds(dayStart);
+        const endSec = seconds(dayEnd);
+
+        const charges = await listChargesInRange({
+          stripe,
+          startSec,
+          endSec,
+        });
+
+        const successful = charges.filter(isSuccessfulCharge);
+
+        const revenueCents = successful.reduce((acc, ch) => acc + (ch.amount || 0), 0);
+        const refundsCents = successful.reduce((acc, ch) => acc + (ch.amount_refunded || 0), 0);
+
+        const netRevenueCents = revenueCents - refundsCents;
+        const refundRate = revenueCents > 0 ? clamp01(refundsCents / revenueCents) : 0;
 
         const metrics = {
-          revenue_gross_cents: gross,
-          revenue_refunds_cents: refunds,
-          revenue_net_cents: net,
-          charge_count: v.charge_count,
-          refund_count: v.refund_count,
-          refund_rate: refundRate, // 0..1
-          currency,
+          revenue_cents: revenueCents,
+          refunds_cents: refundsCents,
+          net_revenue_cents: netRevenueCents,
+          refund_rate: refundRate,
+          charge_count: successful.length,
         };
 
         if (!dryRun) {
@@ -216,7 +186,7 @@ export async function POST(req: Request) {
               {
                 business_id: source.business_id,
                 source_id: source.id,
-                snapshot_date: day,
+                snapshot_date: isoDate(dayStart),
                 metrics,
               },
               { onConflict: "business_id,source_id,snapshot_date" }
@@ -231,6 +201,7 @@ export async function POST(req: Request) {
       results.push({
         source_id: source.id,
         business_id: source.business_id,
+        type: "stripe_revenue",
         ok: true,
         window: { start: startStr, end: endStr, days },
         snapshots_written: snapshotsWritten,
@@ -240,6 +211,7 @@ export async function POST(req: Request) {
       results.push({
         source_id: source.id,
         business_id: source.business_id,
+        type: "stripe_revenue",
         ok: false,
         error: e?.message ?? String(e),
       });

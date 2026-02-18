@@ -1,3 +1,4 @@
+// app/api/jobs/daily/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeDrift } from "@/lib/drift/compute";
@@ -17,43 +18,41 @@ function isoDate(d: Date) {
  *
  * Use ?debug=1 to see safe auth diagnostics on 401.
  */
-type CronAuthResult =
-  | { ok: true; debug: Record<string, any> }
-  | { ok: false; error: "CRON_SECRET missing" | "Unauthorized"; debug: Record<string, any> };
-
-function requireCronAuth(req: Request): CronAuthResult {
+function requireCronAuth(req: Request) {
   const secret = (process.env.CRON_SECRET || "").trim();
 
   const authHeader = (req.headers.get("authorization") || "").trim();
-  const match = authHeader.match(/^bearer\s+(.+)$/i);
-  const bearerToken = (match?.[1] || "").trim();
+  const m = authHeader.match(/^bearer\s+(.+)$/i);
+  const bearerToken = (m?.[1] || "").trim();
 
   const xToken = (req.headers.get("x-cron-secret") || "").trim();
+
   const token = bearerToken || xToken;
+  const ok = Boolean(secret) && token === secret;
 
-  const debug = {
-    hasCronSecretEnv: Boolean(secret),
-    authHeaderRaw: authHeader.slice(0, 60),
-    bearerParsedPrefix: bearerToken ? bearerToken.slice(0, 10) : null,
-    hasXCronSecretHeader: Boolean(xToken),
-    xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
-    matched: Boolean(secret) && token === secret,
+  return {
+    ok,
+    error: ok ? null : !secret ? "CRON_SECRET missing" : "Unauthorized",
+    debug: {
+      hasCronSecretEnv: Boolean(secret),
+      hasAuthorizationHeader: Boolean(authHeader),
+      authorizationPrefix: authHeader ? authHeader.slice(0, 20) : null,
+      bearerTokenPrefix: bearerToken ? bearerToken.slice(0, 10) : null,
+      hasXCronSecretHeader: Boolean(xToken),
+      xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
+      matched: ok,
+    },
   };
-
-  if (!secret) return { ok: false, error: "CRON_SECRET missing", debug };
-  if (token !== secret) return { ok: false, error: "Unauthorized", debug };
-
-  return { ok: true, debug };
 }
 
 export async function POST(req: Request) {
   const url = new URL(req.url);
-  const debugMode = url.searchParams.get("debug") === "1";
+  const debug = url.searchParams.get("debug") === "1";
 
   const auth = requireCronAuth(req);
   if (!auth.ok) {
     return NextResponse.json(
-      { ok: false, error: auth.error, ...(debugMode ? { debug: auth.debug } : {}) },
+      { ok: false, error: auth.error, ...(debug ? { debug: auth.debug } : {}) },
       { status: 401 }
     );
   }
@@ -79,7 +78,6 @@ export async function POST(req: Request) {
 
   const startedAt = new Date();
 
-  // Load businesses (NOTE: include monthly_revenue because computeDrift uses it)
   const { data: businesses, error: bErr } = await supabase
     .from("businesses")
     .select("id,name,timezone,alert_email,is_paid,monthly_revenue");
@@ -103,7 +101,6 @@ export async function POST(req: Request) {
   const results: any[] = [];
 
   for (const biz of businesses ?? []) {
-    // Per-business run log
     const { data: bizRun } = await supabase
       .from("job_runs")
       .insert({ job_name: "daily:business", business_id: biz.id, status: "started" })
@@ -177,7 +174,7 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Pull snapshots for baseline + current windows
+      // Pull snapshots
       const { data: baselineRows, error: baseErr } = await supabase
         .from("snapshots")
         .select("source_id,metrics,snapshot_date")
@@ -219,20 +216,21 @@ export async function POST(req: Request) {
         ? (currentRows ?? []).filter((r: any) => r.source_id === engagementSource.id)
         : [];
 
-      // Reviews metrics
+      // Reviews
       const baselineReviewTotal = sum(baselineReviews, "review_count");
       const currentReviewTotal = sum(currentReviews, "review_count");
+
+      // Normalize baseline reviews to "per current window" (e.g. 14d)
       const baselineReviewPerWindow =
         baselineDays > 0 ? (baselineReviewTotal / baselineDays) * currentDays : 0;
 
       const baselineSent = avg(baselineReviews, "sentiment_avg");
       const currentSent = avg(currentReviews, "sentiment_avg");
 
-      // Engagement metrics
+      // Engagement
       const baselineEngAvg = avg(baselineEngRows, "engagement");
       const currentEngAvg = avg(currentEngRows, "engagement");
 
-      // Compute drift (+ monthly revenue)
       const drift = computeDrift({
         baselineReviewCountPer14d: baselineReviewPerWindow,
         currentReviewCount14d: currentReviewTotal,
@@ -240,10 +238,9 @@ export async function POST(req: Request) {
         currentSentimentAvg: currentSent,
         baselineEngagement: baselineEngAvg,
         currentEngagement: currentEngAvg,
-        monthlyRevenue: (biz as any).monthly_revenue ?? null,
       });
 
-      // Write-through last_drift (freshest state even if no new alert inserted)
+      // Write-through last_drift for UI freshness
       if (!dryRun) {
         await supabase
           .from("businesses")
@@ -254,7 +251,7 @@ export async function POST(req: Request) {
           .eq("id", biz.id);
       }
 
-      // Check last alert for status change
+      // Last alert for status change
       const { data: lastAlert } = await supabase
         .from("alerts")
         .select("id,status,created_at")
@@ -265,7 +262,7 @@ export async function POST(req: Request) {
 
       const statusChanged = !lastAlert || lastAlert.status !== drift.status;
 
-      // Insert alert ONLY if status changed
+      // Insert alert only if status changed
       let insertedAlert: any = null;
       if (!dryRun && statusChanged) {
         const { data: newAlert, error: aErr } = await supabase
@@ -276,7 +273,7 @@ export async function POST(req: Request) {
             reasons: drift.reasons,
             window_start: currentStartStr,
             window_end: windowEndStr,
-            meta: (drift as any).meta ?? null,
+            meta: drift.meta ?? null,
           })
           .select()
           .single();
@@ -304,7 +301,6 @@ export async function POST(req: Request) {
           const sendResult = await sendDriftEmail({ to: toEmail, subject, text });
 
           emailId = (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
-
           emailDebug = {
             keys: Object.keys(sendResult as any),
             data: (sendResult as any)?.data ?? null,
@@ -327,6 +323,8 @@ export async function POST(req: Request) {
               window_end: windowEndStr,
               force_email: forceEmail,
               status_changed: statusChanged,
+              mriScore: drift.meta?.mriScore ?? null,
+              components: drift.meta?.components ?? null,
             },
           });
         } catch (e: any) {

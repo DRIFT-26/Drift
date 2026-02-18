@@ -1,3 +1,4 @@
+// app/api/jobs/ingest/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
@@ -7,26 +8,10 @@ function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function parseISODateOnly(v: string): string | null {
-  // Accepts "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm:ss..." and returns "YYYY-MM-DD"
-  const s = (v || "").trim();
-  if (!s) return null;
-  const d = s.slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
-}
-
-function dateToUtcMidnight(d: Date) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
-
-function addDaysUtc(date: Date, days: number) {
-  const x = new Date(date.getTime());
-  x.setUTCDate(x.getUTCDate() + days);
-  return x;
-}
-
-function clampInt(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
 }
 
 /**
@@ -66,20 +51,44 @@ function requireCronAuth(req: Request) {
 type CsvConfig = {
   csv_url?: string;
   date_column?: string;
+
+  // Reviews
   sentiment_column?: string;
   sentiment_scale?: "0_1" | "1_5";
+
+  // Engagement
   engagement_column?: string;
   engagement_scale?: "0_1" | "0_100" | "raw";
 };
 
 function parseCsvLine(line: string) {
-  // V1: simple parsing. Keep CSV clean (no commas inside quoted fields).
+  // V1 simple parsing: keep CSV clean (no commas inside quoted fields)
   return line.split(",").map((s) => s.trim().replace(/^"|"$/g, ""));
 }
 
 async function fetchCsvRows(csvUrl: string) {
-  const res = await fetch(csvUrl, { cache: "no-store" });
+  const res = await fetch(csvUrl, {
+    cache: "no-store",
+    redirect: "follow",
+    headers: {
+      // Helps with Google Sheets + some CDNs that behave oddly with empty UA
+      "user-agent": "drift-ingest/1.0",
+      accept: "text/csv,text/plain;q=0.9,*/*;q=0.8",
+    },
+  });
+
   if (!res.ok) throw new Error(`fetch_csv_failed: ${res.status} ${res.statusText}`);
+
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+  // If Google returns an HTML interstitial/permission page, this catches it with a useful error.
+  if (ct.includes("text/html")) {
+    const sample = (await res.text()).slice(0, 180);
+    throw new Error(
+      `fetch_csv_not_csv: content-type=${ct} sample=${JSON.stringify(sample)}`
+    );
+  }
+
   const text = await res.text();
 
   const lines = text.split(/\r?\n/).filter(Boolean);
@@ -93,7 +102,8 @@ async function fetchCsvRows(csvUrl: string) {
 
 function idx(headers: string[], name?: string) {
   if (!name) return -1;
-  return headers.findIndex((h) => h.toLowerCase() === name.toLowerCase());
+  const needle = name.trim().toLowerCase();
+  return headers.findIndex((h) => String(h).trim().toLowerCase() === needle);
 }
 
 function toNumber(v: any) {
@@ -103,10 +113,11 @@ function toNumber(v: any) {
 
 function normalizeSentiment(value: number, scale?: CsvConfig["sentiment_scale"]) {
   if (scale === "1_5") {
-    // map 1..5 -> 0..1
+    // map 1..5 to 0..1
     return Math.max(0, Math.min(1, (value - 1) / 4));
   }
-  return Math.max(0, Math.min(1, value)); // default 0..1
+  // default assume 0..1 already
+  return Math.max(0, Math.min(1, value));
 }
 
 function normalizeEngagement(value: number, scale?: CsvConfig["engagement_scale"]) {
@@ -115,11 +126,10 @@ function normalizeEngagement(value: number, scale?: CsvConfig["engagement_scale"
   return Math.max(0, Math.min(1, value)); // default 0..1
 }
 
-type DayAgg = {
-  reviewCount: number;
-  sentiments: number[];
-  engagements: number[];
-};
+function dateKeyFromCell(raw: string) {
+  // Accepts "YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ssZ", etc.
+  return (raw || "").trim().slice(0, 10);
+}
 
 export async function POST(req: Request) {
   const url = new URL(req.url);
@@ -134,22 +144,22 @@ export async function POST(req: Request) {
   }
 
   const supabase = supabaseAdmin();
+
   const dryRun = url.searchParams.get("dry_run") === "true";
 
-  // ✅ days=14 for onboarding backfill, days=2 for nightly resiliency
-  const daysParam = Number(url.searchParams.get("days") || "2");
-  const days = clampInt(Number.isFinite(daysParam) ? daysParam : 2, 1, 90);
+  // Defaults: backfill last 14 days (inclusive window)
+  const days = Math.max(1, Number(url.searchParams.get("days") || 14));
+  const end = new Date(); // today
+  const start = addDays(end, -(days - 1));
 
-  const businessId = url.searchParams.get("business_id"); // optional
-  const sourceId = url.searchParams.get("source_id"); // optional
+  const startStr = isoDate(start);
+  const endStr = isoDate(end);
+
+  // Optional filters (for targeted testing)
+  const filterBusinessId = url.searchParams.get("business_id");
+  const filterSourceId = url.searchParams.get("source_id");
 
   const startedAt = Date.now();
-
-  const todayUtc = dateToUtcMidnight(new Date());
-  const startUtc = addDaysUtc(todayUtc, -(days - 1));
-
-  const startStr = isoDate(startUtc);
-  const endStr = isoDate(todayUtc);
 
   // Load connected sources
   let q = supabase
@@ -157,8 +167,8 @@ export async function POST(req: Request) {
     .select("id,business_id,type,is_connected,config,display_name")
     .eq("is_connected", true);
 
-  if (businessId) q = q.eq("business_id", businessId);
-  if (sourceId) q = q.eq("id", sourceId);
+  if (filterBusinessId) q = q.eq("business_id", filterBusinessId);
+  if (filterSourceId) q = q.eq("id", filterSourceId);
 
   const { data: sources, error: sErr } = await q;
 
@@ -171,18 +181,12 @@ export async function POST(req: Request) {
 
   const results: any[] = [];
 
-  // Precompute all date strings in range
-  const dayKeys: string[] = [];
-  for (let i = 0; i < days; i++) {
-    dayKeys.push(isoDate(addDaysUtc(startUtc, i)));
-  }
-
   for (const source of sources ?? []) {
     const type = String(source.type);
     const cfg = (source.config || {}) as CsvConfig;
 
     try {
-      // V1: only CSV ingestion guaranteed
+      // V1: CSV sources only
       if (type !== "csv_reviews" && type !== "csv_engagement") {
         results.push({
           source_id: source.id,
@@ -216,73 +220,65 @@ export async function POST(req: Request) {
       const sentimentIdx = idx(headers, cfg.sentiment_column);
       const engagementIdx = idx(headers, cfg.engagement_column);
 
-      if (type === "csv_engagement" && engagementIdx === -1) {
-        results.push({
-          source_id: source.id,
-          business_id: source.business_id,
-          type,
-          skipped: true,
-          reason: "missing_engagement_column",
-        });
-        continue;
+      // Build a map of date -> rows for the window
+      const wantedDates = new Set<string>();
+      for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
+        wantedDates.add(isoDate(d));
       }
 
-      // Build per-day aggregation map for the requested window
-      const agg: Record<string, DayAgg> = {};
-      for (const k of dayKeys) {
-        agg[k] = { reviewCount: 0, sentiments: [], engagements: [] };
-      }
-
+      const byDate = new Map<string, string[][]>();
       for (const r of rows) {
-        const d = parseISODateOnly(String(r[dateIdx] || ""));
-        if (!d) continue;
-        if (d < startStr || d > endStr) continue;
+        const d = dateKeyFromCell(r[dateIdx] || "");
+        if (!wantedDates.has(d)) continue;
+        const bucket = byDate.get(d) || [];
+        bucket.push(r);
+        byDate.set(d, bucket);
+      }
 
-        const bucket = agg[d];
-        if (!bucket) continue;
+      let snapshotsWritten = 0;
+
+      for (const dayStr of wantedDates) {
+        const dayRows = byDate.get(dayStr) || [];
+        const metrics: any = {};
 
         if (type === "csv_reviews") {
-          bucket.reviewCount += 1;
+          metrics.review_count = dayRows.length;
 
           if (sentimentIdx !== -1) {
-            const n = toNumber(r[sentimentIdx]);
-            if (typeof n === "number") bucket.sentiments.push(n);
+            const sentiments = dayRows
+              .map((r) => toNumber(r[sentimentIdx]))
+              .filter((n): n is number => typeof n === "number");
+
+            if (sentiments.length) {
+              const avg = sentiments.reduce((a, b) => a + b, 0) / sentiments.length;
+              metrics.sentiment_avg = normalizeSentiment(avg, cfg.sentiment_scale);
+            }
           }
         }
 
         if (type === "csv_engagement") {
-          const n = toNumber(r[engagementIdx]);
-          if (typeof n === "number") bucket.engagements.push(n);
-        }
-      }
-
-      const upserted: Array<{ date: string; metrics: any }> = [];
-
-      for (const day of dayKeys) {
-        const bucket = agg[day];
-
-        let metrics: any = {};
-
-        if (type === "csv_reviews") {
-          metrics.review_count = bucket.reviewCount;
-
-          if (bucket.sentiments.length) {
-            const avg =
-              bucket.sentiments.reduce((a, b) => a + b, 0) / bucket.sentiments.length;
-            metrics.sentiment_avg = normalizeSentiment(avg, cfg.sentiment_scale);
-          } else {
-            // keep it null if no sentiment data for that day
-            metrics.sentiment_avg = null;
+          if (engagementIdx === -1) {
+            // For engagement sources, column is required
+            results.push({
+              source_id: source.id,
+              business_id: source.business_id,
+              type,
+              skipped: true,
+              reason: "missing_engagement_column",
+            });
+            // Break out of the per-day loop (this source config is invalid)
+            snapshotsWritten = 0;
+            break;
           }
-        }
 
-        if (type === "csv_engagement") {
-          if (bucket.engagements.length) {
-            const avg =
-              bucket.engagements.reduce((a, b) => a + b, 0) / bucket.engagements.length;
+          const vals = dayRows
+            .map((r) => toNumber(r[engagementIdx]))
+            .filter((n): n is number => typeof n === "number");
+
+          if (vals.length) {
+            const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
             metrics.engagement = normalizeEngagement(avg, cfg.engagement_scale);
           } else {
-            // explicit 0 keeps charts / compute predictable
             metrics.engagement = 0;
           }
         }
@@ -294,16 +290,16 @@ export async function POST(req: Request) {
               {
                 business_id: source.business_id,
                 source_id: source.id,
-                snapshot_date: day,
+                snapshot_date: dayStr,
                 metrics,
               },
               { onConflict: "business_id,source_id,snapshot_date" }
             );
 
-          if (upErr) throw new Error(`upsert_snapshot_failed(${day}): ${upErr.message}`);
+          if (upErr) throw new Error(`upsert_snapshot_failed: ${upErr.message}`);
         }
 
-        upserted.push({ date: day, metrics });
+        snapshotsWritten += 1;
       }
 
       results.push({
@@ -312,14 +308,14 @@ export async function POST(req: Request) {
         type,
         ok: true,
         window: { start: startStr, end: endStr, days },
-        snapshots_written: upserted.length,
+        snapshots_written: snapshotsWritten,
         dry_run: dryRun,
       });
     } catch (e: any) {
       results.push({
         source_id: source.id,
         business_id: source.business_id,
-        type,
+        type: String(source.type),
         ok: false,
         error: e?.message ?? String(e),
       });
@@ -330,7 +326,7 @@ export async function POST(req: Request) {
     ok: true,
     dry_run: dryRun,
     window: { start: startStr, end: endStr, days },
-    filters: { business_id: businessId ?? null, source_id: sourceId ?? null },
+    filters: { business_id: filterBusinessId ?? null, source_id: filterSourceId ?? null },
     sources_processed: (sources ?? []).length,
     duration_ms: Date.now() - startedAt,
     results,

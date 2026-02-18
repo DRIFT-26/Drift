@@ -16,44 +16,40 @@ function isoDate(d: Date) {
  *
  * Use ?debug=1 to see safe auth diagnostics on 401.
  */
-type CronAuthResult =
-  | { ok: true; debug: Record<string, any> }
-  | { ok: false; error: "CRON_SECRET missing" | "Unauthorized"; debug: Record<string, any> };
-
-function requireCronAuth(req: Request): CronAuthResult {
+function requireCronAuth(req: Request) {
   const secret = (process.env.CRON_SECRET || "").trim();
 
   const authHeader = (req.headers.get("authorization") || "").trim();
-  const match = authHeader.match(/^bearer\s+(.+)$/i);
-  const bearerToken = (match?.[1] || "").trim();
+  const m = authHeader.match(/^bearer\s+(.+)$/i);
+  const bearerToken = (m?.[1] || "").trim();
 
   const xToken = (req.headers.get("x-cron-secret") || "").trim();
 
   const token = bearerToken || xToken;
+  const ok = Boolean(secret) && token === secret;
 
-  const debug = {
-    hasCronSecretEnv: Boolean(secret),
-    authHeaderRaw: authHeader.slice(0, 60),
-    bearerParsedPrefix: bearerToken ? bearerToken.slice(0, 10) : null,
-    hasXCronSecretHeader: Boolean(xToken),
-    xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
-    matched: Boolean(secret) && token === secret,
+  return {
+    ok,
+    error: !secret ? "CRON_SECRET missing" : "Unauthorized",
+    debug: {
+      hasCronSecretEnv: Boolean(secret),
+      hasAuthorizationHeader: Boolean(authHeader),
+      authorizationPrefix: authHeader ? authHeader.slice(0, 20) : null,
+      hasXCronSecretHeader: Boolean(xToken),
+      xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
+      matched: ok,
+    },
   };
-
-  if (!secret) return { ok: false, error: "CRON_SECRET missing", debug };
-  if (token !== secret) return { ok: false, error: "Unauthorized", debug };
-
-  return { ok: true, debug };
 }
 
 export async function POST(req: Request) {
   const url = new URL(req.url);
-  const debugMode = url.searchParams.get("debug") === "1";
+  const debug = url.searchParams.get("debug") === "1";
 
   const auth = requireCronAuth(req);
   if (!auth.ok) {
     return NextResponse.json(
-      { ok: false, error: auth.error, ...(debugMode ? { debug: auth.debug } : {}) },
+      { ok: false, error: auth.error, ...(debug ? { debug: auth.debug } : {}) },
       { status: 401 }
     );
   }
@@ -65,7 +61,6 @@ export async function POST(req: Request) {
 
   const startedAt = new Date();
 
-  // Load businesses
   const { data: businesses, error: bErr } = await supabase
     .from("businesses")
     .select("id,name,timezone,is_paid,alert_email,created_at")
@@ -83,7 +78,7 @@ export async function POST(req: Request) {
   for (const biz of businesses ?? []) {
     const isPaid = (biz as any).is_paid === true;
 
-    // Weekly summaries are paid (force_send does NOT override)
+    // Weekly summary is paid-only (force_send does not bypass this)
     if (!isPaid) {
       results.push({ business_id: biz.id, skipped: true, reason: "not_paid" });
       continue;
@@ -94,7 +89,6 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Window: last 7 days
     const today = new Date();
     const windowStart = new Date(today);
     windowStart.setDate(today.getDate() - 7);
@@ -156,7 +150,7 @@ export async function POST(req: Request) {
         email_id: emailId,
       });
     } catch (e: any) {
-      // best-effort failure log
+      // Best-effort failure log
       try {
         await supabase.from("email_logs").insert({
           business_id: biz.id,

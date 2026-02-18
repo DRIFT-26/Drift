@@ -1,179 +1,226 @@
-export type DriftStatus = "stable" | "softening" | "attention";
+// lib/drift/compute.ts
 
-export type DriftReason = { code: string; detail: string; delta?: number };
+export type DriftStatus = "stable" | "softening" | "attention";
+export type RiskLabel = "Low" | "Moderate" | "High";
+
+export type DriftReason = {
+  code: string;
+  detail: string;
+  delta?: number;
+};
 
 export type DriftMeta = {
-  reviewDrop?: number;        // 0..1 (e.g. 0.35 = 35% drop)
-  engagementDrop?: number;    // 0..1
-  sentimentDelta?: number;    // negative number when sentiment drops
+  // Legacy fields (keep for UI + backward compat)
+  reviewDrop: number;        // 0..1 where 1 = 100% drop
+  engagementDrop: number;    // 0..1
+  sentimentDelta: number;    // current - baseline (negative is bad)
+
+  // MRI v1
+  mriScore: number;          // 0..100 (higher = healthier)
+  mriRaw: number;            // same as score for now (kept for future)
+  mriPrev: number | null;    // placeholder for future week-over-week
+  components: {
+    reviews: number;         // 0..100
+    engagement: number;      // 0..100
+    sentiment: number;       // 0..100
+  };
 };
 
 export type DriftResult = {
   status: DriftStatus;
   reasons: DriftReason[];
-  meta?: DriftMeta; // used for projections + revenue impact
+  meta: DriftMeta;
 };
 
-function pctChange(current: number, baseline: number) {
-  if (baseline === 0) return current === 0 ? 0 : 999;
-  return (current - baseline) / baseline;
+export type RiskProjection = {
+  lowCents: number;
+  highCents: number;
+  estimatedImpact: number;
+  label: RiskLabel;
+};
+
+export type ProjectRiskResult = {
+  label: RiskLabel;
+  bullets: string[];
+};
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function safeDiv(n: number, d: number) {
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0) return 0;
+  return n / d;
 }
 
 /**
- * Core drift computation (V1).
- * Adds `meta` so UI can estimate risk + revenue impact without re-deriving values.
+ * MRI v1 philosophy:
+ * - Score starts at 100
+ * - Penalties applied based on *momentum deterioration*
+ * - Output: mriScore (0..100), plus components (0..100)
  */
-export function computeDrift(params: {
+export function computeDrift(args: {
   baselineReviewCountPer14d: number;
   currentReviewCount14d: number;
-
-  baselineSentimentAvg: number; // 0..1
-  currentSentimentAvg: number;
-
-  baselineEngagement: number; // 0..1
-  currentEngagement: number;
-  monthlyRevenue?: number | null;
+  baselineSentimentAvg: number; // 0..1 (or normalized upstream)
+  currentSentimentAvg: number;  // 0..1
+  baselineEngagement: number;   // 0..1 (or normalized upstream)
+  currentEngagement: number;    // 0..1
 }): DriftResult {
+  const baselineReviews = Math.max(0, args.baselineReviewCountPer14d ?? 0);
+  const currentReviews = Math.max(0, args.currentReviewCount14d ?? 0);
+
+  const baselineEng = clamp(args.baselineEngagement ?? 0, 0, 1);
+  const currentEng = clamp(args.currentEngagement ?? 0, 0, 1);
+
+  const baselineSent = clamp(args.baselineSentimentAvg ?? 0, 0, 1);
+  const currentSent = clamp(args.currentSentimentAvg ?? 0, 0, 1);
+
+  // Deltas (legacy)
+  const reviewDrop = clamp(1 - safeDiv(currentReviews, Math.max(1e-9, baselineReviews)), 0, 1);
+  const engagementDrop = clamp(1 - safeDiv(currentEng, Math.max(1e-9, baselineEng || 1e-9)), 0, 1);
+  const sentimentDelta = currentSent - baselineSent; // negative = worse
+
+  // Components (0..100)
+  const reviewsComponent = clamp(Math.round(100 * (1 - reviewDrop)), 0, 100);
+  const engagementComponent = clamp(Math.round(100 * (1 - engagementDrop)), 0, 100);
+
+  // Sentiment component: if sentimentDelta negative, reduce. If positive, keep near 100.
+  // Max penalty here treats -0.5 as major.
+  const sentimentPenalty = clamp(Math.round(clamp(-sentimentDelta, 0, 1) * 120), 0, 100);
+  const sentimentComponent = clamp(100 - sentimentPenalty, 0, 100);
+
+  // MRI score (weighted)
+  // Reviews 40%, Engagement 35%, Sentiment 25%
+  const mriRaw =
+    reviewsComponent * 0.4 +
+    engagementComponent * 0.35 +
+    sentimentComponent * 0.25;
+
+  const mriScore = clamp(Math.round(mriRaw), 0, 100);
+
+  // Status from MRI
+  const status: DriftStatus =
+    mriScore < 60 ? "attention" :
+    mriScore < 80 ? "softening" :
+    "stable";
+
+  // Reasons
   const reasons: DriftReason[] = [];
-
-  // Reviews: frequency drop
-  const reviewDrop = -pctChange(params.currentReviewCount14d, params.baselineReviewCountPer14d);
-  if (reviewDrop >= 0.30) {
-    reasons.push({ code: "REV_FREQ_DROP_30", detail: "Review frequency down 30%+", delta: reviewDrop });
-  } else if (reviewDrop >= 0.15) {
-    reasons.push({ code: "REV_FREQ_DROP_15", detail: "Review frequency down 15–30%", delta: reviewDrop });
-  }
-
-  // Reviews: sentiment cooling
-  const sentimentDelta = params.currentSentimentAvg - params.baselineSentimentAvg;
-  if (sentimentDelta <= -0.50) {
-    reasons.push({ code: "SENTIMENT_DROP_50", detail: "Sentiment down 0.50+", delta: sentimentDelta });
-  } else if (sentimentDelta <= -0.25) {
-    reasons.push({ code: "SENTIMENT_DROP_25", detail: "Sentiment down 0.25–0.40", delta: sentimentDelta });
-  }
-
-  // Engagement drop
-  let engagementDrop = 0;
-  if (params.baselineEngagement > 0) {
-    engagementDrop = -pctChange(params.currentEngagement, params.baselineEngagement);
-    if (engagementDrop >= 0.30) {
-      reasons.push({ code: "ENG_DROP_30", detail: "Engagement down 30%+", delta: engagementDrop });
-    } else if (engagementDrop >= 0.15) {
-      reasons.push({ code: "ENG_DROP_15", detail: "Engagement down 15–25%", delta: engagementDrop });
-    }
-  }
-
-  const hasAttention = reasons.some((r) => r.code.includes("_30") || r.code.includes("_50"));
-  const hasSoftening = reasons.length > 0;
-
-  const status: DriftStatus = hasAttention ? "attention" : hasSoftening ? "softening" : "stable";
+  if (reviewDrop >= 0.3) reasons.push({ code: "REV_FREQ_DROP_30", detail: "Review frequency down 30%+", delta: reviewDrop });
+  if (engagementDrop >= 0.3) reasons.push({ code: "ENG_DROP_30", detail: "Engagement down 30%+", delta: engagementDrop });
+  if (sentimentDelta <= -0.5) reasons.push({ code: "SENTIMENT_DROP_50", detail: "Sentiment down 0.50+", delta: sentimentDelta });
 
   return {
     status,
     reasons,
     meta: {
-      reviewDrop: Number.isFinite(reviewDrop) ? Math.max(0, reviewDrop) : 0,
-      engagementDrop: Number.isFinite(engagementDrop) ? Math.max(0, engagementDrop) : 0,
-      sentimentDelta: Number.isFinite(sentimentDelta) ? sentimentDelta : 0,
+      reviewDrop,
+      engagementDrop,
+      sentimentDelta,
+      mriScore,
+      mriRaw,
+      mriPrev: null,
+      components: {
+        reviews: reviewsComponent,
+        engagement: engagementComponent,
+        sentiment: sentimentComponent,
+      },
     },
   };
 }
 
 /**
- * V1 projections: short, human-readable “what could happen in 30 days”.
- * Takes the `meta` fields we store on alerts (or last_drift).
+ * Turn drift signals into an executive-friendly risk label + bullets.
+ * IMPORTANT: returns { label, bullets } (NOT an array).
  */
-export function projectRisk(input: {
-  reviewDrop?: number | null;
-  engagementDrop?: number | null;
-  sentimentDelta?: number | null;
-}): string[] {
-  const reviewDrop = typeof input.reviewDrop === "number" ? input.reviewDrop : 0;
-  const engagementDrop = typeof input.engagementDrop === "number" ? input.engagementDrop : 0;
-  const sentimentDelta = typeof input.sentimentDelta === "number" ? input.sentimentDelta : 0;
+export function projectRisk(
+  drift:
+    | DriftResult
+    | {
+        reviewDrop?: number | null;
+        engagementDrop?: number | null;
+        sentimentDelta?: number | null;
+        mriScore?: number | null;
+        status?: DriftStatus | null;
+      }
+): ProjectRiskResult {
+  const status = (drift as any)?.status ?? null;
+  const mri = (drift as any)?.meta?.mriScore ?? (drift as any)?.mriScore ?? null;
 
-  const out: string[] = [];
+  const reviewDrop = (drift as any)?.meta?.reviewDrop ?? (drift as any)?.reviewDrop ?? 0;
+  const engagementDrop = (drift as any)?.meta?.engagementDrop ?? (drift as any)?.engagementDrop ?? 0;
+  const sentimentDelta = (drift as any)?.meta?.sentimentDelta ?? (drift as any)?.sentimentDelta ?? 0;
 
-  if (reviewDrop >= 0.30) {
-    out.push("Demand may soften over the next 2–4 weeks unless review volume rebounds.");
-  } else if (reviewDrop >= 0.15) {
-    out.push("Watch demand signals — review volume is trending down.");
-  }
+  const isHigh =
+    status === "attention" ||
+    (typeof mri === "number" && mri < 60) ||
+    reviewDrop >= 0.5 ||
+    engagementDrop >= 0.5 ||
+    sentimentDelta <= -0.5;
 
-  if (engagementDrop >= 0.30) {
-    out.push("Repeat visits / returning customers may drop within 2–3 weeks.");
-  } else if (engagementDrop >= 0.15) {
-    out.push("Engagement is cooling — consider a quick reactivation push.");
-  }
+  const isModerate =
+    !isHigh &&
+    (status === "watch" || (typeof mri === "number" && mri < 80) || reviewDrop >= 0.3 || engagementDrop >= 0.3 || sentimentDelta <= -0.25);
 
-  if (sentimentDelta <= -0.50) {
-    out.push("Brand perception risk is elevated — address top issues immediately.");
-  } else if (sentimentDelta <= -0.25) {
-    out.push("Sentiment is trending down — review recent feedback and respond fast.");
-  }
+  const label: RiskLabel = isHigh ? "High" : isModerate ? "Moderate" : "Low";
 
-  return out;
+  const bullets =
+    label === "High"
+      ? [
+          "You’re exposed: customer momentum is weakening fast.",
+          "If this persists, revenue impact typically shows up within 2–4 weeks.",
+          "Prioritize retention levers: response speed, offer clarity, experience consistency.",
+        ]
+      : label === "Moderate"
+        ? [
+            "Early drift detected: correctable if addressed quickly.",
+            "Focus on the biggest lever (reviews, engagement, or sentiment) first.",
+            "Small operational fixes can reverse trajectory within 7–14 days.",
+          ]
+        : [
+            "Low risk: momentum is healthy.",
+            "Keep cadence consistent—don’t change what’s working.",
+            "Watch for sudden shifts after promotions, staffing changes, or seasonality.",
+          ];
+
+  return { label, bullets };
 }
 
-/**
- * V1 “Estimated Revenue Impact”
- * Uses monthly_revenue as the baseline and applies a conservative risk band
- * based on the strongest drift signal we see.
- *
- * Returns cents so UI can format however it wants.
- */
-export function estimateRevenueImpact(params: {
-  monthlyRevenue?: number | null; // dollars (like 250000) OR cents (if you ever switch)
-  monthlyRevenueCents?: number | null;
-  reviewDrop?: number | null;
-  engagementDrop?: number | null;
-  sentimentDelta?: number | null;
-}): {
-  lowCents: number;
-  highCents: number;
-  label: "Low" | "Moderate" | "High";
-} {
-  // Prefer cents if provided, else assume `monthlyRevenue` is dollars.
-  const baseCents =
-    typeof params.monthlyRevenueCents === "number"
-      ? Math.max(0, Math.floor(params.monthlyRevenueCents))
-      : typeof params.monthlyRevenue === "number"
-        ? Math.max(0, Math.floor(params.monthlyRevenue * 100))
-        : 0;
+export function estimateRevenueImpact(args: {
+  monthlyRevenue: number | null | undefined;
+  drift:
+    | DriftResult
+    | {
+        reviewDrop?: number | null;
+        engagementDrop?: number | null;
+        sentimentDelta?: number | null;
+        mriScore?: number | null;
+        status?: DriftStatus | null;
+      };
+}): RiskProjection {
+  const monthlyRevenue = args.monthlyRevenue ?? null;
 
-  const reviewDrop = typeof params.reviewDrop === "number" ? params.reviewDrop : 0;
-  const engagementDrop = typeof params.engagementDrop === "number" ? params.engagementDrop : 0;
-  const sentimentDelta = typeof params.sentimentDelta === "number" ? params.sentimentDelta : 0;
-
-  // Determine severity by strongest signal
-  const severe =
-    reviewDrop >= 0.30 || engagementDrop >= 0.30 || sentimentDelta <= -0.50;
-
-  const moderate =
-    !severe && (reviewDrop >= 0.15 || engagementDrop >= 0.15 || sentimentDelta <= -0.25);
-
-  // Conservative bands for V1:
-  // - Moderate: 1–3% monthly revenue at risk
-  // - Severe:   3–7% monthly revenue at risk
-  // - Stable:   0–1% (still show something if you want)
-  let low = 0.0;
-  let high = 0.01;
-  let label: "Low" | "Moderate" | "High" = "Low";
-
-  if (moderate) {
-    low = 0.01;
-    high = 0.03;
-    label = "Moderate";
+  if (!monthlyRevenue || monthlyRevenue <= 0) {
+    return { lowCents: 0, highCents: 0, estimatedImpact: 0, label: "Low" };
   }
 
-  if (severe) {
-    low = 0.03;
-    high = 0.07;
-    label = "High";
-  }
+  const { label } = projectRisk(args.drift);
 
-  const lowCents = Math.round(baseCents * low);
-  const highCents = Math.round(baseCents * high);
+  const band =
+    label === "High"
+      ? { low: 0.08, high: 0.18 }
+      : label === "Moderate"
+        ? { low: 0.03, high: 0.08 }
+        : { low: 0.0, high: 0.03 };
 
-  return { lowCents, highCents, label };
+  const lowCents = Math.round(monthlyRevenue * band.low * 100);
+  const highCents = Math.round(monthlyRevenue * band.high * 100);
+
+  return {
+    lowCents,
+    highCents,
+    estimatedImpact: Math.round((lowCents + highCents) / 2),
+    label,
+  };
 }
