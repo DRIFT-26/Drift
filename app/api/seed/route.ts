@@ -140,41 +140,12 @@ export async function POST(req: Request) {
   const baselineEng = avg((baseline ?? []).filter(isEng), "engagement");
   const currentEng = avg((current ?? []).filter(isEng), "engagement");
 
-  const drift = computeDrift({
-    baselineReviewCountPer14d: baselineReviewPer14,
-    currentReviewCount14d: currentReviewTotal,
-    baselineSentimentAvg: baselineSent,
-    currentSentimentAvg: currentSent,
-    baselineEngagement: baselineEng,
-    currentEngagement: currentEng,
-  });
+  // Seed should only insert data. Drift is computed by /api/jobs/daily.
+const drift = null;
 
   // 4) Write an alert (always write one for seed so you can see it)
   const window_start = currentStartStr;
   const window_end = isoDate(today);
 
-  const { data: alertRow, error: alertErr } = await supabase
-    .from("alerts")
-    .insert({
-      business_id: businessId,
-      status: drift.status,
-      reasons: drift.reasons,
-      window_start,
-      window_end,
-    })
-    .select()
-    .single();
-
-  if (alertErr) {
-    return NextResponse.json({ ok: false, step: "insert_alert", error: alertErr.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    ok: true,
-    business_id: businessId,
-    sources: { reviews: reviewsSource.id, engagement: engagementSource.id },
-    seeded_days: days,
-    drift,
-    alert: alertRow,
-  });
+  // Seed creates demo data only. Alerts are created by /api/jobs/daily.
 }

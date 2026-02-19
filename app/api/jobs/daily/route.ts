@@ -11,12 +11,6 @@ function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function addDays(date: Date, days: number) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
 /**
  * Auth for:
  * - Vercel Cron: Authorization: Bearer <CRON_SECRET>
@@ -38,12 +32,11 @@ function requireCronAuth(req: Request) {
 
   return {
     ok,
-    error: ok ? null : secret ? "Unauthorized" : "CRON_SECRET missing",
+    error: !secret ? "CRON_SECRET missing" : "Unauthorized",
     debug: {
       hasCronSecretEnv: Boolean(secret),
       hasAuthorizationHeader: Boolean(authHeader),
       authorizationPrefix: authHeader ? authHeader.slice(0, 20) : null,
-      bearerTokenPrefix: bearerToken ? bearerToken.slice(0, 10) : null,
       hasXCronSecretHeader: Boolean(xToken),
       xCronSecretPrefix: xToken ? xToken.slice(0, 10) : null,
       matched: ok,
@@ -51,20 +44,52 @@ function requireCronAuth(req: Request) {
   };
 }
 
-function sum(rows: any[], key: string) {
-  return rows.reduce((acc, r) => acc + (Number(r.metrics?.[key]) || 0), 0);
+function safeNum(v: any): number {
+  if (v === null || v === undefined) return 0;
+  const n = typeof v === "string" ? Number(v) : v;
+  return Number.isFinite(n) ? n : 0;
 }
 
-/**
- * Refund rate should be computed as:
- *   total_refunds / total_revenue
- * (NOT average of daily refund_rate; that can skew results.)
- */
-function refundRateFrom(rows: any[]) {
-  const revenue = sum(rows, "revenue_cents");
-  const refunds = sum(rows, "refunds_cents");
-  if (!revenue) return 0;
-  return refunds / revenue;
+function sumMetric(rows: any[], key: string): number {
+  return (rows ?? []).reduce((acc, r) => acc + safeNum(r?.metrics?.[key]), 0);
+}
+
+function refundRateFrom(rows: any[]): number {
+  const gross = sumMetric(rows, "revenue_cents");
+  if (gross <= 0) return 0;
+  const refunds = sumMetric(rows, "refunds_cents");
+  return Math.max(0, Math.min(1, refunds / gross));
+}
+
+function clampEmailStatus(s: DriftStatus | null | undefined): "stable" | "softening" | "attention" {
+  // Email template only supports these three.
+  if (s === "attention") return "attention";
+  if (s === "softening") return "softening";
+  // Map anything else (watch/drift/etc) to softening to avoid type/runtime breaks.
+  return "stable";
+}
+
+async function loadBusinessesWithMonthlyRevenue(supabase: ReturnType<typeof supabaseAdmin>, filterBusinessId: string | null) {
+  // Production schema drifted historically: some envs had monthly_revenue, others monthly_revenue_cents.
+  // This makes the job resilient by retrying without the missing column.
+  let q = supabase.from("businesses").select("id,name,timezone,alert_email,is_paid,monthly_revenue_cents");
+  if (filterBusinessId) q = q.eq("id", filterBusinessId);
+
+  const first = await q;
+  if (!first.error) return { data: first.data ?? [], monthlyField: "monthly_revenue_cents" as const };
+
+  const msg = first.error.message || "";
+  if (!msg.includes("does not exist")) {
+    throw new Error(`read_businesses: ${msg}`);
+  }
+
+  let q2 = supabase.from("businesses").select("id,name,timezone,alert_email,is_paid,monthly_revenue");
+  if (filterBusinessId) q2 = q2.eq("id", filterBusinessId);
+
+  const second = await q2;
+  if (second.error) throw new Error(`read_businesses: ${second.error.message}`);
+
+  return { data: second.data ?? [], monthlyField: "monthly_revenue" as const };
 }
 
 export async function POST(req: Request) {
@@ -83,8 +108,9 @@ export async function POST(req: Request) {
 
   const dryRun = url.searchParams.get("dry_run") === "true";
   const forceEmail = url.searchParams.get("force_email") === "true";
+
   const filterBusinessId = url.searchParams.get("business_id");
-const filterSourceId = url.searchParams.get("source_id");
+  const filterSourceId = url.searchParams.get("source_id");
 
   // Job-level run log
   const { data: jobRun, error: jobRunErr } = await supabase
@@ -102,30 +128,28 @@ const filterSourceId = url.searchParams.get("source_id");
 
   const startedAt = new Date();
 
-  // Businesses
-  let bq = supabase
-  .from("businesses")
-  .select("id,name,timezone,alert_email,is_paid,monthly_revenue_cents");
+  // Load businesses (schema-resilient re: monthly_revenue*)
+  let businesses: any[] = [];
+  let monthlyField: "monthly_revenue_cents" | "monthly_revenue" = "monthly_revenue_cents";
+  try {
+    const loaded = await loadBusinessesWithMonthlyRevenue(supabase, filterBusinessId);
+    businesses = loaded.data;
+    monthlyField = loaded.monthlyField;
+  } catch (e: any) {
+    await supabase
+      .from("job_runs")
+      .update({
+        status: "error",
+        error: e?.message ?? String(e),
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", jobRun.id);
 
-if (filterBusinessId) bq = bq.eq("id", filterBusinessId);
-
-const { data: businesses, error: bErr } = await bq;
-
-if (bErr) {
-  await supabase
-    .from("job_runs")
-    .update({
-      status: "error",
-      error: bErr.message,
-      finished_at: new Date().toISOString(),
-    })
-    .eq("id", jobRun.id);
-
-  return NextResponse.json(
-    { ok: false, step: "read_businesses", error: bErr.message },
-    { status: 500 }
-  );
-}
+    return NextResponse.json(
+      { ok: false, step: "read_businesses", error: e?.message ?? String(e) },
+      { status: 500 }
+    );
+  }
 
   const results: any[] = [];
 
@@ -142,7 +166,7 @@ if (bErr) {
     let emailDebug: any = null;
 
     try {
-      // Baseline config (fallback 60/14)
+      // Baseline config (defaults)
       const { data: cfg } = await supabase
         .from("baseline_config")
         .select("*")
@@ -155,36 +179,39 @@ if (bErr) {
       const today = new Date();
       const windowEndStr = isoDate(today);
 
-      const baselineStart = addDays(today, -baselineDays);
-      const currentStart = addDays(today, -currentDays);
-
-      // Prior window is the 14 days immediately BEFORE current window
-      const priorStart = addDays(currentStart, -currentDays);
-      const priorEnd = addDays(currentStart, -1);
-
-      const baselineStartStr = isoDate(baselineStart);
+      const currentStart = new Date(today);
+      currentStart.setDate(today.getDate() - currentDays + 1); // inclusive window of N days
       const currentStartStr = isoDate(currentStart);
-      const priorStartStr = isoDate(priorStart);
+
+      const baselineStart = new Date(today);
+      baselineStart.setDate(today.getDate() - baselineDays + 1);
+      const baselineStartStr = isoDate(baselineStart);
+
+      // Prior window: the N days immediately before current window
+      const priorEnd = new Date(currentStart);
+      priorEnd.setDate(currentStart.getDate() - 1);
       const priorEndStr = isoDate(priorEnd);
 
-      // Sources
-      let sq = supabase
-  .from("sources")
-  .select("id,type,is_connected")
-  .eq("business_id", biz.id);
+      const priorStart = new Date(priorEnd);
+      priorStart.setDate(priorEnd.getDate() - currentDays + 1);
+      const priorStartStr = isoDate(priorStart);
 
-if (filterSourceId) sq = sq.eq("id", filterSourceId);
+      // Find connected sources (Revenue v1 = stripe_revenue only)
+      let sQ = supabase
+        .from("sources")
+        .select("id,type,is_connected")
+        .eq("business_id", biz.id);
 
-const { data: sources, error: sErr } = await sq;
+      if (filterSourceId) sQ = sQ.eq("id", filterSourceId);
 
-if (sErr) throw new Error(`read_sources: ${sErr.message}`);
+      const { data: sources, error: sErr } = await sQ;
+      if (sErr) throw new Error(`read_sources: ${sErr.message}`);
 
       const connected = (sources ?? []).filter((s: any) => s.is_connected);
 
       const stripeSource = connected.find((s: any) => s.type === "stripe_revenue");
 
       if (!stripeSource) {
-        // No Stripe: mark as skipped for Revenue v1
         await supabase
           .from("job_runs")
           .update({ status: "success", finished_at: new Date().toISOString() })
@@ -194,7 +221,7 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
           business_id: biz.id,
           name: biz.name,
           skipped: true,
-          reason: "no_stripe_revenue_source",
+          reason: filterSourceId ? "source_not_stripe_revenue_or_not_connected" : "no_stripe_revenue_source",
           dry_run: dryRun,
           force_email: forceEmail,
           email_to: biz.alert_email ?? null,
@@ -207,29 +234,32 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
         continue;
       }
 
-      // Pull snapshots for baseline+current+prior (single fetch to keep it fast)
-      const earliest = priorStartStr < baselineStartStr ? priorStartStr : baselineStartStr;
+      // Pull snapshots for baseline+current+prior in one query
+      const earliest = [baselineStartStr, priorStartStr].sort()[0];
 
       const { data: rows, error: snapErr } = await supabase
         .from("snapshots")
-        .select("source_id,metrics,snapshot_date")
+        .select("metrics,snapshot_date")
         .eq("business_id", biz.id)
         .eq("source_id", stripeSource.id)
-        .gte("snapshot_date", earliest);
+        .gte("snapshot_date", earliest)
+        .lte("snapshot_date", windowEndStr);
 
       if (snapErr) throw new Error(`read_snapshots: ${snapErr.message}`);
 
       const all = rows ?? [];
 
-      const baselineRows = all.filter((r: any) => r.snapshot_date >= baselineStartStr);
-      const currentRows = all.filter((r: any) => r.snapshot_date >= currentStartStr);
-      const priorRows = all.filter(
-        (r: any) => r.snapshot_date >= priorStartStr && r.snapshot_date <= priorEndStr
-      );
+      // Strict window bounds
+      const inRange = (d: string, start: string, end: string) => d >= start && d <= end;
 
-      const baselineNetRevenue60d = sum(baselineRows, "net_revenue_cents");
-      const currentNetRevenue14d = sum(currentRows, "net_revenue_cents");
-      const priorNetRevenue14d = priorRows.length ? sum(priorRows, "net_revenue_cents") : null;
+      const baselineRows = all.filter((r: any) => inRange(r.snapshot_date, baselineStartStr, windowEndStr));
+      const currentRows = all.filter((r: any) => inRange(r.snapshot_date, currentStartStr, windowEndStr));
+      const priorRows = all.filter((r: any) => inRange(r.snapshot_date, priorStartStr, priorEndStr));
+
+      // Revenue + refunds
+      const baselineNetRevenue60d = sumMetric(baselineRows, "net_revenue_cents");
+      const currentNetRevenue14d = sumMetric(currentRows, "net_revenue_cents");
+      const priorNetRevenue14d = priorRows.length ? sumMetric(priorRows, "net_revenue_cents") : null;
 
       const baselineRefundRate = refundRateFrom(baselineRows);
       const currentRefundRate = refundRateFrom(currentRows);
@@ -262,12 +292,10 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
         .limit(1)
         .maybeSingle();
 
-      const lastStatus = (lastAlert?.status ?? null) as DriftStatus | null;
-      const statusChanged = !lastAlert || lastStatus !== drift.status;
+      const statusChanged = !lastAlert || lastAlert.status !== drift.status;
 
       // Insert alert only if status changed
       let insertedAlert: any = null;
-
       if (!dryRun && statusChanged) {
         const { data: newAlert, error: aErr } = await supabase
           .from("alerts")
@@ -277,7 +305,7 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
             reasons: drift.reasons,
             window_start: currentStartStr,
             window_end: windowEndStr,
-            meta: drift.meta ?? null,
+            meta: (drift as any).meta ?? null,
           })
           .select()
           .single();
@@ -286,16 +314,25 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
         insertedAlert = newAlert;
       }
 
-      // Email gate
+      // Email send gate
       const toEmail = biz.alert_email ?? null;
       const isPaid = (biz as any).is_paid === true;
+
+      // Monthly revenue: accept either cents or dollars column (we store cents in RiskImpact)
+      const monthlyRaw = (biz as any)?.[monthlyField] ?? null;
+      const monthlyRevenueCents =
+        monthlyField === "monthly_revenue_cents"
+          ? (typeof monthlyRaw === "number" ? monthlyRaw : safeNum(monthlyRaw))
+          : Math.round(safeNum(monthlyRaw) * 100);
 
       if (!dryRun && isPaid && toEmail && (statusChanged || forceEmail)) {
         emailAttempted = true;
 
+        const emailStatus = clampEmailStatus(drift.status);
+
         const { subject, text } = renderStatusEmail({
           businessName: biz.name ?? biz.id,
-          status: drift.status as any,
+          status: emailStatus,
           reasons: drift.reasons,
           windowStart: currentStartStr,
           windowEnd: windowEndStr,
@@ -321,13 +358,15 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
             provider_message_id: emailId,
             error: (sendResult as any)?.error ? JSON.stringify((sendResult as any)?.error) : null,
             meta: {
-              engine: drift.meta?.engine ?? null,
+              engine: (drift as any)?.meta?.engine ?? null,
+              direction: (drift as any)?.meta?.direction ?? null,
               drift_status: drift.status,
               reasons: drift.reasons,
               window_start: currentStartStr,
               window_end: windowEndStr,
               force_email: forceEmail,
               status_changed: statusChanged,
+              monthly_revenue_cents: monthlyRevenueCents,
             },
           });
         } catch (e: any) {
@@ -344,7 +383,7 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
         business_id: biz.id,
         name: biz.name,
         drift,
-        last_status: lastStatus,
+        last_status: lastAlert?.status ?? null,
         status_changed: statusChanged,
         alert_inserted: Boolean(insertedAlert),
         dry_run: dryRun,
@@ -390,11 +429,14 @@ if (sErr) throw new Error(`read_sources: ${sErr.message}`);
     .eq("id", jobRun.id);
 
   return NextResponse.json({
-  ok: true,
-  dry_run: dryRun,
-  filters: { business_id: filterBusinessId ?? null, source_id: filterSourceId ?? null },
-  businesses_processed: (businesses ?? []).length,
-  duration_ms: finishedAt.getTime() - startedAt.getTime(),
-  results,
-});
+    ok: true,
+    dry_run: dryRun,
+    filters: {
+      business_id: filterBusinessId ?? null,
+      source_id: filterSourceId ?? null,
+    },
+    businesses_processed: (businesses ?? []).length,
+    duration_ms: finishedAt.getTime() - startedAt.getTime(),
+    results,
+  });
 }

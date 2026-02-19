@@ -80,14 +80,15 @@ export async function POST(req: Request) {
   const baselineEng = engagementSource ? (baselineRows ?? []).filter(r => r.source_id === engagementSource.id) : [];
   const currentEng = engagementSource ? (currentRows ?? []).filter(r => r.source_id === engagementSource.id) : [];
 
-  const drift = computeDrift({
+    const drift = computeDrift({
     baselineReviewCountPer14d: (sum(baselineReviews, "review_count") / baselineDays) * currentDays,
     currentReviewCount14d: sum(currentReviews, "review_count"),
     baselineSentimentAvg: avg(baselineReviews, "sentiment_avg"),
     currentSentimentAvg: avg(currentReviews, "sentiment_avg"),
-    baselineEngagement: avg(baselineEng, "engagement"),
-    currentEngagement: avg(currentEng, "engagement"),
-  });
+    // compute-first route doesn’t currently load engagement rows
+    baselineEngagement: 0,
+    currentEngagement: 0,
+  } as any);
 
   // Insert initial alert (always, as "current state")
   const { data: alert, error: aErr } = await supabase
@@ -104,11 +105,17 @@ export async function POST(req: Request) {
 
   if (aErr) return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
 
+  // lib/email/templates.ts expects: "stable" | "softening" | "attention"
+const statusForEmail = (s: any): "stable" | "softening" | "attention" => {
+  if (s === "watch") return "softening";
+  return s === "stable" || s === "softening" || s === "attention" ? s : "attention";
+};
+  
   // Send first status email
   if (biz.alert_email) {
     const { subject, text } = renderStatusEmail({
       businessName: biz.name,
-      status: drift.status,
+      status: statusForEmail(drift.status),
       reasons: drift.reasons,
       windowStart: currentStartStr,
       windowEnd: isoDate(today),
