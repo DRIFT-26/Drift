@@ -84,6 +84,7 @@ export async function POST(req: Request) {
   const dryRun = url.searchParams.get("dry_run") === "true";
   const forceEmail = url.searchParams.get("force_email") === "true";
   const filterBusinessId = url.searchParams.get("business_id");
+const filterSourceId = url.searchParams.get("source_id");
 
   // Job-level run log
   const { data: jobRun, error: jobRunErr } = await supabase
@@ -103,28 +104,28 @@ export async function POST(req: Request) {
 
   // Businesses
   let bq = supabase
-    .from("businesses")
-    .select("id,name,timezone,alert_email,is_paid,monthly_revenue_cents");
+  .from("businesses")
+  .select("id,name,timezone,alert_email,is_paid,monthly_revenue_cents");
 
-  if (filterBusinessId) bq = bq.eq("id", filterBusinessId);
+if (filterBusinessId) bq = bq.eq("id", filterBusinessId);
 
-  const { data: businesses, error: bErr } = await bq;
+const { data: businesses, error: bErr } = await bq;
 
-  if (bErr) {
-    await supabase
-      .from("job_runs")
-      .update({
-        status: "error",
-        error: bErr.message,
-        finished_at: new Date().toISOString(),
-      })
-      .eq("id", jobRun.id);
+if (bErr) {
+  await supabase
+    .from("job_runs")
+    .update({
+      status: "error",
+      error: bErr.message,
+      finished_at: new Date().toISOString(),
+    })
+    .eq("id", jobRun.id);
 
-    return NextResponse.json(
-      { ok: false, step: "read_businesses", error: bErr.message },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(
+    { ok: false, step: "read_businesses", error: bErr.message },
+    { status: 500 }
+  );
+}
 
   const results: any[] = [];
 
@@ -167,12 +168,16 @@ export async function POST(req: Request) {
       const priorEndStr = isoDate(priorEnd);
 
       // Sources
-      const { data: sources, error: sErr } = await supabase
-        .from("sources")
-        .select("id,type,is_connected")
-        .eq("business_id", biz.id);
+      let sq = supabase
+  .from("sources")
+  .select("id,type,is_connected")
+  .eq("business_id", biz.id);
 
-      if (sErr) throw new Error(`read_sources: ${sErr.message}`);
+if (filterSourceId) sq = sq.eq("id", filterSourceId);
+
+const { data: sources, error: sErr } = await sq;
+
+if (sErr) throw new Error(`read_sources: ${sErr.message}`);
 
       const connected = (sources ?? []).filter((s: any) => s.is_connected);
 
@@ -385,10 +390,11 @@ export async function POST(req: Request) {
     .eq("id", jobRun.id);
 
   return NextResponse.json({
-    ok: true,
-    dry_run: dryRun,
-    businesses_processed: (businesses ?? []).length,
-    duration_ms: finishedAt.getTime() - startedAt.getTime(),
-    results,
-  });
+  ok: true,
+  dry_run: dryRun,
+  filters: { business_id: filterBusinessId ?? null, source_id: filterSourceId ?? null },
+  businesses_processed: (businesses ?? []).length,
+  duration_ms: finishedAt.getTime() - startedAt.getTime(),
+  results,
+});
 }
