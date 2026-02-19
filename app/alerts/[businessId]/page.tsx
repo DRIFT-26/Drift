@@ -116,7 +116,10 @@ export default async function BusinessAlertsPage({ params }: PageProps) {
   };
 
   const risk = projectRisk(driftLike);
-  const impact = estimateRevenueImpact({ monthlyRevenue, drift: driftLike });
+  const impact = estimateRevenueImpact({
+  monthlyRevenueCents: monthlyRevenue ?? null,
+  drift: driftLike,
+});
 
   // Sources
   const { data: sourcesRaw } = await supabase
