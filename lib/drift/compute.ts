@@ -309,17 +309,6 @@ export function computeDrift(input: RevenueComputeInput | ReputationComputeInput
   return computeReputationV1(input as ReputationComputeInput);
 }
 
-export function projectRisk(drift: DriftResult | any): { label: RiskLabel } {
-  const status = (drift?.status ?? null) as DriftStatus | null;
-  const engine = drift?.meta?.engine;
-
-  // Revenue engine: base risk on status primarily.
-  if (engine === "revenue_v1") {
-    if (status === "attention") return { label: "High" };
-    if (status === "softening" || status === "watch") return { label: "Moderate" };
-    return { label: "Low" };
-  }
-
   // Legacy: use drops/deltas
   const reviewDrop = Number(drift?.meta?.reviewDrop ?? 0);
   const engagementDrop = Number(drift?.meta?.engagementDrop ?? 0);
