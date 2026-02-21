@@ -78,6 +78,7 @@ export default async function BusinessAlertsPage({
 }: {
   params: { businessId?: string };
 }) {
+  console.log("PARAMS:", params);
   const businessId = params?.businessId;
 
   if (!businessId || businessId === "undefined") {
