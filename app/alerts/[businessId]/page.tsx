@@ -1,266 +1,272 @@
 // app/alerts/[businessId]/page.tsx
-import Link from "next/link";
-import { headers } from "next/headers";
+import React from "react";
 
-type DriftStatus = "stable" | "watch" | "softening" | "attention";
+export const runtime = "nodejs";
+
+type DriftReason = { code: string; detail: string; delta?: number };
+type RevenueMeta = {
+  engine?: string;
+  direction?: "up" | "flat" | "down" | string;
+  mriScore?: number;
+  revenue?: {
+    baselineNetRevenueCents14d?: number;
+    currentNetRevenueCents14d?: number;
+    deltaPct?: number;
+  };
+  refunds?: {
+    baselineRefundRate?: number;
+    currentRefundRate?: number;
+    delta?: number;
+  };
+};
+
+type Business = {
+  id: string;
+  name: string;
+  is_paid?: boolean | null;
+  alert_email?: string | null;
+  timezone?: string | null;
+  monthly_revenue?: number | null; // your api/alerts currently returns monthly_revenue (dollars)
+  last_drift?: {
+    status?: string | null;
+    reasons?: DriftReason[] | null;
+    meta?: RevenueMeta | any;
+  } | null;
+  last_drift_at?: string | null;
+};
+
+type AlertRow = {
+  id: string;
+  business_id: string;
+  status: string;
+  reasons: DriftReason[] | null;
+  window_start: string | null;
+  window_end: string | null;
+  created_at: string;
+  meta: any | null;
+};
 
 type AlertsApiResponse = {
   ok: boolean;
   error?: string;
-  business?: {
-    id: string;
-    name: string;
-    is_paid: boolean;
-    alert_email: string | null;
-    timezone: string | null;
-    last_drift: any | null;
-    last_drift_at: string | null;
-    monthly_revenue?: number | null; // dollars (legacy field in your DB)
-  };
-  alerts?: Array<{
-    id: string;
-    business_id: string;
-    status: DriftStatus;
-    reasons: Array<{ code: string; detail: string; delta?: number }>;
-    window_start: string;
-    window_end: string;
-    created_at: string;
-    meta: any | null;
-  }>;
+  business?: Business;
+  alerts?: AlertRow[];
 };
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+function formatMoneyCents(cents: number) {
+  const v = Number.isFinite(cents) ? cents : 0;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(v / 100);
 }
 
-async function safeBaseUrl() {
-  // Prefer env first (most reliable in prod)
-  const envUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-
-  if (envUrl) return envUrl;
-
-  // Fallback to request headers (Next 16 can return Promise)
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return "https://drift-app-indol.vercel.app";
-  return `${proto}://${host}`;
+function formatPct(x: number) {
+  const v = Number.isFinite(x) ? x : 0;
+  return `${Math.round(v * 100)}%`;
 }
 
-function pill(status: string) {
-  const bg =
-    status === "stable"
-      ? "#ECFDF3"
-      : status === "watch"
-        ? "#FFFAEB"
-        : status === "softening"
-          ? "#FEF3F2"
-          : "#FEF3F2";
-  const fg =
-    status === "stable"
-      ? "#027A48"
-      : status === "watch"
-        ? "#B54708"
-        : status === "softening"
-          ? "#B42318"
-          : "#B42318";
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "4px 10px",
-        borderRadius: 999,
-        background: bg,
-        color: fg,
-        fontWeight: 700,
-        fontSize: 12,
-      }}
-    >
-      {status}
-    </span>
-  );
+function directionLabel(d?: string) {
+  if (d === "up") return "Up";
+  if (d === "down") return "Down";
+  return "Flat";
 }
 
-export default async function BusinessAlertsPage(props: {
-  params: { businessId: string } | Promise<{ businessId: string }>;
-}) {
+function statusPill(status?: string | null) {
+  const s = (status ?? "unknown").toLowerCase();
+  const map: Record<string, { bg: string; fg: string; label: string }> = {
+    stable: { bg: "#ECFDF3", fg: "#027A48", label: "Stable" },
+    watch: { bg: "#FFFAEB", fg: "#B54708", label: "Watch" },
+    softening: { bg: "#FFFAEB", fg: "#B54708", label: "Softening" },
+    attention: { bg: "#FEF3F2", fg: "#B42318", label: "Attention" },
+    unknown: { bg: "#F2F4F7", fg: "#344054", label: "Unknown" },
+  };
+  return map[s] ?? map.unknown;
+}
+
+export default async function BusinessAlertsPage(props: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await props.params;
 
   if (!businessId) {
     return (
-      <div style={{ padding: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Alerts</h1>
-        <p style={{ marginTop: 10, color: "#667085" }}>Missing businessId in route params.</p>
+      <div style={{ padding: 24, fontFamily: "system-ui" }}>
+        <h2 style={{ margin: 0 }}>Alerts</h2>
+        <p style={{ color: "#667085" }}>Missing businessId in route params.</p>
       </div>
     );
   }
 
-  if (!isUuid(businessId)) {
-    return (
-      <div style={{ padding: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Alerts</h1>
-        <p style={{ marginTop: 10, color: "#667085" }}>
-          Invalid businessId (expected UUID): <code>{businessId}</code>
-        </p>
-      </div>
-    );
-  }
-
-  const baseUrl = await safeBaseUrl();
-
-  const res = await fetch(`${baseUrl}/api/alerts?business_id=${businessId}`, {
+  const base = process.env.NEXT_PUBLIC_APP_URL || "https://drift-app-indol.vercel.app";
+  const res = await fetch(`${base}/api/alerts?business_id=${encodeURIComponent(businessId)}`, {
+    // keep it dynamic so it always reflects latest run
     cache: "no-store",
   });
 
-  const data = (await res.json()) as AlertsApiResponse;
+  let data: AlertsApiResponse | null = null;
+  try {
+    data = (await res.json()) as AlertsApiResponse;
+  } catch {
+    data = null;
+  }
 
-  if (!data.ok || !data.business) {
+  if (!res.ok || !data?.ok || !data.business) {
     return (
-      <div style={{ padding: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Alerts</h1>
-        <p style={{ marginTop: 10, color: "#667085" }}>
-          Failed to load business: {data.error ?? "unknown error"}
+      <div style={{ padding: 24, fontFamily: "system-ui" }}>
+        <h2 style={{ margin: 0 }}>Alerts</h2>
+        <p style={{ color: "#B42318" }}>
+          Failed to load business: {data?.error ?? `HTTP ${res.status}`}
         </p>
       </div>
     );
   }
 
-  const biz = data.business;
-  const latest = biz.last_drift ?? null;
-  const latestStatus = (latest?.status ?? null) as DriftStatus | null;
-  const engine = latest?.meta?.engine ?? null;
-  const direction = latest?.meta?.direction ?? null;
-  const score = latest?.meta?.mriScore ?? null;
+  const business = data.business;
+  const last = business.last_drift ?? null;
+  const engine = (last?.meta?.engine ?? "").toString();
+  const reasons = (last?.reasons ?? []) as DriftReason[];
 
-  const alerts = data.alerts ?? [];
+  const warmup = reasons.some((r) => r.code === "BASELINE_WARMUP");
+  const pill = statusPill(last?.status ?? null);
 
-  return (
-    <div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
-        <div>
-          <div style={{ fontSize: 12, color: "#667085", marginBottom: 6 }}>
-            <Link href="/alerts" style={{ color: "#667085", textDecoration: "none" }}>
-              Alerts
-            </Link>{" "}
-            / <span style={{ color: "#101828" }}>{biz.name}</span>
-          </div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950, letterSpacing: -0.6, color: "#101828" }}>
-            {biz.name}
-          </h1>
+  // =========================
+  // ✅ Revenue v1 UI (clean)
+  // =========================
+  if (engine === "revenue_v1") {
+    const meta = (last?.meta ?? {}) as RevenueMeta;
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
-            {latestStatus ? pill(latestStatus) : null}
-            {engine ? (
-              <span style={{ fontSize: 12, color: "#667085" }}>
-                Engine: <span style={{ color: "#101828", fontWeight: 700 }}>{engine}</span>
-              </span>
-            ) : null}
-            {direction ? (
-              <span style={{ fontSize: 12, color: "#667085" }}>
-                Direction: <span style={{ color: "#101828", fontWeight: 700 }}>{direction}</span>
-              </span>
-            ) : null}
-            {typeof score === "number" ? (
-              <span style={{ fontSize: 12, color: "#667085" }}>
-                Score: <span style={{ color: "#101828", fontWeight: 900 }}>{score}</span>
-              </span>
-            ) : null}
-          </div>
-        </div>
+    const mri = meta.mriScore ?? 0;
+    const dir = meta.direction ?? "flat";
 
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 12, color: "#667085" }}>Business ID</div>
-          <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, color: "#101828" }}>
-            {biz.id}
-          </div>
-        </div>
-      </div>
+    const currentNet = meta.revenue?.currentNetRevenueCents14d ?? 0;
+    const baselineNet = meta.revenue?.baselineNetRevenueCents14d ?? 0;
+    const deltaPct = meta.revenue?.deltaPct ?? 0;
 
-      <div style={{ marginTop: 18, padding: 14, border: "1px solid #EAECF0", borderRadius: 14, background: "#fff" }}>
-        <div style={{ fontWeight: 900, color: "#101828" }}>Latest Snapshot</div>
-        <div style={{ marginTop: 8, fontSize: 13, color: "#667085" }}>
-          Last drift at:{" "}
-          <span style={{ color: "#101828", fontWeight: 700 }}>{biz.last_drift_at ?? "—"}</span>
-        </div>
+    const currentRefundRate = meta.refunds?.currentRefundRate ?? 0;
+    const baselineRefundRate = meta.refunds?.baselineRefundRate ?? 0;
 
-        {engine === "revenue_v1" && latest?.meta ? (
-          <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div style={{ padding: 12, borderRadius: 12, border: "1px solid #EAECF0" }}>
-              <div style={{ fontSize: 12, color: "#667085" }}>14d Net Revenue</div>
-              <div style={{ marginTop: 6, fontSize: 14, fontWeight: 900, color: "#101828" }}>
-                {(latest.meta?.revenue?.currentNetRevenueCents14d ?? 0).toLocaleString()}¢
-              </div>
-              <div style={{ marginTop: 6, fontSize: 12, color: "#667085" }}>
-                Baseline (14d): {(latest.meta?.revenue?.baselineNetRevenueCents14d ?? 0).toLocaleString()}¢
+    return (
+      <div style={{ padding: 24, fontFamily: "system-ui", background: "#F8FAFC", minHeight: "100vh" }}>
+        <div style={{ maxWidth: 980, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 28, letterSpacing: -0.5, color: "#101828" }}>{business.name}</h1>
+              <div style={{ marginTop: 6, color: "#667085", fontSize: 13 }}>
+                Executive Revenue Monitor • Engine: <b>{engine}</b>
               </div>
             </div>
 
-            <div style={{ padding: 12, borderRadius: 12, border: "1px solid #EAECF0" }}>
-              <div style={{ fontSize: 12, color: "#667085" }}>Refund Rate</div>
-              <div style={{ marginTop: 6, fontSize: 14, fontWeight: 900, color: "#101828" }}>
-                {(((latest.meta?.refunds?.currentRefundRate ?? 0) as number) * 100).toFixed(2)}%
-              </div>
-              <div style={{ marginTop: 6, fontSize: 12, color: "#667085" }}>
-                Baseline: {(((latest.meta?.refunds?.baselineRefundRate ?? 0) as number) * 100).toFixed(2)}%
-              </div>
+            <div
+              style={{
+                background: pill.bg,
+                color: pill.fg,
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                alignSelf: "flex-start",
+              }}
+            >
+              {pill.label}
             </div>
           </div>
-        ) : null}
 
-        {Array.isArray(latest?.reasons) && latest.reasons.length ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontWeight: 900, color: "#101828", marginBottom: 8 }}>Reasons</div>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#101828" }}>
-              {latest.reasons.map((r: any, i: number) => (
-                <li key={i} style={{ marginBottom: 6 }}>
-                  <span style={{ fontWeight: 800 }}>{r.code}</span> — {r.detail}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-
-      <div style={{ marginTop: 18, padding: 14, border: "1px solid #EAECF0", borderRadius: 14, background: "#fff" }}>
-        <div style={{ fontWeight: 900, color: "#101828" }}>Recent Alerts</div>
-        <div style={{ marginTop: 10 }}>
-          {alerts.length === 0 ? (
-            <div style={{ color: "#667085", fontSize: 13 }}>No alerts yet.</div>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {alerts.map((a) => (
-                <div key={a.id} style={{ border: "1px solid #EAECF0", borderRadius: 12, padding: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                      {pill(a.status)}
-                      <span style={{ fontSize: 12, color: "#667085" }}>
-                        Window: <span style={{ color: "#101828", fontWeight: 700 }}>{a.window_start}</span> →{" "}
-                        <span style={{ color: "#101828", fontWeight: 700 }}>{a.window_end}</span>
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: "#667085" }}>{new Date(a.created_at).toLocaleString()}</div>
-                  </div>
-
-                  {a.reasons?.length ? (
-                    <ul style={{ margin: "10px 0 0", paddingLeft: 18, color: "#101828" }}>
-                      {a.reasons.map((r, idx) => (
-                        <li key={idx} style={{ marginBottom: 6 }}>
-                          <span style={{ fontWeight: 800 }}>{r.code}</span> — {r.detail}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div style={{ marginTop: 10, color: "#667085", fontSize: 13 }}>No reasons recorded.</div>
-                  )}
-                </div>
-              ))}
+          {warmup && (
+            <div
+              style={{
+                marginTop: 14,
+                background: "#FFFAEB",
+                border: "1px solid #FEC84B",
+                color: "#7A2E0E",
+                padding: 12,
+                borderRadius: 12,
+                fontSize: 13,
+              }}
+            >
+              <b>Baseline warmup:</b> building comparisons as more history accumulates. Current 14-day numbers are valid;
+              baseline deltas may be conservative until you have more activity.
             </div>
           )}
+
+          <div
+            style={{
+              marginTop: 16,
+              background: "#FFFFFF",
+              border: "1px solid #EAECF0",
+              borderRadius: 16,
+              padding: 18,
+              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 240 }}>
+                <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>RMI SCORE</div>
+                <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: -1, color: "#101828" }}>{mri}</div>
+                <div style={{ fontSize: 13, color: "#667085" }}>Direction: <b>{directionLabel(dir)}</b></div>
+              </div>
+
+              <div style={{ minWidth: 260 }}>
+                <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>NET REVENUE (LAST 14 DAYS)</div>
+                <div style={{ fontSize: 28, fontWeight: 900, color: "#101828" }}>{formatMoneyCents(currentNet)}</div>
+                <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+                  Baseline (14d): <b>{formatMoneyCents(baselineNet)}</b> • Δ: <b>{formatPct(deltaPct)}</b>
+                </div>
+              </div>
+
+              <div style={{ minWidth: 260 }}>
+                <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>REFUND RATE (LAST 14 DAYS)</div>
+                <div style={{ fontSize: 28, fontWeight: 900, color: "#101828" }}>{formatPct(currentRefundRate)}</div>
+                <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+                  Baseline: <b>{formatPct(baselineRefundRate)}</b>
+                </div>
+              </div>
+            </div>
+
+            {reasons?.length ? (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, color: "#667085", fontWeight: 800, letterSpacing: 0.2 }}>
+                  DRIVERS
+                </div>
+                <ul style={{ margin: "10px 0 0", paddingLeft: 18, color: "#101828" }}>
+                  {reasons.map((r, i) => (
+                    <li key={i} style={{ marginBottom: 6 }}>
+                      <b>{r.code}</b> — {r.detail}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ marginTop: 14, color: "#667085", fontSize: 12 }}>
+            Tip: run Stripe ingest daily + daily compute to keep this current.
+          </div>
         </div>
+      </div>
+    );
+  }
+
+  // =========================
+  // Legacy fallback (minimal)
+  // =========================
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui" }}>
+      <h1 style={{ margin: 0, fontSize: 26, color: "#101828" }}>{business.name}</h1>
+      <p style={{ color: "#667085" }}>
+        Engine: <b>{engine || "legacy"}</b>
+      </p>
+
+      <div style={{ marginTop: 12, background: "#FFF", border: "1px solid #EAECF0", borderRadius: 12, padding: 14 }}>
+        <div style={{ fontWeight: 800, color: "#101828" }}>Latest status</div>
+        <div style={{ marginTop: 6, color: "#667085" }}>{pill.label}</div>
+
+        {reasons?.length ? (
+          <ul style={{ margin: "10px 0 0", paddingLeft: 18, color: "#101828" }}>
+            {reasons.map((r, i) => (
+              <li key={i}>
+                <b>{r.code}</b> — {r.detail}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div style={{ marginTop: 10, color: "#667085" }}>No drivers.</div>
+        )}
       </div>
     </div>
   );
