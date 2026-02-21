@@ -141,13 +141,13 @@ export default async function BusinessAlertsPage({
   const refundsMeta = driftMeta?.refunds ?? {};
 
   // Prefer revenue_v1 fields, fallback to legacy-ish names if needed
-  const baselineNet14d =
-    toNum(revenueMeta?.baselineNetRevenueCents14d, null as any) ??
-    toNum(revenueMeta?.baselineNetRevenueCentsPer14d, null as any);
+  const baselineNet14dRaw =
+  revenueMeta?.baselineNetRevenueCents14d ?? revenueMeta?.baselineNetRevenueCentsPer14d;
+const baselineNet14d = typeof baselineNet14dRaw === "number" ? baselineNet14dRaw : toNum(baselineNet14dRaw);
 
-  const currentNet14d =
-    toNum(revenueMeta?.currentNetRevenueCents14d, null as any) ??
-    toNum(revenueMeta?.currentNetRevenueCentsPer14d, null as any);
+const currentNet14dRaw =
+  revenueMeta?.currentNetRevenueCents14d ?? revenueMeta?.currentNetRevenueCentsPer14d;
+const currentNet14d = typeof currentNet14dRaw === "number" ? currentNet14dRaw : toNum(currentNet14dRaw);
 
   const refundRateCurrent =
     typeof refundsMeta?.currentRefundRate === "number"
