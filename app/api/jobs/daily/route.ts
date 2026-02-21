@@ -219,21 +219,31 @@ export async function POST(req: Request) {
         currentRefundRate,
       });
 
-      // Add warmup reason if baseline not meaningful
-      const driftOut = {
-        ...drift,
-        reasons: [
-          ...(baselineHasHistory
-            ? []
-            : [
-                {
-                  code: "BASELINE_WARMUP",
-                  detail: "Building baseline — need more history for comparisons",
-                },
-              ]),
-          ...(drift?.reasons ?? []),
-        ],
-      };
+      let driftOut = { ...drift };
+
+if (!baselineHasHistory) {
+  driftOut = {
+    ...drift,
+    status: "stable",
+    meta: {
+      ...drift.meta,
+      direction: "flat",
+      mriScore: 100,
+      mriRaw: 100,
+      components: {
+        revenue: 0,
+        refunds: 0,
+      },
+    },
+    reasons: [
+      {
+        code: "BASELINE_WARMUP",
+        detail:
+          "Building baseline — comparisons strengthen after ~2–4 weeks of data.",
+      },
+    ],
+  };
+}
 
       // Determine last status (from businesses.last_drift)
       const lastStatus = ((biz as any)?.last_drift?.status ?? null) as DriftStatus | null;
