@@ -65,8 +65,7 @@ function normalizeDirection(raw: any): "up" | "down" | "flat" | null {
   return null;
 }
 
-function projectRiskLabel(status: DriftStatus, score: number | null) : RiskLabel {
-  // Simple executive-friendly risk label
+function projectRiskLabel(status: DriftStatus, score: number | null): RiskLabel {
   if (status === "attention") return "High";
   if (status === "softening" || status === "watch") return "Moderate";
   if (typeof score === "number" && score < 80) return "Moderate";
@@ -76,18 +75,16 @@ function projectRiskLabel(status: DriftStatus, score: number | null) : RiskLabel
 export default async function BusinessAlertsPage({
   params,
 }: {
-  params: { businessId?: string };
+  params: Promise<{ businessId: string }>;
 }) {
-  console.log("PARAMS:", params);
-  const businessId = params?.businessId;
+  // Next 16+ can deliver params as a Promise
+  const { businessId } = await params;
 
   if (!businessId || businessId === "undefined") {
     return (
       <div style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alerts</h1>
-        <div style={{ marginTop: 10, color: "#B42318" }}>
-          Missing businessId in route params.
-        </div>
+        <div style={{ marginTop: 10, color: "#B42318" }}>Missing businessId in route params.</div>
         <div style={{ marginTop: 10, color: "#667085" }}>
           Try: <code>/alerts/&lt;uuid&gt;</code>
         </div>
@@ -132,7 +129,6 @@ export default async function BusinessAlertsPage({
   const driftStatus = normalizeStatus(lastDrift?.status ?? latestAlert?.status ?? "stable");
   const driftReasons = (lastDrift?.reasons ?? latestAlert?.reasons ?? []) as any[];
 
-  // revenue_v1 meta (safe)
   const engine = String(driftMeta?.engine ?? "revenue_v1");
   const direction = normalizeDirection(driftMeta?.direction);
 
@@ -141,14 +137,16 @@ export default async function BusinessAlertsPage({
   const revenueMeta = driftMeta?.revenue ?? {};
   const refundsMeta = driftMeta?.refunds ?? {};
 
-  // Prefer revenue_v1 fields, fallback to legacy-ish names if needed
+  // revenue_v1 fields w/ legacy fallback
   const baselineNet14dRaw =
-  revenueMeta?.baselineNetRevenueCents14d ?? revenueMeta?.baselineNetRevenueCentsPer14d;
-const baselineNet14d = typeof baselineNet14dRaw === "number" ? baselineNet14dRaw : toNum(baselineNet14dRaw);
+    revenueMeta?.baselineNetRevenueCents14d ?? revenueMeta?.baselineNetRevenueCentsPer14d;
+  const baselineNet14d =
+    typeof baselineNet14dRaw === "number" ? baselineNet14dRaw : toNum(baselineNet14dRaw);
 
-const currentNet14dRaw =
-  revenueMeta?.currentNetRevenueCents14d ?? revenueMeta?.currentNetRevenueCentsPer14d;
-const currentNet14d = typeof currentNet14dRaw === "number" ? currentNet14dRaw : toNum(currentNet14dRaw);
+  const currentNet14dRaw =
+    revenueMeta?.currentNetRevenueCents14d ?? revenueMeta?.currentNetRevenueCentsPer14d;
+  const currentNet14d =
+    typeof currentNet14dRaw === "number" ? currentNet14dRaw : toNum(currentNet14dRaw);
 
   const refundRateCurrent =
     typeof refundsMeta?.currentRefundRate === "number"
@@ -158,16 +156,11 @@ const currentNet14d = typeof currentNet14dRaw === "number" ? currentNet14dRaw : 
       : null;
 
   const refundRateBaseline =
-    typeof refundsMeta?.baselineRefundRate === "number"
-      ? refundsMeta.baselineRefundRate
-      : null;
+    typeof refundsMeta?.baselineRefundRate === "number" ? refundsMeta.baselineRefundRate : null;
 
-  const deltaPct =
-    typeof revenueMeta?.deltaPct === "number"
-      ? revenueMeta.deltaPct
-      : null;
+  const deltaPct = typeof revenueMeta?.deltaPct === "number" ? revenueMeta.deltaPct : null;
 
-  // Monthly revenue: API currently returns `monthly_revenue` (looks like dollars in your response)
+  // Monthly revenue from API: `monthly_revenue` (your API returns dollars)
   const monthlyRevenueDollars =
     typeof business?.monthly_revenue === "number" ? business.monthly_revenue : null;
   const monthlyRevenueCents =
@@ -337,9 +330,7 @@ const currentNet14d = typeof currentNet14dRaw === "number" ? currentNet14dRaw : 
                 padding: 12,
               }}
             >
-              <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
-                CONTEXT
-              </div>
+              <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>CONTEXT</div>
               <div style={{ marginTop: 8, fontSize: 13, color: "#101828", fontWeight: 800 }}>
                 Monthly Revenue (manual)
               </div>
