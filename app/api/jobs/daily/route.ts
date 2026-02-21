@@ -1,19 +1,36 @@
+// app/api/jobs/daily/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeDrift } from "@/lib/drift/compute";
 import { sendDriftEmail } from "@/lib/email/resend";
-import { renderStatusEmail } from "@/lib/email/templates";
 
 export const runtime = "nodejs";
 
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
+type DriftStatus = "stable" | "watch" | "softening" | "attention";
+
+function requireCronAuth(req: Request) {
+  const secret = process.env.CRON_SECRET || "";
+  if (!secret) return null; // allow if not configured (dev)
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+  return token === secret ? null : "Unauthorized";
 }
 
-function addDays(date: Date, days: number) {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
+function isoDate(d: Date) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDaysUTC(d: Date, days: number) {
+  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  x.setUTCDate(x.getUTCDate() + days);
+  return x;
+}
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
 }
 
 function toNum(v: any) {
@@ -21,57 +38,77 @@ function toNum(v: any) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function sum(rows: any[], key: string) {
-  return (rows ?? []).reduce((acc, r) => acc + toNum(r?.metrics?.[key]), 0);
+function sumMetric(rows: any[], key: string) {
+  return rows.reduce((acc, r) => acc + toNum(r?.metrics?.[key]), 0);
 }
 
-// Net revenue = revenue - refunds
 function netFrom(rows: any[]) {
-  return sum(rows, "revenue_cents") - sum(rows, "refunds_cents");
+  const gross = sumMetric(rows, "revenue_cents");
+  const refunds = sumMetric(rows, "refunds_cents");
+  return gross - refunds;
 }
 
-function refundRateFrom(rows: any[]) {
-  const rev = sum(rows, "revenue_cents");
-  const ref = sum(rows, "refunds_cents");
-  if (rev <= 0) return 0;
-  return ref / rev;
+function safeRefundRate(gross: number, refunds: number) {
+  return gross > 0 ? refunds / gross : 0;
+}
+
+function mapStatusForEmail(status: DriftStatus): "stable" | "softening" | "attention" {
+  // Our email template expects stable/softening/attention
+  if (status === "stable") return "stable";
+  if (status === "softening") return "softening";
+  // watch + attention -> attention
+  return "attention";
+}
+
+function formatPct(x: number) {
+  const p = x * 100;
+  const sign = p > 0 ? "+" : "";
+  return `${sign}${p.toFixed(1)}%`;
+}
+
+function formatMoneyFromCents(cents: number) {
+  const dollars = cents / 100;
+  return dollars.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
 export async function POST(req: Request) {
-  const supabase = supabaseAdmin();
+  const authErr = requireCronAuth(req);
+  if (authErr) return NextResponse.json({ ok: false, error: authErr }, { status: 401 });
 
+  const supabase = supabaseAdmin();
   const url = new URL(req.url);
-  const debug = url.searchParams.get("debug") === "1";
+
   const dryRun = url.searchParams.get("dry_run") === "true";
+  const debug = url.searchParams.get("debug") === "1" || url.searchParams.get("debug") === "true";
   const forceEmail = url.searchParams.get("force_email") === "true";
   const filterBusinessId = url.searchParams.get("business_id");
   const filterSourceId = url.searchParams.get("source_id");
 
-  const startedAt = Date.now();
+  const t0 = Date.now();
 
-  // Windows
-  const today = new Date(); // UTC-ish is fine since snapshot_date is a date string
-  const currentDays = 14;
-  const baselineDays = 60;
-  const priorDays = 14;
+  // Windows (UTC day boundaries)
+  const today = new Date(); // now (UTC)
+  const currentEnd = isoDate(today); // inclusive end label (today)
+  const currentStart = isoDate(addDaysUTC(today, -13)); // last 14 days including today
 
-  const currentEnd = isoDate(today);
-  const currentStart = isoDate(addDays(today, -(currentDays - 1)));
+  const priorEnd = isoDate(addDaysUTC(today, -14));
+  const priorStart = isoDate(addDaysUTC(today, -27));
 
-  const baselineEnd = isoDate(addDays(today, -currentDays));
-  const baselineStart = isoDate(addDays(today, -(currentDays + baselineDays - 1)));
+  // baseline is the 60d period BEFORE currentStart (does not overlap current)
+  const baselineEnd = isoDate(addDaysUTC(today, -14)); // same as priorEnd
+  const baselineStart = isoDate(addDaysUTC(today, -73)); // 60 days ending at baselineEnd (inclusive)
+  const earliest = baselineStart; // we only need baseline+prior+current
 
-  const priorEnd = isoDate(addDays(today, -currentDays));
-  const priorStart = isoDate(addDays(today, -(currentDays + priorDays - 1)));
-
-  // Read businesses
+  // 1) Read businesses
   let bq = supabase
     .from("businesses")
-    .select("id,name,timezone,alert_email,is_paid,monthly_revenue_cents");
+    // IMPORTANT: only select columns we know exist in your schema (based on your /api/alerts route)
+    .select("id,name,timezone,alert_email,is_paid,monthly_revenue");
 
   if (filterBusinessId) bq = bq.eq("id", filterBusinessId);
 
   const { data: businesses, error: bErr } = await bq;
+
   if (bErr) {
     return NextResponse.json(
       { ok: false, step: "read_businesses", error: bErr.message },
@@ -82,29 +119,23 @@ export async function POST(req: Request) {
   const results: any[] = [];
 
   for (const biz of businesses ?? []) {
-    // Start job_run (best-effort; don’t crash if schema cache is stale)
-    let bizRun: any = null;
-    try {
-      const { data } = await supabase
-        .from("job_runs")
-        .insert({
-          job_name: "daily:business",
-          business_id: biz.id,
-          status: "started",
-          started_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-      bizRun = data ?? null;
-    } catch {
-      // ignore
-    }
+    // 2) job_runs: start (NO meta column — avoids schema cache issue)
+    const { data: bizRun } = await supabase
+      .from("job_runs")
+      .insert({
+        job_name: "daily:business",
+        business_id: biz.id,
+        status: "started",
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
 
     try {
-      // Connected sources
+      // 3) Read connected sources
       let sq = supabase
         .from("sources")
-        .select("id,type,is_connected")
+        .select("id,type,is_connected,config")
         .eq("business_id", biz.id)
         .eq("is_connected", true);
 
@@ -116,13 +147,10 @@ export async function POST(req: Request) {
       const stripeSource = (connected ?? []).find((s: any) => s.type === "stripe_revenue");
 
       if (!stripeSource) {
-        // No Stripe → skip revenue_v1
-        if (bizRun?.id) {
-          await supabase
-            .from("job_runs")
-            .update({ status: "success", finished_at: new Date().toISOString() })
-            .eq("id", bizRun.id);
-        }
+        await supabase
+          .from("job_runs")
+          .update({ status: "success", finished_at: new Date().toISOString() })
+          .eq("id", bizRun?.id);
 
         results.push({
           business_id: biz.id,
@@ -141,45 +169,49 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Pull snapshots for baseline + current + prior in one fetch
-      const earliest = priorStart < baselineStart ? priorStart : baselineStart;
-
-      const { data: rows, error: snapErr } = await supabase
+      // 4) Pull snapshots (single fetch)
+      const snapQ = supabase
         .from("snapshots")
-        .select("snapshot_date,metrics,source_id")
+        .select("snapshot_date,metrics")
         .eq("business_id", biz.id)
         .eq("source_id", stripeSource.id)
-        .gte("snapshot_date", earliest)
-        .lte("snapshot_date", currentEnd);
+        .gte("snapshot_date", earliest);
 
+      const { data: rows, error: snapErr } = await snapQ;
       if (snapErr) throw new Error(`read_snapshots: ${snapErr.message}`);
 
       const all = rows ?? [];
 
-      // Window filters (snapshot_date is YYYY-MM-DD)
-      const baselineRows = all.filter(
-        (r: any) => r.snapshot_date >= baselineStart && r.snapshot_date <= baselineEnd
-      );
+      // Partition by window boundaries (YYYY-MM-DD compares lexicographically)
+      const baselineRows = all.filter((r: any) => r.snapshot_date >= baselineStart && r.snapshot_date <= baselineEnd);
+      const priorRows = all.filter((r: any) => r.snapshot_date >= priorStart && r.snapshot_date <= priorEnd);
+      const currentRows = all.filter((r: any) => r.snapshot_date >= currentStart && r.snapshot_date <= currentEnd);
 
-      const currentRows = all.filter(
-        (r: any) => r.snapshot_date >= currentStart && r.snapshot_date <= currentEnd
-      );
+      // Sums (gross/refunds/net)
+      const baselineGross60d = sumMetric(baselineRows, "revenue_cents");
+      const baselineRefunds60d = sumMetric(baselineRows, "refunds_cents");
+      const baselineNet60d = baselineGross60d - baselineRefunds60d;
 
-      const priorRows = all.filter(
-        (r: any) => r.snapshot_date >= priorStart && r.snapshot_date <= priorEnd
-      );
+      const currentGross14d = sumMetric(currentRows, "revenue_cents");
+      const currentRefunds14d = sumMetric(currentRows, "refunds_cents");
+      const currentNet14d = currentGross14d - currentRefunds14d;
 
-      // Compute revenue + refunds from metrics keys that exist
-      const baselineNet60d = netFrom(baselineRows);
-      const currentNet14d = netFrom(currentRows);
-      const priorNet14d = netFrom(priorRows);
+      const priorGross14d = sumMetric(priorRows, "revenue_cents");
+      const priorRefunds14d = sumMetric(priorRows, "refunds_cents");
+      const priorNet14d = priorRows.length ? priorGross14d - priorRefunds14d : null;
 
-      // Scale baseline 60d → 14d using window days (NOT number of rows)
-      const baselineNet14d = Math.round((baselineNet60d / baselineDays) * currentDays);
+      // Normalize baseline 60d -> 14d equivalent
+      const baselineNet14d = Math.round((baselineNet60d / 60) * 14);
 
-      const baselineRefundRate = refundRateFrom(baselineRows);
-      const currentRefundRate = refundRateFrom(currentRows);
+      // Baseline guardrails: if baseline gross is basically empty, neutralize baseline comparisons
+      const MIN_BASELINE_GROSS_CENTS = 10_000; // $100
+      const baselineHasHistory = baselineGross60d >= MIN_BASELINE_GROSS_CENTS;
 
+      const currentRefundRate = safeRefundRate(currentGross14d, currentRefunds14d);
+      const computedBaselineRefundRate = safeRefundRate(baselineGross60d, baselineRefunds60d);
+      const baselineRefundRate = baselineHasHistory ? computedBaselineRefundRate : currentRefundRate;
+
+      // 5) Compute drift (Revenue v1)
       const drift = computeDrift({
         baselineNetRevenue60d: baselineNet60d,
         currentNetRevenue14d: currentNet14d,
@@ -188,34 +220,34 @@ export async function POST(req: Request) {
         currentRefundRate,
       });
 
-      // Compare with last status
-      const { data: lastAlert } = await supabase
-        .from("alerts")
-        .select("status")
-        .eq("business_id", biz.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Ensure engine + direction are present (computeDrift should set, but guard anyway)
+      drift.meta = drift.meta ?? {};
+      drift.meta.engine = drift.meta.engine ?? "revenue_v1";
+      drift.meta.direction = drift.meta.direction ?? "flat";
 
-      const lastStatus = (lastAlert as any)?.status ?? null;
-      const statusChanged = lastStatus !== drift.status;
+      // If baseline is warming up, annotate
+      if (!baselineHasHistory) {
+        drift.reasons = [
+          {
+            code: "BASELINE_WARMUP",
+            detail: "Building baseline — need more history for comparisons",
+          },
+          ...(drift.reasons ?? []),
+        ];
+      }
 
-      // Write alert only if changed and not dry-run
-      let alertInserted = false;
-      if (!dryRun && statusChanged) {
-        const { error: insErr } = await supabase.from("alerts").insert({
-          business_id: biz.id,
-          status: drift.status,
-          reasons: drift.reasons,
-          window_start: currentStart,
-          window_end: currentEnd,
-          meta: drift.meta ?? null,
-        });
+      // 6) Determine status change vs last_drift.status
+      const { data: bizRow } = await supabase
+        .from("businesses")
+        .select("last_drift")
+        .eq("id", biz.id)
+        .single();
 
-        if (insErr) throw new Error(`insert_alert: ${insErr.message}`);
-        alertInserted = true;
+      const lastStatus: DriftStatus | null = (bizRow as any)?.last_drift?.status ?? null;
+      const statusChanged = !!lastStatus && lastStatus !== drift.status;
 
-        // Keep business cache updated
+      // 7) Write back last_drift + timestamp (+ optional alert insert)
+      if (!dryRun) {
         await supabase
           .from("businesses")
           .update({
@@ -223,131 +255,145 @@ export async function POST(req: Request) {
             last_drift_at: new Date().toISOString(),
           })
           .eq("id", biz.id);
+
+        if (statusChanged) {
+          await supabase.from("alerts").insert({
+            business_id: biz.id,
+            status: drift.status,
+            reasons: drift.reasons ?? [],
+            window_start: currentStart,
+            window_end: currentEnd,
+            meta: null,
+          });
+        }
       }
 
-      // Email logic
+      // 8) Email rules:
+      // - Only paid
+      // - Send if force_email or status changed (and we have an email)
+      const isPaid = !!(biz as any).is_paid;
       let emailAttempted = false;
-      let emailId: string | null = null;
       let emailError: string | null = null;
-      let emailDebug: any = null;
 
-      const isPaid = (biz as any)?.is_paid ?? false;
-      const shouldEmail = !!biz.alert_email && isPaid && (forceEmail || statusChanged);
-
-      if (!dryRun && shouldEmail) {
+      if (biz.alert_email && isPaid && (forceEmail || statusChanged) && !dryRun) {
         emailAttempted = true;
+
+        const emailStatus = mapStatusForEmail(drift.status as DriftStatus);
+
+        const rev = drift.meta?.revenue ?? {};
+        const refunds = drift.meta?.refunds ?? {};
+
+        const subject =
+          emailStatus === "stable"
+            ? `DRIFT: Stable — ${biz.name}`
+            : emailStatus === "softening"
+              ? `DRIFT: Softening — ${biz.name}`
+              : `DRIFT: Attention — ${biz.name}`;
+
+        const lines: string[] = [];
+        lines.push(`Business: ${biz.name}`);
+        lines.push(`Engine: revenue_v1`);
+        lines.push(`Direction: ${String(drift.meta?.direction ?? "flat")}`);
+        lines.push(`RMI Score: ${String(drift.meta?.mriScore ?? "")}`);
+        lines.push("");
+        lines.push(`Current (14d) net: ${formatMoneyFromCents(toNum(rev.currentNetRevenueCents14d ?? 0))}`);
+        lines.push(`Baseline (14d equiv): ${formatMoneyFromCents(toNum(rev.baselineNetRevenueCents14d ?? 0))}`);
+        lines.push(`Delta: ${formatPct(toNum(rev.deltaPct ?? 0))}`);
+        lines.push("");
+        lines.push(
+          `Refund rate: ${(toNum(refunds.currentRefundRate ?? 0) * 100).toFixed(1)}% (baseline ${(toNum(refunds.baselineRefundRate ?? 0) * 100).toFixed(1)}%)`
+        );
+        lines.push("");
+
+        if ((drift.reasons ?? []).length) {
+          lines.push("Drivers:");
+          for (const r of drift.reasons) {
+            lines.push(`- ${r.detail}`);
+          }
+          lines.push("");
+        } else {
+          lines.push("Drivers: None (stable).");
+          lines.push("");
+        }
+
         try {
-          const { subject, text } = renderStatusEmail({
-            businessName: biz.name,
-            status: drift.status as any, // template expects stable/softening/attention
-            reasons: drift.reasons,
-            windowStart: currentStart,
-            windowEnd: currentEnd,
-          });
-
-          const sent = await sendDriftEmail({
-            to: biz.alert_email,
+          await sendDriftEmail({
+            to: String(biz.alert_email),
             subject,
-            text,
+            text: lines.join("\n"),
           });
-
-          emailId = (sent as any)?.id ?? null;
-          emailDebug = sent ?? null;
         } catch (e: any) {
           emailError = e?.message ?? String(e);
         }
       }
 
-      if (bizRun?.id) {
-        await supabase
-          .from("job_runs")
-          .update({ status: "success", finished_at: new Date().toISOString() })
-          .eq("id", bizRun.id);
-      }
+      // 9) job_runs: success
+      await supabase
+        .from("job_runs")
+        .update({ status: "success", finished_at: new Date().toISOString() })
+        .eq("id", bizRun?.id);
 
       results.push({
         business_id: biz.id,
         name: biz.name,
-        drift: {
-          ...drift,
-          meta: {
-            ...(drift.meta ?? {}),
-            // Ensure these show the corrected numbers in meta
-            revenue: {
-              baselineNetRevenueCents14d: baselineNet14d,
-              currentNetRevenueCents14d: currentNet14d,
-              deltaPct:
-                baselineNet14d <= 0
-                  ? currentNet14d > 0
-                    ? 1
-                    : 0
-                  : (currentNet14d - baselineNet14d) / baselineNet14d,
-            },
-            refunds: {
-              baselineRefundRate,
-              currentRefundRate,
-              delta: currentRefundRate - baselineRefundRate,
-            },
-          },
-        },
+        drift,
         last_status: lastStatus,
         status_changed: statusChanged,
-        alert_inserted: alertInserted,
+        alert_inserted: !dryRun && statusChanged,
         dry_run: dryRun,
         force_email: forceEmail,
         email_to: biz.alert_email ?? null,
-        is_paid: isPaid,
+        is_paid: (biz as any).is_paid ?? null,
         email_attempted: emailAttempted,
         email_error: emailError,
-        email_id: emailId,
-        email_debug: emailDebug,
+        email_id: null,
+        email_debug: null,
         ...(debug
           ? {
               debug: {
                 windows: {
-                  baselineStart,
-                  baselineEnd,
-                  currentStart,
-                  currentEnd,
-                  priorStart,
-                  priorEnd,
-                },
-                sums: {
-                  baselineGross60d: sum(baselineRows, "revenue_cents"),
-                  baselineRefunds60d: sum(baselineRows, "refunds_cents"),
-                  baselineNet60d,
-                  baselineNet14d,
-                  currentGross14d: sum(currentRows, "revenue_cents"),
-                  currentRefunds14d: sum(currentRows, "refunds_cents"),
-                  currentNet14d,
-                  priorNet14d,
+                  baseline: { start: baselineStart, end: baselineEnd, days: 60 },
+                  prior: { start: priorStart, end: priorEnd, days: 14 },
+                  current: { start: currentStart, end: currentEnd, days: 14 },
                 },
                 counts: {
                   baselineRows: baselineRows.length,
-                  currentRows: currentRows.length,
                   priorRows: priorRows.length,
+                  currentRows: currentRows.length,
+                },
+                sums: {
+                  baselineGross60d,
+                  baselineRefunds60d,
+                  baselineNet60d,
+                  baselineNet14d,
+                  currentGross14d,
+                  currentRefunds14d,
+                  currentNet14d,
+                  priorNet14d: priorNet14d ?? 0,
+                },
+                rates: {
+                  baselineHasHistory,
+                  computedBaselineRefundRate,
+                  baselineRefundRate,
+                  currentRefundRate,
                 },
               },
             }
           : {}),
       });
     } catch (e: any) {
-      if (bizRun?.id) {
-        await supabase
-          .from("job_runs")
-          .update({
-            status: "failed",
-            finished_at: new Date().toISOString(),
-            error: e?.message ?? String(e),
-          })
-          .eq("id", bizRun.id);
-      }
+      const msg = e?.message ?? String(e);
+
+      await supabase
+        .from("job_runs")
+        .update({ status: "failed", finished_at: new Date().toISOString(), error: msg })
+        .eq("id", bizRun?.id);
 
       results.push({
         business_id: biz.id,
         name: biz.name,
         ok: false,
-        error: e?.message ?? String(e),
+        error: msg,
         dry_run: dryRun,
       });
     }
@@ -357,7 +403,7 @@ export async function POST(req: Request) {
     ok: true,
     dry_run: dryRun,
     businesses_processed: (businesses ?? []).length,
-    duration_ms: Date.now() - startedAt,
+    duration_ms: Date.now() - t0,
     filters: {
       business_id: filterBusinessId ?? null,
       source_id: filterSourceId ?? null,
