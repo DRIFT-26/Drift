@@ -1,0 +1,22 @@
+name: DRIFT Scheduled Jobs
+
+on:
+  schedule:
+    # Every day at 6:00 AM UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}  # Allows manual run from GitHub UI
+
+jobs:
+  run-drift-jobs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run Stripe Ingest (last 14 days)
+        run: |
+          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=14" \
+            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}" | jq
+
+      - name: Run Daily Drift Engine
+        run: |
+          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/daily" \
+            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}" | jq
