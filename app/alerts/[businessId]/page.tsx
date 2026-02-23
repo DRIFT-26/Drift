@@ -1,6 +1,6 @@
 // app/alerts/[businessId]/page.tsx
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 type RiskLabel = "Low" | "Moderate" | "High";
@@ -66,9 +66,26 @@ function isUuidLike(v: string) {
   return /^[0-9a-fA-F-]{32,36}$/.test(v);
 }
 
+// Builds an absolute base URL that works in Vercel + local.
+// IMPORTANT: headers() can be async in Next 16, so we await it.
+async function requestBaseUrl() {
+  const h = await headers();
+
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const host =
+    h.get("x-forwarded-host") ??
+    h.get("host") ??
+    process.env.VERCEL_URL ??
+    "drift-app-indol.vercel.app";
+
+  const origin = host.startsWith("http") ? host : `${proto}://${host}`;
+  return origin.replace(/\/$/, "");
+}
+
 export default async function BusinessAlertsPage({
   params,
 }: {
+  // Compatible with Next 16 variations
   params: Promise<{ businessId?: string }> | { businessId?: string };
 }) {
   const resolved = (await Promise.resolve(params)) as { businessId?: string };
@@ -78,7 +95,9 @@ export default async function BusinessAlertsPage({
     return (
       <div style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alerts</h1>
-        <div style={{ marginTop: 10, color: "#B42318" }}>Missing businessId in route params.</div>
+        <div style={{ marginTop: 10, color: "#B42318" }}>
+          Missing businessId in route params.
+        </div>
         <div style={{ marginTop: 10, color: "#667085" }}>
           Try: <code>/alerts/&lt;uuid&gt;</code>
         </div>
@@ -86,61 +105,16 @@ export default async function BusinessAlertsPage({
     );
   }
 
-  /**
-   * ✅ EXEC-SAFE OPERATIONS: use Server Actions so the browser never needs secrets.
-   * These actions call your protected job endpoints using DRIFT_CRON_SECRET.
-   * If the secret isn't set, the buttons will still render but simply won't run.
-   */
-    async function runStripe14d(formData: FormData) {
-    "use server";
-    const token = process.env.DRIFT_CRON_SECRET || process.env.DRIFT_JOB_SECRET;
-    if (!token) return;
-
-    const businessId = String(formData.get("businessId") ?? "");
-    if (!businessId) return;
-
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://drift-app-indol.vercel.app"}/api/jobs/stripe-ingest?days=14`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      }
-    );
-
-    redirect(`/alerts/${businessId}`);
-  }
-
-  async function runDailyCompute(formData: FormData) {
-    "use server";
-    const token = process.env.DRIFT_CRON_SECRET || process.env.DRIFT_JOB_SECRET;
-    if (!token) return;
-
-    const businessId = String(formData.get("businessId") ?? "");
-    if (!businessId) return;
-
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://drift-app-indol.vercel.app"}/api/jobs/daily?business_id=${encodeURIComponent(
-        businessId
-      )}`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      }
-    );
-
-    redirect(`/alerts/${businessId}`);
-  }
-
-  // ✅ IMPORTANT: relative URL (avoids absolute-host auth weirdness)
-  const apiPath = `/api/alerts?business_id=${encodeURIComponent(businessId)}`;
+  // Use an absolute URL so server-side fetch never tries to parse a relative URL.
+  const apiUrl = `${await requestBaseUrl()}/api/alerts?business_id=${encodeURIComponent(
+    businessId
+  )}`;
 
   let payload: any = null;
   let httpStatus: number | null = null;
 
   try {
-    const res = await fetch(apiPath, { cache: "no-store" });
+    const res = await fetch(apiUrl, { cache: "no-store" });
     httpStatus = res.status;
 
     const contentType = res.headers.get("content-type") ?? "";
@@ -148,7 +122,10 @@ export default async function BusinessAlertsPage({
       const t = await res.text();
       payload = {
         ok: false,
-        error: `API did not return JSON (status ${res.status}). First bytes: ${t.slice(0, 120)}`,
+        error: `API did not return JSON (status ${res.status}). First bytes: ${t.slice(
+          0,
+          120
+        )}`,
       };
     } else {
       payload = await res.json();
@@ -183,6 +160,7 @@ export default async function BusinessAlertsPage({
   const business = payload.business;
   const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
 
+  // ---- Hybrid drift fallback chain (newest first) ----
   const lastDrift = business?.last_drift ?? null;
   const latestAlert = alerts?.[0] ?? null;
 
@@ -190,6 +168,7 @@ export default async function BusinessAlertsPage({
   const driftStatus = normalizeStatus(lastDrift?.status ?? latestAlert?.status ?? "stable");
   const driftReasons = (lastDrift?.reasons ?? latestAlert?.reasons ?? []) as any[];
 
+  // engine + direction
   const engine = String(driftMeta?.engine ?? "revenue_v1");
   const direction = normalizeDirection(driftMeta?.direction);
 
@@ -198,6 +177,7 @@ export default async function BusinessAlertsPage({
   const revenueMeta = driftMeta?.revenue ?? {};
   const refundsMeta = driftMeta?.refunds ?? {};
 
+  // Prefer revenue_v1 fields, fallback to tolerated legacy names
   const baselineNet14dRaw =
     revenueMeta?.baselineNetRevenueCents14d ?? revenueMeta?.baselineNetRevenueCentsPer14d;
   const baselineNet14d =
@@ -220,6 +200,7 @@ export default async function BusinessAlertsPage({
   const refundRateBaseline =
     typeof refundsMeta?.baselineRefundRate === "number" ? refundsMeta.baselineRefundRate : null;
 
+  // Monthly revenue (API sometimes returns monthly_revenue dollars OR monthly_revenue_cents)
   const monthlyRevenueCents =
     typeof business?.monthly_revenue_cents === "number"
       ? business.monthly_revenue_cents
@@ -230,43 +211,10 @@ export default async function BusinessAlertsPage({
   const tone = statusTone(driftStatus);
   const riskLabel = projectRiskLabel(driftStatus, mriScore);
 
-  function StatusItem({
-  label,
-  value,
-  healthy,
-}: {
-  label: string;
-  value: string;
-  healthy: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: healthy ? "#ECFDF3" : "#FEF3F2",
-        border: `1px solid ${healthy ? "#ABEFC6" : "#FECDCA"}`,
-        borderRadius: 12,
-        padding: 12,
-      }}
-    >
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#667085" }}>{label}</div>
-      <div
-        style={{
-          marginTop: 6,
-          fontSize: 13,
-          fontWeight: 800,
-          color: healthy ? "#027A48" : "#B42318",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", background: "#F8FAFC", minHeight: "100vh" }}>
       {/* Top bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontSize: 12, color: "#667085", letterSpacing: 0.4 }}>
             DRIFT / EXECUTIVE SIGNAL
@@ -284,74 +232,6 @@ export default async function BusinessAlertsPage({
             ) : null}
           </div>
         </div>
-
-        {/* Executive System Status */}
-<div
-  style={{
-    marginTop: 16,
-    background: "#FFFFFF",
-    border: "1px solid #EAECF0",
-    borderRadius: 16,
-    padding: 16,
-    boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
-  }}
->
-  <div style={{ fontSize: 12, color: "#667085", fontWeight: 800, letterSpacing: 0.3 }}>
-    SYSTEM STATUS
-  </div>
-
-  <div
-    style={{
-      marginTop: 12,
-      display: "grid",
-      gridTemplateColumns: "repeat(5, 1fr)",
-      gap: 12,
-    }}
-  >
-    {/* Data Source */}
-    <StatusItem
-      label="Data Source"
-      value={business?.last_drift ? "Connected" : "Not Connected"}
-      healthy={!!business?.last_drift}
-    />
-
-    {/* Data Freshness */}
-    <StatusItem
-      label="Last Compute"
-      value={
-        business?.last_drift_at
-          ? new Date(business.last_drift_at).toLocaleDateString()
-          : "Not yet run"
-      }
-      healthy={!!business?.last_drift_at}
-    />
-
-    {/* Signal Readiness */}
-    <StatusItem
-      label="Signal Readiness"
-      value={
-        driftReasons?.some((r: any) => r?.code === "BASELINE_WARMUP")
-          ? "Building Baseline"
-          : "Fully Active"
-      }
-      healthy={!driftReasons?.some((r: any) => r?.code === "BASELINE_WARMUP")}
-    />
-
-    {/* Automation */}
-    <StatusItem
-      label="Automation"
-      value="Daily Active"
-      healthy={true}
-    />
-
-    {/* Plan */}
-    <StatusItem
-      label="Plan"
-      value={business?.is_paid ? "Active" : "Trial"}
-      healthy={!!business?.is_paid}
-    />
-  </div>
-</div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <div
@@ -388,72 +268,6 @@ export default async function BusinessAlertsPage({
           <Link href="/alerts" style={{ color: "#175CD3", fontWeight: 700, fontSize: 13 }}>
             Back
           </Link>
-        </div>
-      </div>
-
-      {/* ✅ EXECUTIVE-SAFE OPERATIONS PANEL (correct location: under Top bar, above KPIs) */}
-      <div
-        style={{
-          marginTop: 14,
-          background: "#FFFFFF",
-          border: "1px solid #EAECF0",
-          borderRadius: 16,
-          padding: 14,
-          boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ fontSize: 12, color: "#667085", fontWeight: 800, letterSpacing: 0.3 }}>
-            OPERATIONS
-          </div>
-          <div style={{ fontSize: 13, color: "#101828", fontWeight: 800 }}>
-            Refresh and compute controls
-          </div>
-          <div style={{ fontSize: 12, color: "#667085" }}>
-            Intended for onboarding and testing. Scheduled automation runs normally.
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <form action={runStripe14d} style={{ margin: 0 }}>
-  <input type="hidden" name="businessId" value={businessId} />
-  <button
-    type="submit"
-    style={{
-      padding: "8px 14px",
-      borderRadius: 8,
-      background: "#101828",
-      color: "#fff",
-      fontWeight: 700,
-      border: "none",
-      cursor: "pointer",
-    }}
-  >
-    Refresh Stripe (14d)
-  </button>
-</form>
-
-<form action={runDailyCompute} style={{ margin: 0 }}>
-  <input type="hidden" name="businessId" value={businessId} />
-  <button
-    type="submit"
-    style={{
-      padding: "8px 14px",
-      borderRadius: 8,
-      background: "#344054",
-      color: "#fff",
-      fontWeight: 700,
-      border: "none",
-      cursor: "pointer",
-    }}
-  >
-    Run Compute
-  </button>
-</form>
         </div>
       </div>
 
@@ -545,7 +359,7 @@ export default async function BusinessAlertsPage({
                 {driftReasons?.length ? "Key signals detected" : "No negative signals detected"}
               </div>
               <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-                Short, specific, actionable.
+                CEO readable — short, specific, actionable.
               </div>
             </div>
 
@@ -566,7 +380,7 @@ export default async function BusinessAlertsPage({
                 {formatMoney(monthlyRevenueCents)}
               </div>
               <div style={{ marginTop: 10, fontSize: 12, color: "#667085" }}>
-                Used for impact estimates (optional).
+                Used for impact estimates later (optional).
               </div>
             </div>
           </div>
@@ -583,7 +397,7 @@ export default async function BusinessAlertsPage({
             </ul>
           ) : (
             <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
-              Drift currently reads as stable. When signals appear, they will show here.
+              Drift currently reads as stable. When signals appear, you’ll see them here.
             </div>
           )}
 
