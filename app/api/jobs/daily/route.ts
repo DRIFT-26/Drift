@@ -1,412 +1,319 @@
+// app/api/jobs/daily/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { computeDrift } from "@/lib/drift/compute";
 import { sendDriftEmail } from "@/lib/email/resend";
+import { renderStatusEmail } from "@/lib/email/templates";
+import {
+  capReasons,
+  executiveSummary,
+  normalizeStatus,
+  statusForEmail,
+  type DriftStatus,
+} from "@/lib/executive/summary";
 
 export const runtime = "nodejs";
-
-type DriftStatus = "stable" | "watch" | "softening" | "attention";
-
-function json(ok: boolean, body: any, status = 200) {
-  return NextResponse.json({ ok, ...body }, { status });
-}
-
-function bearer(req: Request) {
-  const h = req.headers.get("authorization") || "";
-  const m = h.match(/^Bearer\s+(.+)$/i);
-  return m?.[1] ?? null;
-}
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function addDays(date: Date, days: number) {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
-}
+/**
+ * Auth for:
+ * - Vercel Cron: Authorization: Bearer <CRON_SECRET>
+ * - Manual testing: x-cron-secret: <CRON_SECRET>
+ */
+function requireCronAuth(req: Request) {
+  const secret = (process.env.CRON_SECRET || "").trim();
 
-function toNum(v: any) {
-  const n = typeof v === "string" ? Number(v) : v;
-  return Number.isFinite(n) ? n : 0;
-}
+  const authHeader = (req.headers.get("authorization") || "").trim();
+  const m = authHeader.match(/^bearer\s+(.+)$/i);
+  const bearerToken = (m?.[1] || "").trim();
 
-function sumMetric(rows: any[], key: string) {
-  return (rows ?? []).reduce((acc, r) => acc + toNum(r?.metrics?.[key]), 0);
-}
+  const xToken = (req.headers.get("x-cron-secret") || "").trim();
 
-function normalizeStatusForEmail(s: DriftStatus): Exclude<DriftStatus, "watch"> {
-  // if your email template doesn't accept "watch", map it to softening
-  return s === "watch" ? "softening" : s;
-}
+  const token = bearerToken || xToken;
+  const ok = Boolean(secret) && token === secret;
 
-export async function POST(req: Request) {
-  const t0 = Date.now();
-  const supabase = supabaseAdmin();
-
-  // ---- Auth
-  const token = bearer(req);
-  const expected = process.env.CRON_SECRET;
-  if (!expected || token !== expected) {
-    return json(false, { error: "Unauthorized" }, 401);
-  }
-
-  const url = new URL(req.url);
-  const dryRun = url.searchParams.get("dry_run") === "true";
-  const forceEmail = url.searchParams.get("force_email") === "true";
-  const debug = url.searchParams.get("debug") === "1" || url.searchParams.get("debug") === "true";
-  const filterBusinessId = url.searchParams.get("business_id");
-  const filterSourceId = url.searchParams.get("source_id");
-
-  // ---- Read businesses
-  // IMPORTANT: only select columns you KNOW exist in your schema.
-  // Based on your /api/alerts output, monthly_revenue exists (not monthly_revenue_cents).
-  let bq = supabase
-    .from("businesses")
-    .select("id,name,timezone,alert_email,is_paid,last_drift,last_drift_at,monthly_revenue");
-
-  if (filterBusinessId) bq = bq.eq("id", filterBusinessId);
-
-  const { data: businesses, error: bErr } = await bq;
-
-  if (bErr) {
-    return json(false, { step: "read_businesses", error: bErr.message }, 500);
-  }
-
-  const results: any[] = [];
-
-  // ---- Windows: baseline=60d ending 14d ago; prior=14d before current; current=last 14d
-  const today = new Date();
-  const currentEnd = today; // inclusive-ish; snapshots are daily dates, so we use date strings
-  const currentStart = addDays(currentEnd, -13);
-
-  const priorEnd = addDays(currentStart, -1);
-  const priorStart = addDays(priorEnd, -13);
-
-  const baselineEnd = priorEnd;
-  const baselineStart = addDays(baselineEnd, -59);
-
-  const currentStartStr = isoDate(currentStart);
-  const currentEndStr = isoDate(currentEnd);
-  const priorStartStr = isoDate(priorStart);
-  const priorEndStr = isoDate(priorEnd);
-  const baselineStartStr = isoDate(baselineStart);
-  const baselineEndStr = isoDate(baselineEnd);
-
-  for (const biz of businesses ?? []) {
-    const bizRunStartedAt = new Date().toISOString();
-
-    // --- start job_run (avoid meta column unless you're 100% sure it exists)
-    let bizRunId: string | null = null;
-    if (!dryRun) {
-      const { data: jr, error: jrErr } = await supabase
-        .from("job_runs")
-        .insert({ job_name: "daily:business", business_id: biz.id, status: "started", started_at: bizRunStartedAt })
-        .select("id")
-        .single();
-
-      if (jrErr) {
-        results.push({
-          business_id: biz.id,
-          name: biz.name,
-          skipped: true,
-          reason: "job_runs_start_failed",
-          error: jrErr.message,
-          dry_run: dryRun,
-        });
-        continue;
-      }
-      bizRunId = jr?.id ?? null;
-    }
-
-    try {
-      // ---- Read sources
-      let sq = supabase
-        .from("sources")
-        .select("id,type,is_connected,config")
-        .eq("business_id", biz.id)
-        .eq("is_connected", true);
-
-      if (filterSourceId) sq = sq.eq("id", filterSourceId);
-
-      const { data: connected, error: sErr } = await sq;
-      if (sErr) throw new Error(`read_sources: ${sErr.message}`);
-
-      const stripeSource = (connected ?? []).find((s: any) => s.type === "stripe_revenue");
-
-      if (!stripeSource) {
-        if (!dryRun && bizRunId) {
-          await supabase
-            .from("job_runs")
-            .update({ status: "success", finished_at: new Date().toISOString() })
-            .eq("id", bizRunId);
-        }
-
-        results.push({
-          business_id: biz.id,
-          name: biz.name,
-          skipped: true,
-          reason: "no_stripe_revenue_source",
-          dry_run: dryRun,
-          force_email: forceEmail,
-          email_to: biz.alert_email ?? null,
-          is_paid: (biz as any).is_paid ?? null,
-          email_attempted: false,
-          email_error: null,
-          email_id: null,
-          email_debug: null,
-        });
-        continue;
-      }
-
-      // ---- Read snapshots (single fetch)
-      const earliest = baselineStartStr;
-
-      const { data: rows, error: snapErr } = await supabase
-        .from("snapshots")
-        .select("snapshot_date,metrics")
-        .eq("business_id", biz.id)
-        .eq("source_id", stripeSource.id)
-        .gte("snapshot_date", earliest)
-        .lte("snapshot_date", currentEndStr);
-
-      if (snapErr) throw new Error(`read_snapshots: ${snapErr.message}`);
-
-      const all = rows ?? [];
-
-      const baselineRows = all.filter(
-        (r: any) => r.snapshot_date >= baselineStartStr && r.snapshot_date <= baselineEndStr
-      );
-      const priorRows = all.filter((r: any) => r.snapshot_date >= priorStartStr && r.snapshot_date <= priorEndStr);
-      const currentRows = all.filter((r: any) => r.snapshot_date >= currentStartStr && r.snapshot_date <= currentEndStr);
-
-      // ---- SUMS
-      const baselineGross60d = sumMetric(baselineRows, "revenue_cents");
-      const baselineRefunds60d = sumMetric(baselineRows, "refunds_cents");
-      const baselineNet60dRaw = baselineGross60d - baselineRefunds60d;
-
-      const currentGross14d = sumMetric(currentRows, "revenue_cents");
-      const currentRefunds14d = sumMetric(currentRows, "refunds_cents");
-      const currentNet14d = currentGross14d - currentRefunds14d;
-
-      const priorGross14d = sumMetric(priorRows, "revenue_cents");
-      const priorRefunds14d = sumMetric(priorRows, "refunds_cents");
-      const priorNet14d = priorGross14d - priorRefunds14d;
-
-      // ---- BASELINE NORMALIZATION
-      const baselineHasHistory = baselineGross60d > 0;
-
-      // If baseline is empty, fabricate a baseline net so revenue delta isn't nonsense
-      const effectiveBaselineNet60d = baselineHasHistory
-        ? baselineNet60dRaw
-        : Math.round(currentNet14d * (60 / 14));
-
-      // Convert baseline 60d -> comparable 14d baseline
-      const baselineNet14d = Math.round((effectiveBaselineNet60d / 60) * 14);
-
-      // Refund rates
-      const computedBaselineRefundRate = baselineGross60d > 0 ? baselineRefunds60d / baselineGross60d : 0;
-      const currentRefundRate = currentGross14d > 0 ? currentRefunds14d / currentGross14d : 0;
-      const baselineRefundRate = baselineHasHistory ? computedBaselineRefundRate : currentRefundRate;
-
-      // ---- DRIFT
-      const drift = computeDrift({
-        baselineNetRevenueCents14d: baselineNet14d,
-        currentNetRevenueCents14d: currentNet14d,
-        priorNetRevenueCents14d: priorNet14d,
-        baselineRefundRate,
-        currentRefundRate,
-      });
-
-      let driftOut = { ...drift };
-
-if (!baselineHasHistory) {
-  driftOut = {
-    ...drift,
-    status: "stable",
-    meta: {
-      ...drift.meta,
-      direction: "flat",
-      mriScore: 100,
-      mriRaw: 100,
-      components: {
-        revenue: 0,
-        refunds: 0,
-      },
-    },
-    reasons: [
-      {
-        code: "BASELINE_WARMUP",
-        detail:
-          "Building baseline — comparisons strengthen after ~2–4 weeks of data.",
-      },
-    ],
+  return {
+    ok,
+    error: !secret ? "CRON_SECRET missing" : "Unauthorized",
   };
 }
 
-      // Determine last status (from businesses.last_drift)
-      const lastStatus = ((biz as any)?.last_drift?.status ?? null) as DriftStatus | null;
-      const statusChanged = lastStatus !== (driftOut.status as DriftStatus);
+function uniqueReasonCodes(reasons: any[]): string[] {
+  const set = new Set<string>();
+  for (const r of reasons ?? []) {
+    const c = String(r?.code ?? "").trim();
+    if (c) set.add(c);
+  }
+  return Array.from(set);
+}
 
-      // ---- Persist: businesses.last_drift + optional alerts
-      let alertInserted = false;
+/**
+ * Timezone-aware dispatch:
+ * - default: run all businesses
+ * - dispatch=1: only run businesses whose local time is around 08:15 and Mon–Fri
+ *
+ * NOTE: We don’t need perfect timezone math for v1—just “good enough” behavior.
+ * If timezone parsing fails, it will safely skip dispatch filtering.
+ */
+function shouldRunNowForBiz(tz: string | null | undefined) {
+  if (!tz) return false;
 
-      if (!dryRun) {
-        await supabase
-          .from("businesses")
-          .update({
-            last_drift: driftOut,
-            last_drift_at: new Date().toISOString(),
-          })
-          .eq("id", biz.id);
+  try {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
 
-        // Insert alert only if status changed (or always, if you want)
-        if (statusChanged) {
-          const { error: aErr } = await supabase.from("alerts").insert({
-            business_id: biz.id,
-            status: driftOut.status,
-            reasons: driftOut.reasons ?? [],
-            window_start: currentStartStr,
-            window_end: currentEndStr,
-            meta: driftOut.meta ?? null,
-          });
-          if (!aErr) alertInserted = true;
-        }
+    const get = (t: string) => parts.find((p) => p.type === t)?.value;
+    const weekday = get("weekday"); // Mon, Tue...
+    const hour = Number(get("hour"));
+    const minute = Number(get("minute"));
 
-        // finish job run
-        if (bizRunId) {
-          await supabase
-            .from("job_runs")
-            .update({ status: "success", finished_at: new Date().toISOString() })
-            .eq("id", bizRunId);
-        }
-      }
+    const isWeekday = weekday && ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday);
+    if (!isWeekday) return false;
 
-      // ---- Email (paid only unless force_email=true)
-      let emailAttempted = false;
-      let emailError: string | null = null;
-      let emailId: string | null = null;
+    // Run window: 08:10–08:20 local to allow a 15-min cron
+    const total = hour * 60 + minute;
+    return total >= 8 * 60 + 10 && total <= 8 * 60 + 20;
+  } catch {
+    return false;
+  }
+}
 
-      const isPaid = Boolean((biz as any).is_paid);
+export async function POST(req: Request) {
+  const url = new URL(req.url);
 
-      if (biz.alert_email && (forceEmail || isPaid) && (statusChanged || forceEmail)) {
-        try {
-          emailAttempted = true;
+  const dryRun = url.searchParams.get("dry_run") === "true";
+  const debug = url.searchParams.get("debug") === "1";
+  const forceEmail = url.searchParams.get("force_email") === "true"; // doesn’t bypass paid gate
+  const dispatch = url.searchParams.get("dispatch") === "1";
 
-          const emailStatus = normalizeStatusForEmail(driftOut.status as DriftStatus);
+  const filterBusinessId = (url.searchParams.get("business_id") || "").trim();
 
-          const reasonsText =
-  (driftOut.reasons ?? [])
-    .slice(0, 5)
-    .map((r: any) => `• ${r.detail ?? r.code}`)
-    .join("\n") || "• No issues detected";
+  const auth = requireCronAuth(req);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 });
+  }
 
-const subject =
-  emailStatus === "stable"
-    ? `DRIFT: ${biz.name} is Stable`
-    : emailStatus === "softening"
-      ? `DRIFT: ${biz.name} is Softening`
-      : `DRIFT: ${biz.name} needs Attention`;
+  const supabase = supabaseAdmin();
+  const startedAt = Date.now();
 
-const text =
-  `Business: ${biz.name}\n` +
-  `Status: ${String(emailStatus).toUpperCase()}\n` +
-  `Window: ${currentStartStr} → ${currentEndStr}\n\n` +
-  `Signals:\n${reasonsText}\n\n` +
-  `— DRIFT`;
+  const { data: businesses, error: bErr } = await supabase
+    .from("businesses")
+    .select("id,name,timezone,is_paid,alert_email,monthly_revenue_cents,monthly_revenue,created_at,last_drift,last_drift_at")
+    .order("created_at", { ascending: true });
 
-          if (!dryRun) {
-            const res = await sendDriftEmail({
-              to: biz.alert_email,
-              subject,
-              text,
-            });
-            emailId = (res as any)?.id ?? null;
-          }
-        } catch (e: any) {
-          emailError = e?.message ?? String(e);
-        }
-      }
+  if (bErr) {
+    return NextResponse.json({ ok: false, step: "read_businesses", error: bErr.message }, { status: 500 });
+  }
 
-      const out: any = {
+  const today = new Date();
+  const windowEndStr = isoDate(today);
+  const windowStart = new Date(today);
+  windowStart.setDate(today.getDate() - 14);
+  const windowStartStr = isoDate(windowStart);
+
+  const results: any[] = [];
+
+  for (const biz of businesses ?? []) {
+    if (filterBusinessId && biz.id !== filterBusinessId) continue;
+
+    if (dispatch && !shouldRunNowForBiz((biz as any).timezone)) {
+      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "dispatch_window" });
+      continue;
+    }
+
+    const isPaid = (biz as any).is_paid === true;
+
+    // Paid-only for alerts (CEO-grade: keep free quiet unless you intentionally change this)
+    if (!isPaid) {
+      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "not_paid" });
+      continue;
+    }
+
+    if (!biz.alert_email) {
+      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "no_alert_email" });
+      continue;
+    }
+
+    // Your compute job should already update businesses.last_drift via /api/jobs/daily compute.
+    // If you want this route to *only* send emails based on last_drift, we read it here.
+    const lastDrift = (biz as any).last_drift ?? null;
+    if (!lastDrift?.status) {
+      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "no_last_drift" });
+      continue;
+    }
+
+    const status: DriftStatus = normalizeStatus(lastDrift.status);
+    const reasons = Array.isArray(lastDrift.reasons) ? lastDrift.reasons : [];
+    const meta = lastDrift.meta ?? {};
+
+    // CEO-grade dedupe:
+    // Only email if status changed OR reason codes changed, unless force_email=1
+    const prevStatus: DriftStatus | null = (lastDrift?.meta?.prev_status ? normalizeStatus(lastDrift.meta.prev_status) : null);
+
+    const prevCodes = Array.isArray(lastDrift?.meta?.prev_reason_codes)
+      ? (lastDrift.meta.prev_reason_codes as any[]).map(String)
+      : null;
+
+    const currentCodes = uniqueReasonCodes(reasons);
+
+    const statusChanged = prevStatus ? prevStatus !== status : true; // first time => true
+    const reasonsChanged =
+      prevCodes ? currentCodes.join("|") !== prevCodes.map(String).join("|") : currentCodes.length > 0;
+
+    const shouldEmail = forceEmail || statusChanged || reasonsChanged;
+
+    if (!shouldEmail) {
+      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "no_change" });
+      continue;
+    }
+
+    // Monthly revenue cents: accept cents field or dollars field
+    const monthlyRevenueCents =
+      typeof (biz as any).monthly_revenue_cents === "number"
+        ? (biz as any).monthly_revenue_cents
+        : typeof (biz as any).monthly_revenue === "number"
+        ? Math.round((biz as any).monthly_revenue * 100)
+        : null;
+
+    const exec = executiveSummary({
+      businessName: biz.name,
+      businessId: biz.id,
+      status,
+      reasons,
+      meta,
+      monthlyRevenueCents,
+    });
+
+    const emailStatus = statusForEmail(status);
+    const limitedReasons = capReasons(reasons, 3);
+
+    const { subject, text } = renderStatusEmail({
+      businessName: biz.name,
+      status: emailStatus,
+      reasons: limitedReasons,
+      windowStart: windowStartStr,
+      windowEnd: windowEndStr,
+    });
+
+    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://drift-app-indol.vercel.app").replace(/\/$/, "");
+    const detailsUrl = `${baseUrl}${exec.detailsPath}`;
+
+    const finalText =
+      `${exec.headline}\n` +
+      (exec.impact.est_monthly ? `Estimated monthly impact: ${exec.impact.est_monthly}\n` : "") +
+      (exec.drivers?.length ? `Key driver: ${exec.drivers[0].label} ${exec.drivers[0].value} (baseline ${exec.drivers[0].baseline})\n` : "") +
+      `Confidence: ${exec.confidence}\n` +
+      `\nNext steps:\n- ${exec.nextSteps.slice(0, 3).join("\n- ")}\n\n` +
+      `View details: ${detailsUrl}\n\n` +
+      `---\n` +
+      text;
+
+    if (dryRun) {
+      results.push({
         business_id: biz.id,
         name: biz.name,
-        drift: driftOut,
-        last_status: lastStatus,
-        status_changed: statusChanged,
-        alert_inserted: alertInserted,
-        dry_run: dryRun,
-        force_email: forceEmail,
-        email_to: biz.alert_email ?? null,
-        is_paid: isPaid,
-        email_attempted: emailAttempted,
-        email_error: emailError,
-        email_id: emailId,
-        email_debug: null,
-      };
+        dry_run: true,
+        would_email: true,
+        status,
+        email_to: biz.alert_email,
+        detailsUrl,
+      });
+      continue;
+    }
 
-      if (debug) {
-        out.debug = {
-          windows: {
-            baseline: { start: baselineStartStr, end: baselineEndStr, days: 60 },
-            prior: { start: priorStartStr, end: priorEndStr, days: 14 },
-            current: { start: currentStartStr, end: currentEndStr, days: 14 },
-          },
-          counts: {
-            baselineRows: baselineRows.length,
-            priorRows: priorRows.length,
-            currentRows: currentRows.length,
-          },
-          sums: {
-            baselineGross60d,
-            baselineRefunds60d,
-            baselineNet60d: baselineNet60dRaw,
-            baselineNet14d,
-            currentGross14d,
-            currentRefunds14d,
-            currentNet14d,
-            priorNet14d,
-          },
-          rates: {
-            baselineHasHistory,
-            computedBaselineRefundRate,
-            baselineRefundRate,
-            currentRefundRate,
-          },
-        };
-      }
+    try {
+      const sendResult = await sendDriftEmail({
+        to: biz.alert_email,
+        subject,
+        text: finalText,
+      });
 
-      results.push(out);
-    } catch (e: any) {
-      const msg = e?.message ?? String(e);
+      const emailId = (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
+      const sendErr = (sendResult as any)?.error ?? null;
 
-      if (!dryRun && bizRunId) {
-        await supabase
-          .from("job_runs")
-          .update({ status: "error", finished_at: new Date().toISOString(), error: msg })
-          .eq("id", bizRunId);
-      }
+      await supabase.from("email_logs").insert({
+        business_id: biz.id,
+        email_type: "daily_alert",
+        to_email: biz.alert_email,
+        subject,
+        status: sendErr ? "error" : "sent",
+        provider: "resend",
+        provider_message_id: emailId,
+        error: sendErr ? JSON.stringify(sendErr) : null,
+        meta: {
+          kind: "daily_exec",
+          window_start: windowStartStr,
+          window_end: windowEndStr,
+          exec: {
+            status: exec.status,
+            confidence: exec.confidence,
+            headline: exec.headline,
+            impact: exec.impact,
+            drivers: exec.drivers?.slice(0, 2),
+          },
+          dedupe: {
+            prev_status: prevStatus,
+            status_changed: statusChanged,
+            prev_reason_codes: prevCodes,
+            current_reason_codes: currentCodes,
+            reasons_changed: reasonsChanged,
+            force_email: forceEmail,
+          },
+        },
+      });
+
+      // Update prev markers to support next dedupe run
+      // (store on last_drift.meta to avoid schema changes)
+      await supabase
+        .from("businesses")
+        .update({
+          last_drift: {
+            ...lastDrift,
+            meta: {
+              ...(meta ?? {}),
+              prev_status: status,
+              prev_reason_codes: currentCodes,
+            },
+          },
+        })
+        .eq("id", biz.id);
 
       results.push({
         business_id: biz.id,
         name: biz.name,
-        skipped: true,
-        reason: "exception",
-        error: msg,
-        dry_run: dryRun,
+        emailed: !sendErr,
+        email_id: emailId,
+        status,
+        detailsUrl,
       });
+    } catch (e: any) {
+      if (debug) {
+        results.push({
+          business_id: biz.id,
+          name: biz.name,
+          emailed: false,
+          error: e?.message ?? String(e),
+        });
+      } else {
+        results.push({ business_id: biz.id, name: biz.name, emailed: false, error: "send_failed" });
+      }
     }
   }
 
-  return json(true, {
+  return NextResponse.json({
+    ok: true,
+    dispatch,
     dry_run: dryRun,
-    businesses_processed: businesses?.length ?? 0,
-    duration_ms: Date.now() - t0,
-    filters: {
-      ...(filterBusinessId ? { business_id: filterBusinessId } : {}),
-      ...(filterSourceId ? { source_id: filterSourceId } : {}),
-    },
+    duration_ms: Date.now() - startedAt,
+    window: { start: windowStartStr, end: windowEndStr, days: 14 },
     results,
   });
 }
