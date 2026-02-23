@@ -1,8 +1,5 @@
 // app/alerts/[businessId]/page.tsx
 import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabase/server";
-
-export const runtime = "nodejs";
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 type RiskLabel = "Low" | "Moderate" | "High";
@@ -11,14 +8,15 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function toNum(v: any, fallback = 0) {
+function toNum(v: any, fallback: number | null = 0) {
   const n = typeof v === "string" ? Number(v) : v;
-  return Number.isFinite(n) ? n : fallback;
+  return Number.isFinite(n) ? (n as number) : fallback;
 }
 
 function formatMoney(cents: number | null | undefined) {
-  const c = typeof cents === "number" ? cents : 0;
-  return (c / 100).toLocaleString(undefined, { style: "currency", currency: "USD" });
+  if (typeof cents !== "number") return "—";
+  const dollars = cents / 100;
+  return dollars.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
 function formatPct(value: number | null | undefined) {
@@ -63,45 +61,73 @@ function projectRiskLabel(status: DriftStatus, score: number | null): RiskLabel 
   return "Low";
 }
 
+function isUuidLike(v: string) {
+  // Good enough for UI safety (prevents obvious "undefined" / junk)
+  return /^[0-9a-fA-F-]{32,36}$/.test(v);
+}
+
 export default async function BusinessAlertsPage({
   params,
 }: {
-  params: Promise<{ businessId: string }>;
+  // Next 16 can type params as Promise in some setups; this keeps it compatible.
+  params: Promise<{ businessId?: string }> | { businessId?: string };
 }) {
-  const { businessId } = await params;
+  const resolved = (await Promise.resolve(params)) as { businessId?: string };
+  const businessId = resolved?.businessId;
 
-  if (!businessId || businessId === "undefined") {
+  if (!businessId || businessId === "undefined" || !isUuidLike(businessId)) {
     return (
       <div style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alerts</h1>
-        <div style={{ marginTop: 10, color: "#B42318" }}>Missing businessId in route params.</div>
+        <div style={{ marginTop: 10, color: "#B42318" }}>
+          Missing businessId in route params.
+        </div>
         <div style={{ marginTop: 10, color: "#667085" }}>
           Try: <code>/alerts/&lt;uuid&gt;</code>
         </div>
-        <div style={{ marginTop: 10 }}>
-          <Link href="/alerts" style={{ color: "#175CD3" }}>
-            ← Back to Alerts
-          </Link>
-        </div>
       </div>
     );
   }
 
-  const supabase = supabaseAdmin();
+  // ✅ IMPORTANT: Use a RELATIVE URL so Next routes internally (avoids 401 / HTML / token issues)
+  const apiPath = `/api/alerts?business_id=${encodeURIComponent(businessId)}`;
 
-  // Pull business
-  const { data: business, error: bErr } = await supabase
-    .from("businesses")
-    .select("id,name,is_paid,alert_email,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents")
-    .eq("id", businessId)
-    .single();
+  let payload: any = null;
+  let httpStatus: number | null = null;
+  let firstBytes: string | null = null;
 
-  if (bErr || !business) {
+  try {
+    const res = await fetch(apiPath, { cache: "no-store" });
+    httpStatus = res.status;
+
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      const t = await res.text();
+      firstBytes = t.slice(0, 120);
+      payload = {
+        ok: false,
+        error: `API did not return JSON (status ${res.status}). First bytes: ${firstBytes}`,
+      };
+    } else {
+      payload = await res.json();
+    }
+  } catch (e: any) {
+    payload = { ok: false, error: e?.message ?? String(e) };
+  }
+
+  if (!payload?.ok) {
     return (
       <div style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alerts</h1>
         <div style={{ marginTop: 10, color: "#B42318" }}>
-          Failed to load business: {bErr?.message ?? "not_found"}
+          Failed to load business: {payload?.error ?? "unknown_error"}
+        </div>
+        <div style={{ marginTop: 10, color: "#667085", fontSize: 12 }}>
+          {httpStatus != null ? (
+            <>
+              HTTP status: <code>{httpStatus}</code>
+            </>
+          ) : null}
         </div>
         <div style={{ marginTop: 10 }}>
           <Link href="/alerts" style={{ color: "#175CD3" }}>
@@ -112,57 +138,36 @@ export default async function BusinessAlertsPage({
     );
   }
 
-  // Pull alerts
-  const { data: alertsRows, error: aErr } = await supabase
-    .from("alerts")
-    .select("id,business_id,status,reasons,window_start,window_end,created_at,meta")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  if (aErr) {
-    return (
-      <div style={{ padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alerts</h1>
-        <div style={{ marginTop: 10, color: "#B42318" }}>
-          Failed to load alerts: {aErr.message}
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <Link href="/alerts" style={{ color: "#175CD3" }}>
-            ← Back to Alerts
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const alerts = Array.isArray(alertsRows) ? alertsRows : [];
+  const business = payload.business;
+  const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
 
   // ---- Hybrid drift fallback chain (newest first) ----
-  const lastDrift: any = (business as any)?.last_drift ?? null;
-  const latestAlert: any = alerts?.[0] ?? null;
+  const lastDrift = business?.last_drift ?? null;
+  const latestAlert = alerts?.[0] ?? null;
 
-  const driftMeta: any = lastDrift?.meta ?? latestAlert?.meta ?? {};
+  const driftMeta = (lastDrift?.meta ?? latestAlert?.meta ?? {}) as any;
   const driftStatus = normalizeStatus(lastDrift?.status ?? latestAlert?.status ?? "stable");
-  const driftReasons: any[] = (lastDrift?.reasons ?? latestAlert?.reasons ?? []) as any[];
+  const driftReasons = (lastDrift?.reasons ?? latestAlert?.reasons ?? []) as any[];
 
+  // engine + direction
   const engine = String(driftMeta?.engine ?? "revenue_v1");
   const direction = normalizeDirection(driftMeta?.direction);
+
   const mriScore = typeof driftMeta?.mriScore === "number" ? driftMeta.mriScore : null;
 
-  const revenueMeta: any = driftMeta?.revenue ?? {};
-  const refundsMeta: any = driftMeta?.refunds ?? {};
+  const revenueMeta = driftMeta?.revenue ?? {};
+  const refundsMeta = driftMeta?.refunds ?? {};
 
-  // Prefer v1 names, tolerate older names
+  // Prefer revenue_v1 fields, fallback to tolerated legacy names
   const baselineNet14dRaw =
     revenueMeta?.baselineNetRevenueCents14d ?? revenueMeta?.baselineNetRevenueCentsPer14d;
+  const baselineNet14d =
+    typeof baselineNet14dRaw === "number" ? baselineNet14dRaw : toNum(baselineNet14dRaw, null);
+
   const currentNet14dRaw =
     revenueMeta?.currentNetRevenueCents14d ?? revenueMeta?.currentNetRevenueCentsPer14d;
-
-  const baselineNet14d =
-    typeof baselineNet14dRaw === "number" ? baselineNet14dRaw : toNum(baselineNet14dRaw, 0);
   const currentNet14d =
-    typeof currentNet14dRaw === "number" ? currentNet14dRaw : toNum(currentNet14dRaw, 0);
+    typeof currentNet14dRaw === "number" ? currentNet14dRaw : toNum(currentNet14dRaw, null);
 
   const deltaPct = typeof revenueMeta?.deltaPct === "number" ? revenueMeta.deltaPct : null;
 
@@ -176,12 +181,12 @@ export default async function BusinessAlertsPage({
   const refundRateBaseline =
     typeof refundsMeta?.baselineRefundRate === "number" ? refundsMeta.baselineRefundRate : null;
 
-  // Monthly revenue: support cents OR dollars
+  // Monthly revenue (API sometimes returns monthly_revenue dollars OR monthly_revenue_cents)
   const monthlyRevenueCents =
-    typeof (business as any)?.monthly_revenue_cents === "number"
-      ? (business as any).monthly_revenue_cents
-      : typeof (business as any)?.monthly_revenue === "number"
-      ? Math.round((business as any).monthly_revenue * 100)
+    typeof business?.monthly_revenue_cents === "number"
+      ? business.monthly_revenue_cents
+      : typeof business?.monthly_revenue === "number"
+      ? Math.round(business.monthly_revenue * 100)
       : null;
 
   const tone = statusTone(driftStatus);
@@ -335,7 +340,7 @@ export default async function BusinessAlertsPage({
                 {driftReasons?.length ? "Key signals detected" : "No negative signals detected"}
               </div>
               <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-                CEO-readable: short, specific, actionable.
+                CEO readable — short, specific, actionable.
               </div>
             </div>
 
@@ -353,10 +358,10 @@ export default async function BusinessAlertsPage({
                 Monthly Revenue (manual)
               </div>
               <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
-                {monthlyRevenueCents == null ? "—" : formatMoney(monthlyRevenueCents)}
+                {formatMoney(monthlyRevenueCents)}
               </div>
               <div style={{ marginTop: 10, fontSize: 12, color: "#667085" }}>
-                Used later for impact estimates (optional).
+                Used for impact estimates later (optional).
               </div>
             </div>
           </div>
