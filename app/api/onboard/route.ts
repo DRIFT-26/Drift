@@ -1,164 +1,205 @@
 // app/api/onboard/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { sendDriftEmail } from "@/lib/email/resend";
-import crypto from "crypto";
 
 export const runtime = "nodejs";
 
-type OnboardBody = {
-  business_name: string;
-  email: string;
-  monthly_revenue_cents?: number | null;
-  timezone?: string;
-};
+const STRIPE_CLIENT_ID = process.env.STRIPE_CLIENT_ID || "";
 
-function normalizeMoneyCents(v: any): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.round(n));
-}
-
-function randomState() {
-  return crypto.randomBytes(24).toString("hex");
-}
-
+/**
+ * Stripe Connect Standard OAuth URL builder (no external helper import).
+ * Docs: https://stripe.com/docs/connect/oauth-reference
+ */
 function stripeAuthorizeUrl(args: {
   clientId: string;
   redirectUri: string;
   state: string;
-  businessName: string;
-  email: string;
+  businessName?: string | null;
+  email?: string | null;
 }) {
+  const { clientId, redirectUri, state, businessName, email } = args;
+
   const u = new URL("https://connect.stripe.com/oauth/authorize");
   u.searchParams.set("response_type", "code");
-  u.searchParams.set("client_id", args.clientId);
-  u.searchParams.set("scope", "read_only"); // v1: read-only signals
-  u.searchParams.set("redirect_uri", args.redirectUri);
-  u.searchParams.set("state", args.state);
+  u.searchParams.set("client_id", clientId);
+  u.searchParams.set("scope", "read_write");
+  u.searchParams.set("redirect_uri", redirectUri);
+  u.searchParams.set("state", state);
 
-  // Prefill (nice touch, optional)
-  u.searchParams.set("stripe_user[business_name]", args.businessName);
-  u.searchParams.set("stripe_user[email]", args.email);
+  // Optional prefill fields (Stripe ignores what it doesn't use)
+  if (businessName) u.searchParams.set("stripe_user[business_name]", businessName);
+  if (email) u.searchParams.set("stripe_user[email]", email);
 
   return u.toString();
 }
 
-async function bestEffortInternalPost(req: Request, pathWithQuery: string) {
-  try {
-    const url = new URL(pathWithQuery, req.url);
-    await fetch(url, { method: "POST" });
-  } catch {
-    // ignore
+function randomState(len = 24) {
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function toIntOrNull(v: any): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.round(v);
+  if (typeof v === "string" && v.trim().length) {
+    const n = Number(v);
+    if (Number.isFinite(n)) return Math.round(n);
   }
+  return null;
 }
 
 export async function POST(req: Request) {
-  const supabase = supabaseAdmin();
-
-  let payload: OnboardBody;
   try {
-    payload = (await req.json()) as OnboardBody;
-  } catch {
-    return NextResponse.json({ ok: false, error: "Expected JSON body." }, { status: 400 });
-  }
+    const supabase = supabaseAdmin();
 
-  const businessName = String(payload.business_name || "").trim();
-  const email = String(payload.email || "").trim().toLowerCase();
-  const timezone = String(payload.timezone || "America/Chicago").trim() || "America/Chicago";
-  const monthlyRevenueCents = normalizeMoneyCents(payload.monthly_revenue_cents);
+    if (!STRIPE_CLIENT_ID) {
+      return NextResponse.json(
+        { ok: false, error: "Missing STRIPE_CLIENT_ID env var" },
+        { status: 500 }
+      );
+    }
 
-  if (!businessName || !email) {
-    return NextResponse.json({ ok: false, error: "Missing business_name or email." }, { status: 400 });
-  }
+    const body = await req.json().catch(() => ({}));
 
-  const STRIPE_CLIENT_ID = (process.env.STRIPE_CLIENT_ID || "").trim();
-  if (!STRIPE_CLIENT_ID) {
-    return NextResponse.json({ ok: false, error: "STRIPE_CLIENT_ID missing (env)." }, { status: 500 });
-  }
+    const businessName =
+      typeof body?.business_name === "string" && body.business_name.trim().length
+        ? body.business_name.trim()
+        : null;
 
-  // 1) Create business
-  const { data: business, error: bErr } = await supabase
-    .from("businesses")
-    .insert({
-      owner_id: "00000000-0000-0000-0000-000000000000", // TODO when auth is live
-      name: businessName,
-      timezone,
-      alert_email: email,
-      ...(monthlyRevenueCents !== null ? { monthly_revenue_cents: monthlyRevenueCents } : {}),
-    })
-    .select("id,name,timezone,alert_email")
-    .single();
+    const email =
+      typeof body?.email === "string" && body.email.trim().length ? body.email.trim() : null;
 
-  if (bErr || !business?.id) {
-    return NextResponse.json(
-      { ok: false, error: `Create business failed: ${bErr?.message || "unknown"}` },
-      { status: 500 }
-    );
-  }
+    const timezone =
+      typeof body?.timezone === "string" && body.timezone.trim().length
+        ? body.timezone.trim()
+        : "America/Chicago";
 
-  // 2) Create Stripe source (pending connect)
-  const state = randomState();
+    // Accept either cents or dollars for monthly revenue
+    const monthlyRevenueCentsDirect = toIntOrNull(body?.monthly_revenue_cents);
+    const monthlyRevenueDollars = toIntOrNull(body?.monthly_revenue);
 
-  const { data: source, error: sErr } = await supabase
-    .from("sources")
-    .insert({
-      business_id: business.id,
-      type: "stripe_revenue",
-      display_name: "Stripe (Revenue)",
-      is_connected: false,
-      config: {
-        oauth_state: state,
-        created_via: "onboard",
+    const monthlyRevenueCents =
+      monthlyRevenueCentsDirect !== null
+        ? monthlyRevenueCentsDirect
+        : monthlyRevenueDollars !== null
+        ? Math.round(monthlyRevenueDollars * 100)
+        : null;
+
+    if (!businessName) {
+      return NextResponse.json({ ok: false, error: "Missing business_name" }, { status: 400 });
+    }
+    if (!email) {
+      return NextResponse.json({ ok: false, error: "Missing email" }, { status: 400 });
+    }
+
+    // 1) Create business
+    const { data: business, error: bErr } = await supabase
+      .from("businesses")
+      .insert({
+        owner_id: "00000000-0000-0000-0000-000000000000", // TODO: replace when auth is live
+        name: businessName,
+        timezone,
+        alert_email: email,
+        ...(monthlyRevenueCents !== null ? { monthly_revenue_cents: monthlyRevenueCents } : {}),
+      })
+      .select("id,name,timezone,alert_email,monthly_revenue_cents")
+      .single();
+
+    if (bErr || !business?.id) {
+      return NextResponse.json(
+        { ok: false, error: `Create business failed: ${bErr?.message || "unknown"}` },
+        { status: 500 }
+      );
+    }
+
+    // 2) Ensure default sources exist (Stripe + optional CSV placeholders)
+    const state = randomState();
+
+    // NOTE: these types MUST exist in your `source_type` enum.
+    // Your enum includes: csv_reviews, csv_engagement, google_reviews, klaviyo, stripe_revenue, stripe_refunds
+    const defaultSources = [
+      {
+        business_id: business.id,
+        type: "stripe_revenue",
+        display_name: "Stripe (Revenue)",
+        is_connected: false,
+        config: { oauth_state: state, created_via: "onboard" },
+        meta: {},
       },
-    })
-    .select("id")
-    .single();
+      {
+        business_id: business.id,
+        type: "stripe_refunds",
+        display_name: "Stripe (Refunds)",
+        is_connected: false,
+        config: { oauth_state: state, created_via: "onboard" },
+        meta: {},
+      },
+      // Optional placeholders for beta (manual CSV paths)
+      {
+        business_id: business.id,
+        type: "csv_reviews",
+        display_name: "CSV (Reviews)",
+        is_connected: false,
+        config: { mode: "manual" },
+        meta: {},
+      },
+      {
+        business_id: business.id,
+        type: "csv_engagement",
+        display_name: "CSV (Engagement)",
+        is_connected: false,
+        config: { mode: "manual" },
+        meta: {},
+      },
+    ];
 
-  if (sErr || !source?.id) {
-    return NextResponse.json(
-      { ok: false, error: `Create Stripe source failed: ${sErr?.message || "unknown"}` },
-      { status: 500 }
-    );
-  }
+    const { error: upsertErr } = await supabase
+      .from("sources")
+      .upsert(defaultSources as any, { onConflict: "business_id,type" });
 
-  // 3) Generate Stripe Connect URL
-  const redirectUri = new URL("/api/stripe/callback", req.url).toString();
-  const connectUrl = stripeAuthorizeUrl({
-    clientId: STRIPE_CLIENT_ID,
-    redirectUri,
-    state,
-    businessName,
-    email,
-  });
+    if (upsertErr) {
+      return NextResponse.json(
+        { ok: false, error: `Create default sources failed: ${upsertErr.message}` },
+        { status: 500 }
+      );
+    }
 
-  // 4) Welcome email (non-blocking) — tells them to connect Stripe
-  try {
-    await sendDriftEmail({
-      to: email,
-      subject: "Finish setup: connect Stripe",
-      text:
-        `You're almost live.\n\n` +
-        `Next step: connect Stripe so DRIFT can monitor Revenue Momentum.\n\n` +
-        `After connecting, you'll see:\n` +
-        `• Revenue Velocity (14d vs 60d)\n` +
-        `• Momentum Direction\n` +
-        `• Refund trend risk\n\n— DRIFT`,
+    // 3) Fetch Stripe revenue source id (fixes “Cannot find name 'source'”)
+    const { data: stripeSource, error: stripeFetchErr } = await supabase
+      .from("sources")
+      .select("id")
+      .eq("business_id", business.id)
+      .eq("type", "stripe_revenue")
+      .single();
+
+    if (stripeFetchErr || !stripeSource?.id) {
+      return NextResponse.json(
+        { ok: false, error: `Fetch Stripe source failed: ${stripeFetchErr?.message || "unknown"}` },
+        { status: 500 }
+      );
+    }
+
+    // 4) Generate Stripe Connect URL
+    const redirectUri = new URL("/api/stripe/callback", req.url).toString();
+
+    const connectUrl = stripeAuthorizeUrl({
+      clientId: STRIPE_CLIENT_ID,
+      redirectUri,
+      state,
+      businessName,
+      email,
     });
-  } catch {
-    // ignore
-  }
 
-  return NextResponse.json({
-    ok: true,
-    business_id: business.id,
-    source_id: source.id,
-    connect_url: connectUrl,
-    next: {
-      connect: connectUrl,
-      callback: "/api/stripe/callback",
-      success: `/onboard/success?businessId=${business.id}`,
-    },
-  });
+    return NextResponse.json({
+      ok: true,
+      business_id: business.id,
+      source_id: stripeSource.id,
+      connect_url: connectUrl,
+      next: {
+        connect: connectUrl,
+        alerts: `/alerts/${business.id}`,
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
+  }
 }
