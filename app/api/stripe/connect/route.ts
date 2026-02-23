@@ -19,7 +19,7 @@ function stripeAuthorizeUrl(args: {
   const u = new URL("https://connect.stripe.com/oauth/authorize");
   u.searchParams.set("response_type", "code");
   u.searchParams.set("client_id", args.clientId);
-  u.searchParams.set("scope", "read_only");
+  u.searchParams.set("scope", "read_write");
   u.searchParams.set("redirect_uri", args.redirectUri);
   u.searchParams.set("state", args.state);
   u.searchParams.set("stripe_user[business_name]", args.businessName);
@@ -90,6 +90,7 @@ export async function GET(req: Request) {
       .eq("id", sourceId);
   }
 
+  const origin = new URL(req.url).origin; 
   const redirectUri = new URL("/api/stripe/callback", req.url).toString();
   const connectUrl = stripeAuthorizeUrl({
     clientId: STRIPE_CLIENT_ID,
