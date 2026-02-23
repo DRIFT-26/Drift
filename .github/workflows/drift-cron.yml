@@ -2,21 +2,35 @@ name: DRIFT Scheduled Jobs
 
 on:
   schedule:
-    # Every 6 hours
-    - cron: "0 */6 * * *"
-  workflow_dispatch: {}  # Allows manual run from GitHub UI
+    # Daily at 6:00 AM UTC — keeps recent window fresh
+    - cron: "0 6 * * *"
+    # Weekly on Sundays at 7:00 AM UTC — refresh baseline + weekly compute
+    - cron: "0 7 * * 0"
+  workflow_dispatch: {}
 
 jobs:
   run-drift-jobs:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Run Stripe Ingest (last 7 days)
+      - name: Run Stripe Ingest (last 14 days)
         run: |
-          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=7" \
-            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}"
+          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=14" \
+            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}" | jq
 
       - name: Run Daily Drift Engine
         run: |
           curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/daily" \
-            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}"
+            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}" | jq
+
+      - name: Weekly Baseline Refresh (last 90 days)
+        if: github.event_name == 'schedule'
+        run: |
+          # Refresh deeper history so baseline comparisons get stronger
+          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=90" \
+            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}" | jq
+
+      - name: Run Weekly Drift Engine
+        if: github.event_name == 'schedule'
+        run: |
+          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/weekly" \
+            -H "Authorization: Bearer ${{ secrets.DRIFT_CRON_SECRET }}" | jq
