@@ -1,133 +1,135 @@
 // app/api/stripe/callback/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { sendDriftEmail } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
 
-async function stripeOAuthTokenExchange(args: { code: string; redirectUri: string }) {
-  const secretKey = (process.env.STRIPE_SECRET_KEY || "").trim();
-  if (!secretKey) throw new Error("STRIPE_SECRET_KEY missing (env).");
-
-  const body = new URLSearchParams();
-  body.set("grant_type", "authorization_code");
-  body.set("code", args.code);
-  body.set("redirect_uri", args.redirectUri);
-
-  const res = await fetch("https://connect.stripe.com/oauth/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
-
-  const json = await res.json();
-  if (!res.ok) {
-    throw new Error(`stripe_oauth_failed: ${json?.error_description || json?.error || res.statusText}`);
-  }
-  return json as {
-    stripe_user_id: string; // acct_...
-    livemode: boolean;
-    access_token?: string;
-    refresh_token?: string;
-    scope?: string;
-    token_type?: string;
-  };
-}
-
-async function bestEffortInternalPost(req: Request, pathWithQuery: string) {
-  try {
-    const url = new URL(pathWithQuery, req.url);
-    await fetch(url, { method: "POST" });
-  } catch {
-    // ignore
-  }
+function jsonError(message: string, status = 400, extra?: any) {
+  return NextResponse.json({ ok: false, error: message, ...(extra ?? {}) }, { status });
 }
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
 
-  const code = String(url.searchParams.get("code") || "");
-  const state = String(url.searchParams.get("state") || "");
-  const error = String(url.searchParams.get("error") || "");
-  const errorDesc = String(url.searchParams.get("error_description") || "");
+  const code = String(url.searchParams.get("code") || "").trim();
+  const state = String(url.searchParams.get("state") || "").trim();
 
-  if (error) {
-    return NextResponse.redirect(new URL(`/onboard/success?error=${encodeURIComponent(errorDesc || error)}`, req.url));
+  // Stripe sometimes includes these on error
+  const stripeError = url.searchParams.get("error");
+  const stripeErrorDesc = url.searchParams.get("error_description");
+
+  if (stripeError) {
+    return jsonError(
+      `Stripe OAuth error: ${stripeError}${stripeErrorDesc ? ` (${stripeErrorDesc})` : ""}`,
+      400
+    );
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL(`/onboard/success?error=${encodeURIComponent("Missing code/state")}`, req.url));
+    return jsonError("Missing required Stripe OAuth params (code/state).", 400, {
+      has_code: Boolean(code),
+      has_state: Boolean(state),
+    });
   }
+
+  const STRIPE_SECRET_KEY = (process.env.STRIPE_SECRET_KEY || "").trim();
+  if (!STRIPE_SECRET_KEY) return jsonError("STRIPE_SECRET_KEY missing (env).", 500);
 
   const supabase = supabaseAdmin();
 
-  // Find the Stripe source by oauth_state
-  const { data: source, error: sErr } = await supabase
+  // 1) Find the source row by oauth_state (best / safest)
+  const { data: sourceByState, error: s1Err } = await supabase
     .from("sources")
-    .select("id,business_id,config")
+    .select("id,business_id,type,config,is_connected")
     .eq("type", "stripe_revenue")
-    .eq("config->>oauth_state", state)
+    .contains("config", { oauth_state: state })
     .maybeSingle();
 
-  if (sErr || !source?.id) {
-    return NextResponse.redirect(new URL(`/onboard/success?error=${encodeURIComponent("Invalid/expired Stripe state")}`, req.url));
+  // If we can't find it by state, we still might be able to find it by business_id later
+  // BUT we don't have business_id in the callback query params, so state must be enough.
+  const source = sourceByState;
+
+  if (s1Err) {
+    return jsonError(`Supabase error finding source by state: ${s1Err.message}`, 500);
   }
 
-  const redirectUri = new URL("/api/stripe/callback", req.url).toString();
+  if (!source?.id) {
+    return jsonError(
+      "No pending Stripe source found for this state. (State mismatch or source never created.)",
+      400
+    );
+  }
 
-  // Exchange code for connected account id
-  const token = await stripeOAuthTokenExchange({ code, redirectUri });
+  // 2) Exchange code -> tokens at Stripe
+  const tokenRes = await fetch("https://connect.stripe.com/oauth/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+    }),
+  });
 
-  const stripeAccountId = token.stripe_user_id;
-  const livemode = Boolean(token.livemode);
+  const tokenText = await tokenRes.text();
+  let tokenJson: any = null;
+  try {
+    tokenJson = JSON.parse(tokenText);
+  } catch {
+    // leave as null
+  }
 
-  // Mark source connected
-  const prevCfg = (source.config || {}) as any;
-  const nextCfg = {
-    ...prevCfg,
-    stripe_account_id: stripeAccountId,
-    livemode,
+  if (!tokenRes.ok) {
+    return jsonError("Stripe token exchange failed.", 400, {
+      status: tokenRes.status,
+      stripe: tokenJson ?? tokenText.slice(0, 300),
+    });
+  }
+
+  // Expected fields:
+  // access_token, refresh_token, stripe_user_id, scope, livemode, token_type
+  const stripeUserId = tokenJson?.stripe_user_id;
+  const accessToken = tokenJson?.access_token;
+  const refreshToken = tokenJson?.refresh_token;
+  const scope = tokenJson?.scope;
+  const livemode = tokenJson?.livemode;
+
+  if (!stripeUserId || !accessToken) {
+    return jsonError("Stripe token response missing required fields.", 400, { stripe: tokenJson });
+  }
+
+  // 3) Update the source as connected
+  const nextConfig = {
+    ...(source.config || {}),
+    oauth_state: state,
+    stripe_user_id: stripeUserId,
+    access_token: accessToken,
+    refresh_token: refreshToken ?? null,
+    scope: scope ?? null,
+    livemode: Boolean(livemode),
+    connected_at: new Date().toISOString(),
   };
-  delete nextCfg.oauth_state;
 
-  await supabase
+  const { error: upErr } = await supabase
     .from("sources")
     .update({
       is_connected: true,
-      config: nextCfg,
+      config: nextConfig,
+      meta: {
+        connected_via: "stripe_callback",
+        updated_at: new Date().toISOString(),
+      },
     })
     .eq("id", source.id);
 
-  // Load business for email + next steps
-  const { data: biz } = await supabase
-    .from("businesses")
-    .select("id,name,alert_email")
-    .eq("id", source.business_id)
-    .maybeSingle();
-
-  // Confirmation email (non-blocking)
-  try {
-    if (biz?.alert_email) {
-      await sendDriftEmail({
-        to: biz.alert_email,
-        subject: "Stripe connected — DRIFT is live",
-        text:
-          `Connected.\n\n` +
-          `DRIFT is now monitoring Revenue Momentum for ${biz?.name || "your business"}.\n\n` +
-          `Next: you’ll start receiving momentum signals automatically.\n\n— DRIFT`,
-      });
-    }
-  } catch {
-    // ignore
+  if (upErr) {
+    return jsonError(`Failed to mark Stripe source connected: ${upErr.message}`, 500);
   }
 
-  // Kick off initial backfill + compute
-  // NOTE: you'll create /api/jobs/stripe-ingest next (we’ll do that immediately after this).
-  await bestEffortInternalPost(req, `/api/jobs/stripe-ingest?business_id=${source.business_id}&days=60`);
-  await bestEffortInternalPost(req, `/api/jobs/daily?business_id=${source.business_id}&force_email=true`);
-
-  return NextResponse.redirect(new URL(`/onboard/success?businessId=${source.business_id}`, req.url));
+  // 4) Redirect back to the business alerts page (quiet, executive-safe)
+  // If you prefer JSON instead of redirect, swap to NextResponse.json(...)
+  const redirectTo = new URL(`/alerts/${source.business_id}`, req.url).toString();
+  return NextResponse.redirect(redirectTo);
 }
