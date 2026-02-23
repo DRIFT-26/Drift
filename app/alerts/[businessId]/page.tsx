@@ -214,6 +214,44 @@ export default async function BusinessAlertsPage({
           </div>
         </div>
 
+        <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
+  <form action={`/api/internal/run`} method="post">
+    <input type="hidden" name="type" value="stripe" />
+    <button
+      type="submit"
+      style={{
+        padding: "8px 14px",
+        borderRadius: 8,
+        background: "#101828",
+        color: "#fff",
+        fontWeight: 700,
+        border: "none",
+        cursor: "pointer",
+      }}
+    >
+      🔄 Run Stripe Ingest (14d)
+    </button>
+  </form>
+
+  <form action={`/api/internal/run`} method="post">
+    <input type="hidden" name="type" value="daily" />
+    <button
+      type="submit"
+      style={{
+        padding: "8px 14px",
+        borderRadius: 8,
+        background: "#344054",
+        color: "#fff",
+        fontWeight: 700,
+        border: "none",
+        cursor: "pointer",
+      }}
+    >
+      ⚙️ Run Daily Compute
+    </button>
+  </form>
+</div>
+
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <div
             style={{
