@@ -230,6 +230,39 @@ export default async function BusinessAlertsPage({
   const tone = statusTone(driftStatus);
   const riskLabel = projectRiskLabel(driftStatus, mriScore);
 
+  function StatusItem({
+  label,
+  value,
+  healthy,
+}: {
+  label: string;
+  value: string;
+  healthy: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: healthy ? "#ECFDF3" : "#FEF3F2",
+        border: `1px solid ${healthy ? "#ABEFC6" : "#FECDCA"}`,
+        borderRadius: 12,
+        padding: 12,
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#667085" }}>{label}</div>
+      <div
+        style={{
+          marginTop: 6,
+          fontSize: 13,
+          fontWeight: 800,
+          color: healthy ? "#027A48" : "#B42318",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", background: "#F8FAFC", minHeight: "100vh" }}>
       {/* Top bar */}
@@ -251,6 +284,74 @@ export default async function BusinessAlertsPage({
             ) : null}
           </div>
         </div>
+
+        {/* Executive System Status */}
+<div
+  style={{
+    marginTop: 16,
+    background: "#FFFFFF",
+    border: "1px solid #EAECF0",
+    borderRadius: 16,
+    padding: 16,
+    boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+  }}
+>
+  <div style={{ fontSize: 12, color: "#667085", fontWeight: 800, letterSpacing: 0.3 }}>
+    SYSTEM STATUS
+  </div>
+
+  <div
+    style={{
+      marginTop: 12,
+      display: "grid",
+      gridTemplateColumns: "repeat(5, 1fr)",
+      gap: 12,
+    }}
+  >
+    {/* Data Source */}
+    <StatusItem
+      label="Data Source"
+      value={business?.last_drift ? "Connected" : "Not Connected"}
+      healthy={!!business?.last_drift}
+    />
+
+    {/* Data Freshness */}
+    <StatusItem
+      label="Last Compute"
+      value={
+        business?.last_drift_at
+          ? new Date(business.last_drift_at).toLocaleDateString()
+          : "Not yet run"
+      }
+      healthy={!!business?.last_drift_at}
+    />
+
+    {/* Signal Readiness */}
+    <StatusItem
+      label="Signal Readiness"
+      value={
+        driftReasons?.some((r: any) => r?.code === "BASELINE_WARMUP")
+          ? "Building Baseline"
+          : "Fully Active"
+      }
+      healthy={!driftReasons?.some((r: any) => r?.code === "BASELINE_WARMUP")}
+    />
+
+    {/* Automation */}
+    <StatusItem
+      label="Automation"
+      value="Daily Active"
+      healthy={true}
+    />
+
+    {/* Plan */}
+    <StatusItem
+      label="Plan"
+      value={business?.is_paid ? "Active" : "Trial"}
+      healthy={!!business?.is_paid}
+    />
+  </div>
+</div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <div
