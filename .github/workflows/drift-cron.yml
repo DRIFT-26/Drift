@@ -2,13 +2,13 @@ name: DRIFT Scheduled Jobs
 
 on:
   schedule:
-    # Dispatch runners (API decides who runs now based on timezone)
+    # 1) Timezone-aware dispatch (API decides who runs now)
     - cron: "*/15 * * * *"   # every 15 minutes (UTC)
 
-    # Keep Stripe data fresh daily
+    # 2) Keep Stripe data fresh (daily)
     - cron: "0 6 * * *"      # daily 6:00 UTC
 
-    # Weekly deeper refresh (baseline strength)
+    # 3) Weekly deeper refresh + weekly dispatch trigger
     - cron: "0 7 * * 0"      # Sunday 7:00 UTC
   workflow_dispatch: {}
 
@@ -18,22 +18,23 @@ jobs:
     steps:
       - name: Dispatch Daily (timezone-aware)
         run: |
-          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/daily?dispatch=1" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
-
-      - name: Dispatch Weekly Pulse (timezone-aware, Monday 7:15am local)
-        run: |
-          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/weekly?dispatch=1" \
+          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/daily?dispatch=1" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Daily Stripe Ingest (14d)
         if: github.event.schedule == '0 6 * * *'
         run: |
-          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=14" \
+          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=14" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Weekly Baseline Refresh (90d)
         if: github.event.schedule == '0 7 * * 0'
         run: |
-          curl -s -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=90" \
+          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=90" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
+
+      - name: Dispatch Weekly (timezone-aware)
+        if: github.event.schedule == '0 7 * * 0'
+        run: |
+          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/weekly?dispatch=1" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
