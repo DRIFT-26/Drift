@@ -131,16 +131,39 @@ export async function POST(req: Request) {
 
     const isPaid = (biz as any).is_paid === true;
 
-    // Paid-only for alerts (CEO-grade: keep free quiet unless you intentionally change this)
-    if (!isPaid) {
-      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "not_paid" });
-      continue;
-    }
+// --- Beta allowlist (fastest path; no DB changes) ---
+// Comma-separated emails in Vercel env: BETA_ALLOWLIST_EMAILS
+// Example: "carlosjarrett27@gmail.com,ceo@company.com"
+const allowlistRaw = (process.env.BETA_ALLOWLIST_EMAILS || "").trim();
+const allowlist = allowlistRaw
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
 
-    if (!biz.alert_email) {
-      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "no_alert_email" });
-      continue;
-    }
+const bizEmail = String((biz as any).alert_email || "").trim().toLowerCase();
+const isBetaAllowed = bizEmail && allowlist.includes(bizEmail);
+const paidMode = isPaid ? "paid" : isBetaAllowed ? "beta_allowlist" : "unpaid";
+
+// Paid-only for alerts unless explicitly beta-allowed
+if (!isPaid && !isBetaAllowed) {
+  results.push({
+    business_id: biz.id,
+    name: biz.name,
+    skipped: true,
+    reason: "not_paid",
+  });
+  continue;
+}
+
+if (!biz.alert_email) {
+  results.push({
+    business_id: biz.id,
+    name: biz.name,
+    skipped: true,
+    reason: "no_alert_email",
+  });
+  continue;
+}
 
     // Your compute job should already update businesses.last_drift via /api/jobs/daily compute.
     // If you want this route to *only* send emails based on last_drift, we read it here.
