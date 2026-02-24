@@ -8,19 +8,12 @@ function jsonError(message: string, status = 400, extra?: any) {
   return NextResponse.json({ ok: false, error: message, ...(extra ?? {}) }, { status });
 }
 
-type SourceType = "stripe_revenue" | "stripe_refunds";
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
 export async function GET(req: Request) {
   const url = new URL(req.url);
 
   const code = String(url.searchParams.get("code") || "").trim();
   const state = String(url.searchParams.get("state") || "").trim();
 
-  // Stripe sometimes includes these on error
   const stripeError = url.searchParams.get("error");
   const stripeErrorDesc = url.searchParams.get("error_description");
 
@@ -43,28 +36,20 @@ export async function GET(req: Request) {
 
   const supabase = supabaseAdmin();
 
-  // 1) Find the pending Stripe source row by oauth_state (revenue OR refunds)
-  const { data: pendingSource, error: sErr } = await supabase
+  // 1) Find the stripe_revenue source by oauth_state
+  const { data: source, error: sErr } = await supabase
     .from("sources")
     .select("id,business_id,type,config,is_connected")
-    .in("type", ["stripe_revenue", "stripe_refunds"])
+    .eq("type", "stripe_revenue")
     .contains("config", { oauth_state: state })
     .maybeSingle();
 
-  if (sErr) {
-    return jsonError(`Supabase error finding source by state: ${sErr.message}`, 500);
+  if (sErr) return jsonError(`Supabase error finding source by state: ${sErr.message}`, 500);
+  if (!source?.id) {
+    return jsonError("No pending Stripe source found for this state. (State mismatch or never created.)", 400);
   }
 
-  if (!pendingSource?.id || !pendingSource?.business_id) {
-    return jsonError(
-      "No pending Stripe source found for this state. (State mismatch or source never created.)",
-      400
-    );
-  }
-
-  const businessId = pendingSource.business_id;
-
-  // 2) Exchange code -> tokens at Stripe
+  // 2) Exchange code -> tokens
   const tokenRes = await fetch("https://connect.stripe.com/oauth/token", {
     method: "POST",
     headers: {
@@ -82,7 +67,7 @@ export async function GET(req: Request) {
   try {
     tokenJson = JSON.parse(tokenText);
   } catch {
-    // ignore
+    tokenJson = null;
   }
 
   if (!tokenRes.ok) {
@@ -92,63 +77,69 @@ export async function GET(req: Request) {
     });
   }
 
-  // Expected fields:
-  // access_token, refresh_token, stripe_user_id, scope, livemode, token_type
-  const stripeAccountId = tokenJson?.stripe_user_id; // typically "acct_..."
+  const stripeUserId = tokenJson?.stripe_user_id;
   const accessToken = tokenJson?.access_token;
-  const refreshToken = tokenJson?.refresh_token;
-  const scope = tokenJson?.scope;
-  const livemode = tokenJson?.livemode;
+  const refreshToken = tokenJson?.refresh_token ?? null;
+  const scope = tokenJson?.scope ?? null;
+  const livemode = Boolean(tokenJson?.livemode);
 
-  if (!stripeAccountId || !accessToken) {
-    return jsonError("Stripe token response missing required fields.", 400, {
-      stripe: tokenJson,
+  if (!stripeUserId || !accessToken) {
+    return jsonError("Stripe token response missing required fields.", 400, { stripe: tokenJson });
+  }
+
+  // 3) Update stripe_revenue source -> connected
+  const nextConfig = {
+    ...(source.config || {}),
+    oauth_state: state,
+    stripe_user_id: stripeUserId,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    scope,
+    livemode,
+    connected_at: new Date().toISOString(),
+  };
+
+  const { error: upErr } = await supabase
+    .from("sources")
+    .update({
+      is_connected: true,
+      config: nextConfig,
+      meta: { connected_via: "stripe_callback", updated_at: new Date().toISOString() },
+    })
+    .eq("id", source.id);
+
+  if (upErr) return jsonError(`Failed to mark Stripe source connected: ${upErr.message}`, 500);
+
+  // 4) Ensure a stripe_refunds source exists (so refunds ingest can run if you support it)
+  // (If you don't ingest refunds separately yet, keeping this in place is still fine for v1.)
+  const { data: refundsExisting, error: rReadErr } = await supabase
+    .from("sources")
+    .select("id")
+    .eq("business_id", source.business_id)
+    .eq("type", "stripe_refunds")
+    .maybeSingle();
+
+  if (!rReadErr && !refundsExisting?.id) {
+    await supabase.from("sources").insert({
+      business_id: source.business_id,
+      type: "stripe_refunds",
+      display_name: "Stripe (Refunds)",
+      is_connected: true,
+      config: {
+        stripe_user_id: stripeUserId,
+        // reuse access token so ingest can pull refunds if your job supports it
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        scope,
+        livemode,
+        connected_at: new Date().toISOString(),
+        created_via: "stripe_callback",
+      },
+      meta: { created_at: new Date().toISOString() },
     });
   }
 
-  // 3) Upsert BOTH Stripe sources so ingest + compute never get stuck/skipped
-  const connectedAt = nowIso();
-
-  const baseConfig = {
-    oauth_state: state, // keep for traceability; ok to keep
-    stripe_account_id: stripeAccountId,
-    access_token: accessToken,
-    refresh_token: refreshToken ?? null,
-    scope: scope ?? null,
-    livemode: Boolean(livemode),
-    connected_at: connectedAt,
-  };
-
-  const rows = [
-    {
-      business_id: businessId,
-      type: "stripe_revenue" as SourceType,
-      display_name: "Stripe (Revenue)",
-      is_connected: true,
-      config: baseConfig,
-      meta: { connected_via: "stripe_callback", updated_at: connectedAt },
-    },
-    {
-      business_id: businessId,
-      type: "stripe_refunds" as SourceType,
-      display_name: "Stripe (Refunds)",
-      is_connected: true,
-      config: baseConfig,
-      meta: { connected_via: "stripe_callback", updated_at: connectedAt },
-    },
-  ];
-
-  // IMPORTANT: this requires a unique constraint on (business_id, type)
-  // If you don't have it yet, add it in Supabase (recommended).
-  const { error: upsertErr } = await supabase
-    .from("sources")
-    .upsert(rows as any, { onConflict: "business_id,type" });
-
-  if (upsertErr) {
-    return jsonError(`Failed to upsert Stripe sources: ${upsertErr.message}`, 500);
-  }
-
-  // 4) Redirect back to business alerts (quiet, executive-safe)
-  const redirectTo = new URL(`/alerts/${businessId}`, req.url).toString();
+  // 5) Redirect back to alerts (quiet + executive-safe)
+  const redirectTo = new URL(`/alerts/${source.business_id}`, req.url).toString();
   return NextResponse.redirect(redirectTo);
 }

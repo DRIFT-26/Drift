@@ -19,7 +19,10 @@ function stripeAuthorizeUrl(args: {
   const u = new URL("https://connect.stripe.com/oauth/authorize");
   u.searchParams.set("response_type", "code");
   u.searchParams.set("client_id", args.clientId);
+
+  // IMPORTANT: Stripe may reject read_only; use read_write
   u.searchParams.set("scope", "read_write");
+
   u.searchParams.set("redirect_uri", args.redirectUri);
   u.searchParams.set("state", args.state);
   u.searchParams.set("stripe_user[business_name]", args.businessName);
@@ -49,22 +52,28 @@ export async function GET(req: Request) {
     .single();
 
   if (bErr || !biz?.id) {
-    return NextResponse.json({ ok: false, error: `Business not found: ${bErr?.message || "unknown"}` }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, error: `Business not found: ${bErr?.message || "unknown"}` },
+      { status: 404 }
+    );
   }
 
-  // Find stripe source (or create it if missing)
-  const { data: existing } = await supabase
+  // Find existing Stripe revenue source
+  const { data: existing, error: sReadErr } = await supabase
     .from("sources")
     .select("id,config,is_connected")
     .eq("business_id", businessId)
     .eq("type", "stripe_revenue")
     .maybeSingle();
 
+  if (sReadErr) {
+    return NextResponse.json({ ok: false, error: `Read sources failed: ${sReadErr.message}` }, { status: 500 });
+  }
+
   const state = randomState();
+  let sourceId = existing?.id || null;
 
-  let sourceId = existing?.id;
-
-  if (!existing?.id) {
+  if (!sourceId) {
     const { data: created, error: sErr } = await supabase
       .from("sources")
       .insert({
@@ -72,32 +81,38 @@ export async function GET(req: Request) {
         type: "stripe_revenue",
         display_name: "Stripe (Revenue)",
         is_connected: false,
-        config: { oauth_state: state, created_via: "connect_route" },
+        config: { oauth_state: state, created_via: "stripe_connect" },
+        meta: { created_at: new Date().toISOString() },
       })
       .select("id")
       .single();
 
     if (sErr || !created?.id) {
-      return NextResponse.json({ ok: false, error: `Create Stripe source failed: ${sErr?.message || "unknown"}` }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: `Create Stripe source failed: ${sErr?.message || "unknown"}` },
+        { status: 500 }
+      );
     }
 
     sourceId = created.id;
   } else {
-    // Refresh state on the existing source (even if previously attempted)
-    await supabase
-      .from("sources")
-      .update({ config: { ...(existing.config || {}), oauth_state: state } })
-      .eq("id", sourceId);
+    // Refresh oauth_state on existing source
+    const nextConfig = { ...(existing?.config || {}), oauth_state: state, updated_at: new Date().toISOString() };
+    const { error: upErr } = await supabase.from("sources").update({ config: nextConfig }).eq("id", sourceId);
+    if (upErr) {
+      return NextResponse.json({ ok: false, error: `Update oauth_state failed: ${upErr.message}` }, { status: 500 });
+    }
   }
 
-  const origin = new URL(req.url).origin; 
+  // IMPORTANT: redirect_uri must exactly match what you whitelisted in Stripe Connect settings
   const redirectUri = new URL("/api/stripe/callback", req.url).toString();
+
   const connectUrl = stripeAuthorizeUrl({
     clientId: STRIPE_CLIENT_ID,
     redirectUri,
     state,
     businessName: biz.name,
-    email: biz.alert_email,
+    email: biz.alert_email || "",
   });
 
   return NextResponse.json({
