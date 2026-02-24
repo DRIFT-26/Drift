@@ -27,13 +27,13 @@ function normalizeStatus(raw: any): DriftStatus {
 function formatStatusLine(status: DriftStatus) {
   switch (status) {
     case "attention":
-      return "Attention required 🔴";
+      return "Action Needed 🔴";
     case "softening":
-      return "Softening detected 🟠";
+      return "Trending Down 🟠";
     case "watch":
-      return "Watch list 🟡";
+      return "Movement Detected 🟡";
     default:
-      return "All clear ✅";
+      return "Stable ✅";
   }
 }
 
@@ -77,21 +77,21 @@ export function renderStatusEmail(args: {
 
   const statusLine =
     status === "attention"
-      ? "Attention required 🔴"
+      ? "Action Needed 🔴"
       : status === "softening"
-      ? "Softening detected 🟠"
+      ? "Trending Down 🟠"
       : status === "watch"
-      ? "Watch list 🟡"
-      : "All clear ✅";
+      ? "Movement Detected 🟡"
+      : "Stable ✅";
 
   const subject =
     status === "attention"
-      ? `DRIFT Alert — ${businessName} needs attention 🔴`
+      ? `Action Needed 🔴 - ${businessName}`
       : status === "softening"
-      ? `DRIFT Alert — ${businessName} softening 🟠`
+      ? `Trending Down 🟠 - ${businessName}`
       : status === "watch"
-      ? `DRIFT Alert — ${businessName} on watch 🟡`
-      : `DRIFT Alert — ${businessName} all clear ✅`;
+      ? `Movement Detected 🟡 - ${businessName}`
+      : `Stable ✅ - ${businessName}`;
 
   const reasonLines =
     reasons.length > 0
@@ -184,12 +184,12 @@ export function renderWeeklyPulseEmail(args: {
 
   const executivePrompt =
     top === "attention"
-      ? "Executive prompt: What requires action this week?"
+      ? "🔴 Portfolio Risk Detected - What requires action this week?"
       : top === "softening"
-      ? "Executive prompt: Where can we intervene quickly?"
+      ? "🟠 Portfolio Trending Down - Where can we intervene quickly?"
       : top === "watch"
-      ? "Executive prompt: Do we understand what’s driving these trends?"
-      : "Executive prompt: What are we missing?";
+      ? "🟡 Portfolio Movement - Do we understand what’s driving these trends?"
+      : "✅ Portfolio Stable - What are we missing?";
 
   const text = `
 DRIFT Weekly Pulse — ${headerLine}
