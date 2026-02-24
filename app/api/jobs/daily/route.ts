@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendDriftEmail } from "@/lib/email/resend";
 import { renderStatusEmail } from "@/lib/email/templates";
+import { shouldRunDailyNow } from "@/lib/dispatch";
 import {
   capReasons,
   executiveSummary,
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
   for (const biz of businesses ?? []) {
     if (filterBusinessId && biz.id !== filterBusinessId) continue;
 
-    if (dispatch && !shouldRunNowForBiz((biz as any).timezone)) {
+    if (dispatch && !shouldRunDailyNow((biz as any).timezone)) {
       results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "dispatch_window" });
       continue;
     }

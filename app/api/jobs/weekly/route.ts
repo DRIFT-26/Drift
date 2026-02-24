@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendDriftEmail } from "@/lib/email/resend";
+import { shouldRunWeeklyNow } from "@/lib/dispatch";
 
 export const runtime = "nodejs";
 
@@ -255,6 +256,7 @@ export async function POST(req: Request) {
   const dryRun = url.searchParams.get("dry_run") === "true";
   const forceSend = url.searchParams.get("force_send") === "true";
   const businessId = (url.searchParams.get("business_id") || "").trim() || null;
+  
 
   const startedAt = new Date();
 
@@ -262,6 +264,7 @@ export async function POST(req: Request) {
     .from("businesses")
     .select("id,name,timezone,is_paid,alert_email,last_drift,created_at")
     .order("created_at", { ascending: true });
+    
 
   if (bErr) {
     return NextResponse.json({ ok: false, step: "read_businesses", error: bErr.message }, { status: 500 });
@@ -292,6 +295,24 @@ export async function POST(req: Request) {
       last_drift: (biz as any).last_drift ?? null,
       is_paid: isPaid,
     });
+
+    for (const biz of businesses ?? []) {
+  if (businessId && biz.id !== businessId) continue;
+
+  // ✅ Timezone-aware weekly dispatch (Monday 7:15am local)
+  if (dispatch && !shouldRunWeeklyNow((biz as any).timezone)) {
+    continue;
+  }
+
+  const isPaid = (biz as any).is_paid === true;
+  if (!isPaid) continue;
+
+  const email = String((biz as any).alert_email || "").trim().toLowerCase();
+  if (!email) continue;
+
+  if (!byEmail.has(email)) byEmail.set(email, []);
+  byEmail.get(email)!.push(biz);
+}
   }
 
   const results: any[] = [];
