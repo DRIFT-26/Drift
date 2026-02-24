@@ -111,6 +111,7 @@ export async function POST(req: Request) {
   const dryRun = url.searchParams.get("dry_run") === "true";
   const dispatch = url.searchParams.get("dispatch") === "1";
   const businessId = (url.searchParams.get("business_id") || "").trim();
+  const forceEmail = url.searchParams.get("force_email") === "true";
 
   const auth = requireCronAuth(req);
   if (!auth.ok) {
@@ -138,21 +139,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, step: "read_businesses", error: bErr.message }, { status: 500 });
   }
 
-  // Group by owner email (CEO-grade portfolio)
-  const byEmail = new Map<string, any[]>();
+// Group by owner email (CEO-grade portfolio)
+const byEmail = new Map<string, any[]>();
 
-  for (const biz of businesses ?? []) {
-    if (businessId && biz.id !== businessId) continue;
+for (const biz of businesses ?? []) {
+  if (businessId && biz.id !== businessId) continue;
 
-    const isPaid = (biz as any).is_paid === true;
-    if (!isPaid) continue;
+  const isPaid = (biz as any).is_paid === true;
 
-    const email = String((biz as any).alert_email || "").trim().toLowerCase();
-    if (!email) continue;
+  // Mirror daily: paid-only unless force_email=true (beta/testing)
+  if (!isPaid && !forceEmail) continue;
 
-    if (!byEmail.has(email)) byEmail.set(email, []);
-    byEmail.get(email)!.push(biz);
-  }
+  const email = String((biz as any).alert_email || "")
+    .trim()
+    .toLowerCase();
+
+  if (!email) continue;
+
+  if (!byEmail.has(email)) byEmail.set(email, []);
+  byEmail.get(email)!.push(biz);
+}
 
   const results: any[] = [];
 
