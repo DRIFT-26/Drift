@@ -93,6 +93,15 @@ export function renderStatusEmail(args: {
       ? `Movement Detected 🟡 - ${businessName}`
       : `Stable ✅ - ${businessName}`;
 
+  const preview =
+  status === "attention"
+    ? "Revenue or customer risk requires action within 24–48 hours."
+    : status === "softening"
+    ? "Performance trending down vs baseline."
+    : status === "watch"
+    ? "Notable movement detected in recent data."
+    : "No material signal shifts detected.";    
+
   const reasonLines =
     reasons.length > 0
       ? reasons
@@ -115,6 +124,8 @@ export function renderStatusEmail(args: {
       : "Executive prompt: What are we missing?";
 
   const text = `
+${preview}
+
 DRIFT Alert — ${statusLine}
 
 Business: ${businessName}
@@ -157,6 +168,15 @@ export function renderWeeklyPulseEmail(args: {
 
   const headerLine = formatStatusLine(top);
 
+  const preview =
+  top === "attention"
+    ? "One or more businesses require executive attention."
+    : top === "softening"
+    ? "Portfolio trending down vs baseline."
+    : top === "watch"
+    ? "Notable signal movement across the portfolio."
+    : "No material portfolio shifts detected.";
+
   // Rank by severity
   const ranked = [...args.businesses].sort((a, b) => {
     const rank = (s: DriftStatus) =>
@@ -192,6 +212,8 @@ export function renderWeeklyPulseEmail(args: {
       : "✅ Portfolio Stable - What are we missing?";
 
   const text = `
+${preview}
+
 DRIFT Weekly Pulse — ${headerLine}
 
 Week: ${args.windowStart} → ${args.windowEnd}
