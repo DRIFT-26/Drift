@@ -66,41 +66,29 @@ export function renderStatusEmail(args: {
   windowEnd: string;
   businessId?: string;
 }) {
-  const {
-    businessName,
-    status,
-    reasons = [],
-    windowStart,
-    windowEnd,
-    businessId,
-  } = args;
+  const { businessName, status, reasons = [], windowStart, windowEnd, businessId } = args;
 
-  const statusLine =
-    status === "attention"
-      ? "Action Needed 🔴"
-      : status === "softening"
-      ? "Trending Down 🟠"
-      : status === "watch"
-      ? "Movement Detected 🟡"
-      : "Stable ✅";
+  const statusLine = formatStatusLine(status);
 
+  // Subject (CEO-grade: fast scan, no fluff)
   const subject =
     status === "attention"
-      ? `Action Needed 🔴 - ${businessName}`
+      ? `DRIFT — Action Needed 🔴 (${businessName})`
       : status === "softening"
-      ? `Trending Down 🟠 - ${businessName}`
+      ? `DRIFT — Trending Down 🟠 (${businessName})`
       : status === "watch"
-      ? `Movement Detected 🟡 - ${businessName}`
-      : `Stable ✅ - ${businessName}`;
+      ? `DRIFT — Movement Detected 🟡 (${businessName})`
+      : `DRIFT — Stable ✅ (${businessName})`;
 
+  // Preview line (what shows in inbox snippet)
   const preview =
-  status === "attention"
-    ? "Revenue or customer risk requires action within 24–48 hours."
-    : status === "softening"
-    ? "Performance trending down vs baseline."
-    : status === "watch"
-    ? "Notable movement detected in recent data."
-    : "No material signal shifts detected.";    
+    status === "attention"
+      ? "A material signal shifted. Review within 24–48 hours."
+      : status === "softening"
+      ? "Performance is trending below baseline."
+      : status === "watch"
+      ? "Notable movement detected in recent data."
+      : "Stability confirmed. Where do we stay sharp?";
 
   const reasonLines =
     reasons.length > 0
@@ -110,30 +98,29 @@ export function renderStatusEmail(args: {
           .join("\n")
       : null;
 
-  const detailsUrl = businessId
-    ? `${baseUrl()}/alerts/${businessId}`
-    : `${baseUrl()}/alerts`;
+  const detailsUrl = businessId ? `${baseUrl()}/alerts/${businessId}` : `${baseUrl()}/alerts`;
 
-  const executivePrompt =
+  // Prompt (creates urgency without panic; stable creates “stay sharp” tension)
+  const prompt =
     status === "attention"
-      ? "Executive prompt: What decision do we make in the next 24–48 hours?"
+      ? "Prompt: What decision do we make in the next 24–48 hours?"
       : status === "softening"
-      ? "Executive prompt: What’s the fastest intervention to stop the slide?"
+      ? "Prompt: What’s the fastest intervention to stop the slide?"
       : status === "watch"
-      ? "Executive prompt: Do we understand why this is trending?"
-      : "Executive prompt: What are we missing?";
+      ? "Prompt: Do we understand what’s driving this trend?"
+      : "Prompt: Stability confirmed — what’s worth a closer look to stay sharp?";
 
   const text = `
 ${preview}
 
-DRIFT Alert — ${statusLine}
+DRIFT Signal — ${statusLine}
 
 Business: ${businessName}
 Window: ${windowStart} → ${windowEnd}
 
 ${reasonLines ? `Signals:\n${reasonLines}\n` : ""}
 
-${executivePrompt}
+${prompt}
 
 Open DRIFT:
 ${detailsUrl}
@@ -146,7 +133,7 @@ Short. Specific. Actionable.
 }
 
 // -----------------------------------------------------
-// WEEKLY PORTFOLIO PULSE
+// WEEKLY PORTFOLIO PULSE (B+ cadence)
 // Used by /api/jobs/weekly
 // -----------------------------------------------------
 
@@ -159,33 +146,32 @@ export function renderWeeklyPulseEmail(args: {
     last_drift: any | null;
   }>;
 }) {
-  const statuses = args.businesses.map((b) =>
-    normalizeStatus(b.last_drift?.status)
-  );
-
+  const statuses = args.businesses.map((b) => normalizeStatus(b.last_drift?.status));
   const counts = statusCounts(statuses);
   const top = pickTopStatus(statuses);
 
   const headerLine = formatStatusLine(top);
 
+  // Preview line (per your instruction)
   const preview =
-  top === "attention"
-    ? "One or more businesses require executive attention."
-    : top === "softening"
-    ? "Portfolio trending down vs baseline."
-    : top === "watch"
-    ? "Notable signal movement across the portfolio."
-    : "No material portfolio shifts detected.";
+    top === "stable"
+      ? "Stability confirmed. Where do we stay sharp?"
+      : "Portfolio contains items requiring review.";
 
-  // Rank by severity
+  // Subject (CEO-grade portfolio scan)
+  const subject =
+    top === "attention"
+      ? `DRIFT Weekly Pulse — ${counts.attention} require review 🔴`
+      : top === "softening"
+      ? `DRIFT Weekly Pulse — Softening detected 🟠`
+      : top === "watch"
+      ? `DRIFT Weekly Pulse — Watch list updated 🟡`
+      : "DRIFT Weekly Pulse — Stable ✅";
+
+  // Rank businesses by severity for Top Items
   const ranked = [...args.businesses].sort((a, b) => {
-    const rank = (s: DriftStatus) =>
-      s === "attention" ? 3 : s === "softening" ? 2 : s === "watch" ? 1 : 0;
-
-    return (
-      rank(normalizeStatus(b.last_drift?.status)) -
-      rank(normalizeStatus(a.last_drift?.status))
-    );
+    const rank = (s: DriftStatus) => (s === "attention" ? 3 : s === "softening" ? 2 : s === "watch" ? 1 : 0);
+    return rank(normalizeStatus(b.last_drift?.status)) - rank(normalizeStatus(a.last_drift?.status));
   });
 
   const topItems = ranked
@@ -202,14 +188,15 @@ export function renderWeeklyPulseEmail(args: {
   ${baseUrl()}/alerts/${b.id}`;
     });
 
-  const executivePrompt =
+  // Prompt (B+ cadence; stable matches daily tone)
+  const prompt =
     top === "attention"
-      ? "🔴 Portfolio Risk Detected - What requires action this week?"
+      ? "Prompt: What requires a decision this week?"
       : top === "softening"
-      ? "🟠 Portfolio Trending Down - Where can we intervene quickly?"
+      ? "Prompt: Where can we intervene quickly to stop the slide?"
       : top === "watch"
-      ? "🟡 Portfolio Movement - Do we understand what’s driving these trends?"
-      : "✅ Portfolio Stable - What are we missing?";
+      ? "Prompt: Do we understand what’s driving these signals?"
+      : "Prompt: Stability confirmed — what’s worth a closer look to stay sharp?";
 
   const text = `
 ${preview}
@@ -220,7 +207,7 @@ Week: ${args.windowStart} → ${args.windowEnd}
 Portfolio: ${args.businesses.length} business(es)
 Status mix: ${counts.attention} Attention · ${counts.softening} Softening · ${counts.watch} Watch · ${counts.stable} Stable
 
-${executivePrompt}
+${prompt}
 
 ${topItems.length ? `Top items:\n${topItems.join("\n")}` : "Top items: None this week."}
 
@@ -231,5 +218,5 @@ ${baseUrl()}/alerts
 Short. Specific. Actionable.
 `.trim();
 
-  return { text };
+  return { subject, text };
 }
