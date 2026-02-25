@@ -66,7 +66,9 @@ export async function POST(req: Request) {
         : null;
 
     const email =
-      typeof body?.email === "string" && body.email.trim().length ? body.email.trim() : null;
+  typeof body?.email === "string" && body.email.trim().length
+    ? body.email.trim().toLowerCase()
+    : null;
 
     const timezone =
       typeof body?.timezone === "string" && body.timezone.trim().length
