@@ -325,7 +325,7 @@ export default async function AlertsIndexPage() {
                       minWidth: 86,
                       textAlign: "center",
                     }}
-                    title="MRI Score"
+                    title="Risk Index"
                   >
                     MRI: {typeof score === "number" ? score : "—"}
                   </div>
