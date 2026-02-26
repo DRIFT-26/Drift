@@ -225,7 +225,7 @@ export default async function BusinessAlertsPage({
             {business?.name ?? "Business"}
           </h1>
           <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-            Source: <span style={{ color: "#101828", fontWeight: 700 }}>{engine == "stripe_reveune" ? "Stripe" : "CSV Upload"}</span>{" . "}
+            Source: <span style={{ color: "#101828", fontWeight: 700 }}>{engine == "stripe_reveune" ? "Stripe" : "CSV Upload"}</span>{"  "}
             {direction ? (
               <>
             
