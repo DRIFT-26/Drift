@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
+const adminMode = process.env.ADMIN_MODE === "true";
+
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 type RiskLabel = "Low" | "Moderate" | "High";
 
@@ -169,7 +171,7 @@ export default async function BusinessAlertsPage({
   const driftReasons = (lastDrift?.reasons ?? latestAlert?.reasons ?? []) as any[];
 
   // engine + direction
-  const engine = String(driftMeta?.engine ?? "revenue_v1");
+  const engine = String(driftMeta?.engine ?? "Model");
   const direction = normalizeDirection(driftMeta?.direction);
 
   const mriScore = typeof driftMeta?.mriScore === "number" ? driftMeta.mriScore : null;
@@ -223,11 +225,17 @@ export default async function BusinessAlertsPage({
             {business?.name ?? "Business"}
           </h1>
           <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-            Engine: <span style={{ color: "#101828", fontWeight: 700 }}>{engine}</span>
+            Model: <span style={{ color: "#101828", fontWeight: 700 }}>{engine}</span>
             {direction ? (
               <>
-                {" · "}Direction:{" "}
-                <span style={{ color: "#101828", fontWeight: 700 }}>{direction}</span>
+            Momentum:{" "}
+<span style={{ color: "#101828", fontWeight: 700 }}>
+  {direction === "up"
+    ? "Rising"
+    : direction === "down"
+    ? "Slowing"
+    : "Stable"}
+</span>    
               </>
             ) : null}
           </div>
@@ -389,7 +397,9 @@ export default async function BusinessAlertsPage({
             <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
               {driftReasons.map((r: any, i: number) => (
                 <li key={i} style={{ marginBottom: 8 }}>
-                  <span style={{ fontWeight: 900 }}>{String(r?.code ?? "SIGNAL")}</span>
+                  <span style={{ fontWeight: 900 }}>
+  {String(r?.code ?? "SIGNAL") === "BASELINE_WARMUP" ? "Baseline Building" : String(r?.code ?? "SIGNAL")}
+</span>
                   <span style={{ color: "#667085" }}> — </span>
                   <span>{String(r?.detail ?? "—")}</span>
                 </li>
