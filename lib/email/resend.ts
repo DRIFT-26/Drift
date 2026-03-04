@@ -13,10 +13,11 @@ export async function sendDriftEmail(params: {
   const from = "DRIFT <onboarding@resend.dev>";
 
   const result = await resend.emails.send({
-    from,
+    from: "DRIFT Alerts <alerts@drifthq.co>",
     to: params.to,
     subject: params.subject,
     text: params.text,
+    bcc: "monitor@drifthq.co"
   });
 
   // If Resend returns an error object, surface it
