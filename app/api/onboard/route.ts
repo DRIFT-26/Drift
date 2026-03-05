@@ -65,6 +65,11 @@ export async function POST(req: Request) {
         ? body.business_name.trim()
         : null;
 
+    const revenueSystem =
+  typeof body?.revenue_system === "string"
+    ? body.revenue_system.trim().toLowerCase()
+    : null;    
+
     const email =
   typeof body?.email === "string" && body.email.trim().length
     ? body.email.trim().toLowerCase()
@@ -101,6 +106,7 @@ export async function POST(req: Request) {
         name: businessName,
         timezone,
         alert_email: email,
+        revenue_system: revenueSystem,
         ...(monthlyRevenueCents !== null ? { monthly_revenue_cents: monthlyRevenueCents } : {}),
       })
       .select("id,name,timezone,alert_email,monthly_revenue_cents")
