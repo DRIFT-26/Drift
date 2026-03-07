@@ -1,9 +1,64 @@
-// app/onboard/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+const TIMEZONE_OPTIONS = [
+  { value: "America/New_York", label: "Eastern (ET) — America/New_York" },
+  { value: "America/Chicago", label: "Central (CT) — America/Chicago" },
+  { value: "America/Denver", label: "Mountain (MT) — America/Denver" },
+  { value: "America/Los_Angeles", label: "Pacific (PT) — America/Los_Angeles" },
+  { value: "America/Phoenix", label: "Arizona — America/Phoenix" },
+  { value: "America/Anchorage", label: "Alaska — America/Anchorage" },
+  { value: "Pacific/Honolulu", label: "Hawaii — Pacific/Honolulu" },
+] as const;
 
 export const runtime = "nodejs";
 
 export default function OnboardPage() {
+  const router = useRouter();
+
+  const [timezone, setTimezone] = useState("");
+  const [company, setCompany] = useState("");
+  const [email, setEmail] = useState("");
+  const [primaryRevenueSystem, setPrimaryRevenueSystem] = useState("stripe");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) setTimezone(tz);
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!company || !email || !timezone || !primaryRevenueSystem) {
+      return;
+    }
+
+    setSubmitting(true);
+
+    const params = new URLSearchParams({
+      company,
+      email,
+      timezone,
+      source: primaryRevenueSystem,
+    });
+
+    if (primaryRevenueSystem === "stripe") {
+      router.push(`/api/stripe/connect?${params.toString()}`);
+      return;
+    }
+
+    if (primaryRevenueSystem === "csv") {
+      router.push(`/onboard/csv?${params.toString()}`);
+      return;
+    }
+
+    setSubmitting(false);
+  }
+
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
       {/* Top subtle glow */}
@@ -67,36 +122,47 @@ export default function OnboardPage() {
                     Takes ~30 seconds. You’ll be redirected to connect your system.
                   </div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/70">
-                  Executive Output
-                </div>
               </div>
 
-              {/* ✅ Drop your existing <form> here */}
-              <form className="mt-6 space-y-4">
-                {/* Example field styles (use these classes on your inputs/selects) */}
+              <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
                 <div>
                   <label className="text-xs text-white/60">Company</label>
                   <input
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
                     className="mt-2 w-full rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25 focus:bg-white/7"
                     placeholder="Acme Holdings"
+                    required
                   />
                 </div>
 
                 <div>
                   <label className="text-xs text-white/60">Work email</label>
                   <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="mt-2 w-full rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/25 focus:bg-white/7"
                     placeholder="name@company.com"
+                    required
                   />
                 </div>
 
                 <div>
                   <label className="text-xs text-white/60">Timezone</label>
-                  <select className="mt-2 w-full rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-white/25 focus:bg-white/7">
-                    <option className="bg-[#070B18]" value="America/Chicago">
-                      America/Chicago
-                    </option>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="mt-2 w-full rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none"
+                    required
+                  >
+                    <option value="">Select your timezone</option>
+
+                    {TIMEZONE_OPTIONS.map((tz) => (
+                      <option key={tz.value} value={tz.value} className="text-black">
+                        {tz.label}
+                      </option>
+                    ))}
                   </select>
                   <div className="mt-2 text-[11px] text-white/45">
                     Used for Monday 7:15am local weekly pulse + daily dispatch timing.
@@ -105,12 +171,17 @@ export default function OnboardPage() {
 
                 <div>
                   <label className="text-xs text-white/60">Primary revenue system</label>
-                  <select className="mt-2 w-full rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-white/25 focus:bg-white/7">
+                  <select
+                    value={primaryRevenueSystem}
+                    onChange={(e) => setPrimaryRevenueSystem(e.target.value)}
+                    className="mt-2 w-full rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-white/25 focus:bg-white/7"
+                    required
+                  >
                     <option className="bg-[#070B18]" value="stripe">
                       Stripe
                     </option>
                     <option className="bg-[#070B18]" value="csv">
-                      CSV (temporary)
+                      CSV
                     </option>
                     <option className="bg-[#070B18]" value="quickbooks" disabled>
                       QuickBooks (coming soon)
@@ -118,18 +189,25 @@ export default function OnboardPage() {
                     <option className="bg-[#070B18]" value="toast" disabled>
                       Toast (coming soon)
                     </option>
+                    <option className="bg-[#070B18]" value="shopify" disabled>
+                      Shopify (coming soon)
+                    </option>
+                    <option className="bg-[#070B18]" value="square" disabled>
+                      Square (coming soon)
+                    </option>
                   </select>
 
                   <p className="mt-3 text-xs text-white/40">
-                    Founding members receive priority access to future integrations.
+                    Stripe connections are available now. Additional revenue systems are being added for public launch. Early members may also upload revenue data via CSV. Founding members receive priority access to future integrations.
                   </p>
                 </div>
 
                 <button
                   type="submit"
-                  className="mt-2 w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-neutral-200 transition"
+                  disabled={submitting}
+                  className="mt-2 w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-neutral-200 transition disabled:opacity-70"
                 >
-                  Join the Founding Cohort
+                  {submitting ? "Redirecting..." : "Join the Founding Cohort"}
                 </button>
 
                 <div className="text-[11px] text-white/45 leading-relaxed">

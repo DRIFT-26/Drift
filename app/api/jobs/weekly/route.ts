@@ -178,14 +178,23 @@ export async function POST(req: Request) {
   }
 
   const { subject, text } = renderWeeklyPulseEmail({
-    windowStart: isoDate(windowStart),
-    windowEnd: isoDate(now),
-    businesses: bizList.map((b: any) => ({
-      id: b.id,
-      name: b.name,
-      last_drift: b.last_drift ?? null,
-    })),
-  });
+  windowStart: isoDate(windowStart),
+  windowEnd: isoDate(now),
+  businesses: bizList.map((b: any) => ({
+    id: b.id,
+    name: b.name,
+    status: b.last_drift?.status ?? "stable",
+    reason:
+      Array.isArray(b.last_drift?.reasons) && b.last_drift.reasons.length > 0
+        ? typeof b.last_drift.reasons[0] === "string"
+          ? b.last_drift.reasons[0]
+          : b.last_drift.reasons[0]?.message ??
+            b.last_drift.reasons[0]?.label ??
+            b.last_drift.reasons[0]?.reason ??
+            null
+        : null,
+  })),
+});
 
   if (dryRun) {
     results.push({ owner_email: ownerEmail, skipped: true, reason: "dry_run" });

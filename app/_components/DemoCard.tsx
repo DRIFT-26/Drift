@@ -12,13 +12,29 @@ function clamp(n: number, min: number, max: number) {
 function statusTone(status: DriftStatus) {
   switch (status) {
     case "attention":
-      return { label: "ACTION NEEDED", dot: "bg-red-400", pill: "bg-red-500/10 text-red-200 ring-red-500/20" };
+      return {
+        label: "ACTION NEEDED",
+        dot: "bg-red-400",
+        pill: "bg-red-500/10 text-red-200 ring-red-500/20",
+      };
     case "softening":
-      return { label: "SOFTENING", dot: "bg-orange-300", pill: "bg-orange-500/10 text-orange-200 ring-orange-500/20" };
+      return {
+        label: "SOFTENING",
+        dot: "bg-orange-300",
+        pill: "bg-orange-500/10 text-orange-200 ring-orange-500/20",
+      };
     case "watch":
-      return { label: "WATCH", dot: "bg-yellow-300", pill: "bg-yellow-500/10 text-yellow-200 ring-yellow-500/20" };
+      return {
+        label: "WATCH",
+        dot: "bg-yellow-300",
+        pill: "bg-yellow-500/10 text-yellow-200 ring-yellow-500/20",
+      };
     default:
-      return { label: "STABLE", dot: "bg-emerald-300", pill: "bg-emerald-500/10 text-emerald-200 ring-emerald-500/20" };
+      return {
+        label: "STABLE",
+        dot: "bg-emerald-300",
+        pill: "bg-emerald-500/10 text-emerald-200 ring-emerald-500/20",
+      };
   }
 }
 
@@ -48,13 +64,30 @@ function decisionPrompt(status: DriftStatus) {
 function previewLine(status: DriftStatus) {
   switch (status) {
     case "attention":
-      return "Material deviation detected — review recommended today.";
+      return "Material Deviation Detected — Review recommended today.";
     case "softening":
-      return "A drift pattern is forming — early intervention window is open.";
+      return "A drift pattern is forming — Early intervention window is open.";
     case "watch":
-      return "Movement detected — confirm cause and direction.";
+      return "Movement Detected — Confirm cause and direction.";
     default:
-      return "Stability confirmed — keep the edge.";
+      return "Stability Confirmed — Keep the edge.";
+  }
+}
+
+/**
+ * Next best action — tiny but powerful.
+ * This makes it feel like a control system (not a dashboard).
+ */
+function nextAction(status: DriftStatus) {
+  switch (status) {
+    case "attention":
+      return "Open evidence → Identify the driver → Deploy an intervention today.";
+    case "softening":
+      return "Confirm the driver → Tighten the loop → Monitor the next 48 hours.";
+    case "watch":
+      return "Validate cause → Confirm direction → Decide if controllable.";
+    default:
+      return "Keep baseline stable → Watch for new movement.";
   }
 }
 
@@ -91,12 +124,55 @@ function makeJobEvent(status: DriftStatus): string {
   return `${pick(base)} · ${pick(contextual)}`;
 }
 
+/**
+ * Stable-ish human-readable signal ids.
+ * Example: DRFT-3K9Q2
+ */
+function makeSignalId() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "DRFT-";
+  for (let i = 0; i < 5; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+type Confidence = "low" | "medium" | "high";
+
+function confidenceFrom(status: DriftStatus, deltaPct: number): Confidence {
+  // You can tune this later when you wire real stats.
+  const magnitude = Math.abs(deltaPct);
+  if (status === "attention") return magnitude > 0.12 ? "high" : "medium";
+  if (status === "softening") return magnitude > 0.08 ? "high" : "medium";
+  if (status === "watch") return magnitude > 0.05 ? "medium" : "low";
+  return "high";
+}
+
+function operatorScoreFrom(
+  status: DriftStatus,
+  deltaPct: number,
+  refundRate: number,
+  baselineRefundRate: number
+) {
+  let score = 92;
+
+  if (status === "attention") score -= 32;
+  else if (status === "softening") score -= 18;
+  else if (status === "watch") score -= 10;
+
+  score -= Math.min(18, Math.round(Math.abs(deltaPct) * 100));
+  score -= Math.min(
+    10,
+    Math.max(0, Math.round((refundRate - baselineRefundRate) * 200))
+  );
+
+  return clamp(score, 41, 98);
+}
+
 export default function DemoCard() {
   const [status, setStatus] = useState<DriftStatus>("watch");
   const [updatedAt, setUpdatedAt] = useState<Date>(() => new Date());
 
   // Supporting metrics (hidden by default)
-  const [showDetail, setShowDetail] = useState(false);
+  const [showDetail, setShowDetail] = useState(true);
 
   // Simulated signal snapshot
   const [mri, setMri] = useState(92);
@@ -105,10 +181,29 @@ export default function DemoCard() {
   const [refundRate, setRefundRate] = useState(0.042);
   const [baselineRefundRate, setBaselineRefundRate] = useState(0.028);
 
+  // Operator-grade meta
+  const [signalId, setSignalId] = useState<string>(() => makeSignalId());
+  const baselineWindow = "rolling (90d)";
+  const detection = "material deviation";
+
   // Background job ticker (most recent first)
-  const [events, setEvents] = useState<JobEvent[]>([{ t: new Date(), msg: "System online · Signals streaming" }]);
+  const [events, setEvents] = useState<JobEvent[]>([
+    { t: new Date(), msg: "System online · Signals streaming" },
+  ]);
 
   const tone = useMemo(() => statusTone(status), [status]);
+  const deltaPct = baseline14d > 0 ? (net14d - baseline14d) / baseline14d : 0;
+  const operatorScore = operatorScoreFrom(
+  status,
+  deltaPct,
+  refundRate,
+  baselineRefundRate
+);
+
+  const confidence = useMemo(
+    () => confidenceFrom(status, deltaPct),
+    [status, deltaPct]
+  );
 
   const reasons = useMemo(() => {
     if (status === "attention") {
@@ -138,6 +233,10 @@ export default function DemoCard() {
           return merged.slice(0, 4);
         });
 
+        // rotate signal id when the system transitions into a non-stable signal,
+        // so it feels like distinct signals are being created
+        if (next !== "stable") setSignalId(makeSignalId());
+
         return next;
       });
 
@@ -154,19 +253,35 @@ export default function DemoCard() {
     return () => clearInterval(t);
   }, []);
 
-  const deltaPct = baseline14d > 0 ? (net14d - baseline14d) / baseline14d : 0;
-
   return (
     <div className="rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-xs font-semibold tracking-wide text-white/60">CONTROL TOWER SIGNAL</div>
+          <div className="text-xs font-semibold tracking-wide text-white/60">
+            CONTROL TOWER SIGNAL
+          </div>
+
+          {/* Make it a named object: DRIFT Signal */}
           <div className="mt-1 flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
-            <div className="text-base font-extrabold">DRIFT Alert</div>
+            <div className="text-base font-extrabold">DRIFT Signal</div>
+            <span className="text-[11px] text-white/35 font-mono">#{signalId}</span>
           </div>
+
           <div className="mt-1 text-sm text-white/70">{previewLine(status)}</div>
+
+          {/* Operator-grade metadata row */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/55 font-mono">
+            <span className="text-white/35">Baseline:</span>{" "}
+            <span className="text-white/75">{baselineWindow}</span>
+            <span className="text-white/35">·</span>
+            <span className="text-white/35">Detection:</span>{" "}
+            <span className="text-white/75">{detection}</span>
+            <span className="text-white/35">·</span>
+            <span className="text-white/35">Confidence:</span>{" "}
+            <span className="text-white/75">{confidence}</span>
+          </div>
         </div>
 
         <div className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black ring-1 ${tone.pill}`}>
@@ -174,19 +289,43 @@ export default function DemoCard() {
         </div>
       </div>
 
+      <div className="mt-4 rounded-2xl bg-black/20 px-4 py-3 ring-1 ring-white/10">
+  <div className="flex items-center justify-between">
+    <div>
+      <div className="text-[11px] font-semibold text-white/55">OPERATOR SCORE</div>
+      <div className="mt-1 text-xs text-white/45">0–100 · control confidence</div>
+    </div>
+
+    <div className="text-3xl font-black text-white tabular-nums">
+      {operatorScore}
+    </div>
+  </div>
+</div>
+
       {/* Auto-update bar */}
       <div className="mt-4 flex items-center justify-between rounded-2xl bg-black/20 px-4 py-3 ring-1 ring-white/10">
-        <div className="text-xs font-semibold text-white/70">DRIFT watches the signals most dashboards miss.</div>
+        <div className="text-xs font-semibold text-white/70">
+          DRIFT watches the signals most dashboards miss.
+        </div>
         <div className="text-[11px] text-white/55">
           Updated {updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </div>
+      </div>
+
+      {/* Next action (NEW) */}
+      <div className="mt-3 rounded-2xl bg-white/5 px-4 py-3 ring-1 ring-white/10">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[11px] font-semibold text-white/60">NEXT ACTION</div>
+          <div className="text-[11px] text-white/45 font-mono">Operator Mode</div>
+        </div>
+        <div className="mt-1 text-sm text-white/80">{nextAction(status)}</div>
       </div>
 
       {/* Background job ticker */}
       <div className="mt-3 rounded-2xl bg-white/5 p-3 ring-1 ring-white/10">
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-semibold text-white/60">BACKGROUND ACTIVITY</div>
-          <div className="text-[11px] text-white/50">Executive-Level · quiet automation</div>
+          <div className="text-[11px] text-white/50">Executive-Level · Quiet Automation</div>
         </div>
 
         <div className="mt-2 space-y-1.5">
@@ -227,35 +366,31 @@ export default function DemoCard() {
             onClick={() => setShowDetail((v) => !v)}
             className="text-[12px] font-semibold text-white/70 hover:text-white transition"
           >
-            {showDetail ? "Hide Evidence" : "View Evidence"}
+            {showDetail ? "Hide Evidence" : "Show Evidence"}
           </button>
           <div className="text-[11px] text-white/45">
-            Evidence only — the signal is the product.
+            Evidence Only — the signal is the product.
           </div>
         </div>
 
         {showDetail ? (
-          <div className="mt-3 grid grid-cols-3 gap-3">
-            <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
-              <div className="text-[11px] font-semibold text-white/55">STABILITY SCORE</div>
-              <div className="mt-2 text-2xl font-black text-white">{mri}</div>
-              <div className="mt-1 text-xs text-white/45">0–100</div>
-            </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+  <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
+    <div className="text-[11px] font-semibold text-white/55">NET REV (14D)</div>
+    <div className="mt-2 text-xl font-black text-white">{money(net14d)}</div>
+    <div className="mt-1 text-xs text-white/45">
+      Baseline {money(baseline14d)} · Δ {(deltaPct * 100).toFixed(0)}%
+    </div>
+  </div>
 
-            <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
-              <div className="text-[11px] font-semibold text-white/55">NET REV (14D)</div>
-              <div className="mt-2 text-xl font-black text-white">{money(net14d)}</div>
-              <div className="mt-1 text-xs text-white/45">
-                Baseline {money(baseline14d)} · Δ {(deltaPct * 100).toFixed(0)}%
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
-              <div className="text-[11px] font-semibold text-white/55">REFUND RATE</div>
-              <div className="mt-2 text-xl font-black text-white">{pct(refundRate)}</div>
-              <div className="mt-1 text-xs text-white/45">Baseline {pct(baselineRefundRate)}</div>
-            </div>
-          </div>
+  <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
+    <div className="text-[11px] font-semibold text-white/55">REFUND RATE</div>
+    <div className="mt-2 text-xl font-black text-white">{pct(refundRate)}</div>
+    <div className="mt-1 text-xs text-white/45">
+      Baseline {pct(baselineRefundRate)}
+    </div>
+  </div>
+</div>
         ) : null}
       </div>
     </div>

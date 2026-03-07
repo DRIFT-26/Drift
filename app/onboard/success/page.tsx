@@ -1,19 +1,18 @@
 import { Suspense } from "react";
 import SuccessClient from "./SuccessClient";
 
-export const dynamic = "force-dynamic";
+export default async function SuccessPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    signal?: string;
+  }>;
+}) {
+  const params = await searchParams;
 
-export default function SuccessPage() {
   return (
-    <Suspense
-      fallback={
-        <div style={{ maxWidth: 520, margin: "60px auto", padding: 20 }}>
-          <h1>Payment Successful</h1>
-          <p style={{ opacity: 0.7 }}>Loading details…</p>
-        </div>
-      }
-    >
-      <SuccessClient />
+    <Suspense fallback={null}>
+      <SuccessClient signal={params.signal ?? ""} />
     </Suspense>
   );
 }
