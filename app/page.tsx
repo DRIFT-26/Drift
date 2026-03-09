@@ -283,7 +283,7 @@ export default function Home() {
   DRIFT is the control layer for revenue operations.
 </p>
 
-<p className="mt-4 text-lg text-white/80 max-w-2xl mx-auto">
+<p className="mt-4 text-lg text-white/75 max-w-2xl mx-auto">
   It detects material deviation before it becomes visible in your dashboards or on your P&amp;L.
 </p>
 
