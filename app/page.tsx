@@ -284,7 +284,7 @@ export default function Home() {
 </p>
 
 <p className="mt-4 text-lg text-white/75 max-w-2xl mx-auto">
-  It detects material deviation before it becomes visible in your dashboards or on your P&amp;L.
+  It detects material deviation before it becomes visible in your dashboards and your P&amp;L.
 </p>
 
 <p className="mt-4 text-sm text-white/65 max-w-2xl mx-auto">
