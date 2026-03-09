@@ -77,7 +77,8 @@ function ControlLayerSection() {
 
         <h2 className="mt-3 text-2xl md:text-3xl font-semibold tracking-tight">
   DRIFT sits between your{" "}
-  <span className="whitespace-nowrap">revenue systems</span> and your{" "}
+  <span className="whitespace-nowrap">revenue systems</span>{" "}
+  and your{" "}
   <span className="whitespace-nowrap">attention</span>.
 </h2>
 
@@ -285,8 +286,10 @@ export default function Home() {
   DRIFT is the control layer for revenue operations.
 </p>
 
-<p className="mt-4 text-lg text-white/75 max-w-2xl mx-auto">
-  It detects material deviation before it becomes visible in your dashboards and your <span className="whitespace-nowrap">P&amp;L</span>
+<p className="mt-6 text-lg text-white/80 max-w-2xl mx-auto">
+  It detects material deviation before it
+  becomes visible in your dashboards or on your{" "}
+  <span className="whitespace-nowrap">P&amp;L</span>.
 </p>
 
 <p className="mt-4 text-sm text-white/65 max-w-2xl mx-auto">
