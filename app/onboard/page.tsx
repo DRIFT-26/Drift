@@ -68,6 +68,17 @@ export default function OnboardPage() {
         return;
       }
 
+      if (source === "google_sheets") {
+        router.push(
+          `/onboard/sheets?business_id=${encodeURIComponent(
+            businessId
+          )}&company=${encodeURIComponent(company)}&email=${encodeURIComponent(
+            email
+          )}&timezone=${encodeURIComponent(timezone)}`
+        );
+        return;
+      }
+
       router.push(
         `/onboard/csv?business_id=${encodeURIComponent(
           businessId
@@ -119,11 +130,11 @@ export default function OnboardPage() {
             <div className="mt-6 space-y-3 text-sm text-white/70">
               <div className="flex gap-3">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                <span>Automatic ingestion + drift detection (no dashboards to babysit).</span>
+                <span>Automatic Ingestion + Drift Detection (no dashboards to babysit).</span>
               </div>
               <div className="flex gap-3">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                <span>Short, specific, actionable alerts—built for operators.</span>
+                <span>Short, Specific, Actionable alerts — built for operators.</span>
               </div>
               <div className="flex gap-3">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
@@ -136,7 +147,7 @@ export default function OnboardPage() {
             <div className="p-6 md:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-semibold">Request access</div>
+                  <div className="text-sm font-semibold">Request Access</div>
                   <div className="mt-1 text-xs text-white/55">
                     Takes ~30 seconds. You’ll be redirected to connect your system.
                   </div>
@@ -175,7 +186,7 @@ export default function OnboardPage() {
                     className="mt-2 w-full rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none"
                     required
                   >
-                    <option value="">Select your timezone</option>
+                    <option value="">Select Your Timezone</option>
                     {TIMEZONE_OPTIONS.map((tz) => (
                       <option key={tz.value} value={tz.value} className="text-black">
                         {tz.label}
@@ -188,7 +199,7 @@ export default function OnboardPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-white/60">Primary revenue system</label>
+                  <label className="text-xs text-white/60">Primary Revenue System</label>
                   <select
                     value={source}
                     onChange={(e) => setSource(e.target.value)}
@@ -197,6 +208,9 @@ export default function OnboardPage() {
                   >
                     <option className="bg-[#070B18]" value="stripe">
                       Stripe
+                    </option>
+                    <option className="bg-[#070B18]" value="google_sheets">
+                      Google Sheets
                     </option>
                     <option className="bg-[#070B18]" value="csv">
                       CSV
@@ -216,9 +230,8 @@ export default function OnboardPage() {
                   </select>
 
                   <p className="mt-3 text-xs text-white/40">
-                    Stripe connections are available now. Additional revenue systems are being
-                    added for public launch. Early members may also upload revenue data via CSV.
-                    Founding members receive priority access to future integrations.
+                    Stripe and Google Sheets are available now. CSV is available as a fallback for
+                    historical onboarding and testing.
                   </p>
                 </div>
 

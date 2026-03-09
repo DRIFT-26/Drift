@@ -3,9 +3,11 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-function normalizeSourceType(source: string): "stripe_revenue" | "csv_revenue" {
+function normalizeSourceType(
+  source: string
+): "stripe_revenue" | "csv_revenue" | "google_sheets_revenue" {
   if (source === "stripe") return "stripe_revenue";
-  if (source === "csv") return "csv_revenue";
+  if (source === "google_sheets") return "google_sheets_revenue";
   return "csv_revenue";
 }
 
@@ -14,17 +16,8 @@ export async function POST(req: Request) {
     const supabase = supabaseAdmin();
     const body = await req.json();
 
-    const businessName =
-      body.company ??
-      body.business_name ??
-      body.name ??
-      null;
-
-    const email =
-      body.email ??
-      body.alert_email ??
-      null;
-
+    const businessName = body.company ?? body.business_name ?? body.name ?? null;
+    const email = body.email ?? body.alert_email ?? null;
     const timezone = body.timezone ?? null;
     const source = body.source ?? null;
     const ownerId = body.owner_id ?? null;
@@ -68,13 +61,15 @@ export async function POST(req: Request) {
 
     const normalizedSource = normalizeSourceType(String(source));
 
-    const { error: sourceError } = await supabase
+    const { data: createdSource, error: sourceError } = await supabase
       .from("sources")
       .insert({
         business_id: business.id,
         type: normalizedSource,
-        is_connected: false,
-      });
+        is_connected: normalizedSource === "google_sheets_revenue" ? false : false,
+      })
+      .select("id")
+      .single();
 
     if (sourceError) {
       return NextResponse.json(
@@ -86,6 +81,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       business_id: business.id,
+      source_id: createdSource?.id ?? null,
       source_type: normalizedSource,
     });
   } catch (error) {

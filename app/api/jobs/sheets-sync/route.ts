@@ -4,59 +4,83 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const supabase = supabaseAdmin();
+  try {
+    const supabase = supabaseAdmin();
 
-  const { data: sources } = await supabase
-    .from("sources")
-    .select("*")
-    .eq("type", "google_sheets_revenue");
+    const { data: sources, error: sourceErr } = await supabase
+      .from("sources")
+      .select("*")
+      .eq("type", "google_sheets_revenue")
+      .eq("is_connected", true);
 
-  for (const source of sources ?? []) {
-    const url = source.config?.sheet_url;
+    if (sourceErr) {
+      return NextResponse.json(
+        { ok: false, error: sourceErr.message },
+        { status: 500 }
+      );
+    }
 
-    if (!url) continue;
+    for (const source of sources ?? []) {
+      const csvUrl = source.config?.csv_url as string | undefined;
+      if (!csvUrl) continue;
 
-    const csvRes = await fetch(url);
-    const text = await csvRes.text();
+      const csvRes = await fetch(csvUrl, { cache: "no-store" });
+      if (!csvRes.ok) continue;
 
-    const rows = text.split("\n").slice(1);
+      const text = await csvRes.text();
+      const rows = text
+        .split(/\r?\n/)
+        .map((row) => row.trim())
+        .filter(Boolean);
 
-    const snapshots = rows
-      .map((row) => {
-        const [date, revenue] = row.split(",");
+      if (rows.length < 2) continue;
 
-        if (!date || !revenue) return null;
+      const dataRows = rows.slice(1);
 
-        return {
+      const snapshots = dataRows
+        .map((row) => {
+          const [dateRaw, revenueRaw] = row.split(",");
+          const snapshotDate = dateRaw?.trim();
+          const revenue = Number(revenueRaw?.trim());
+
+          if (!snapshotDate || Number.isNaN(revenue)) return null;
+
+          return {
+            business_id: source.business_id,
+            source_id: source.id,
+            snapshot_date: snapshotDate,
+            metrics: {
+              revenue,
+            },
+          };
+        })
+        .filter(Boolean);
+
+      if (!snapshots.length) continue;
+
+      await supabase.from("snapshots").upsert(snapshots, {
+        onConflict: "source_id,snapshot_date",
+      });
+
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/compute-first`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           business_id: source.business_id,
-          source_id: source.id,
-          snapshot_date: date.trim(),
-          metrics: {
-            revenue: Number(revenue),
-          },
-        };
-      })
-      .filter(Boolean);
+        }),
+      });
+    }
 
-    if (!snapshots.length) continue;
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unexpected server error";
 
-    await supabase
-  .from("snapshots")
-  .upsert(snapshots, {
-    onConflict: "source_id,snapshot_date",
-  });
-
-// trigger drift computation after ingest
-await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/compute-first`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    business_id: source.business_id,
-  }),
-});
-}
-
-  return NextResponse.json({ ok: true });
+    return NextResponse.json(
+      { ok: false, error: message },
+      { status: 500 }
+    );
+  }
 }
