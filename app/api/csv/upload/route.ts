@@ -165,8 +165,9 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        business_id: businessId,
-      }),
+  business_id: businessId,
+  force_email: true,
+}),
     });
 
     const computeJson = await computeRes.json().catch(() => null);

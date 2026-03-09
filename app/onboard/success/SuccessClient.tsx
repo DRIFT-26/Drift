@@ -42,7 +42,7 @@ export default function SuccessClient({
 
           {signal === "processing" && (
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-              Your first DRIFT signal is being generated. You will receive it shortly.
+              Your first DRIFT signal is being generated and will arrive in your corresponding email inbox shortly.
             </div>
           )}
 

@@ -76,8 +76,10 @@ function ControlLayerSection() {
         </div>
 
         <h2 className="mt-3 text-2xl md:text-3xl font-semibold tracking-tight">
-          DRIFT sits between your revenue systems and your attention.
-        </h2>
+  DRIFT sits between your{" "}
+  <span className="whitespace-nowrap">revenue systems</span> and your{" "}
+  <span className="whitespace-nowrap">attention</span>.
+</h2>
 
         <p className="mt-4 text-sm md:text-base text-white/80">
           It runs quietly in the background, surfaces only{" "}
@@ -284,7 +286,7 @@ export default function Home() {
 </p>
 
 <p className="mt-4 text-lg text-white/75 max-w-2xl mx-auto">
-  It detects material deviation before it becomes visible in your dashboards and your P&amp;L.
+  It detects material deviation before it becomes visible in your dashboards and your <span className="whitespace-nowrap">P&amp;L</span>
 </p>
 
 <p className="mt-4 text-sm text-white/65 max-w-2xl mx-auto">

@@ -310,8 +310,12 @@ const belowBaselineStreak = consecutiveDaysBelowBaseline(
       ? `${process.env.NEXT_PUBLIC_APP_URL}/s/${share_token}`
       : undefined;
 
-    const shouldEmail =
-  drift.status === "softening" || drift.status === "attention";
+    const forceEmail = body?.force_email === true;
+
+const shouldEmail =
+  forceEmail ||
+  drift.status === "softening" ||
+  drift.status === "attention";
 
 if (biz.alert_email && shouldEmail) {
   const { subject, text } = renderStatusEmail({
