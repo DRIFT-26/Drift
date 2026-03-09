@@ -106,10 +106,11 @@ export function renderStatusEmail({
   const prompt = statusPrompt(status);
   const impactLine = statusImpactLine(status);
 
-  const reasonLines =
-    reasons.length > 0
-      ? reasons.map((reason) => `- ${reason}`).join("\n")
-      : "- No material deviation detected.";
+  const uniqueReasons = [...new Set(reasons || [])];
+
+const reasonLines = uniqueReasons.length
+  ? uniqueReasons.map((r) => `- ${r}`)
+  : ["- Material deviation detected."];
 
   const shareBlock = shareUrl
     ? `

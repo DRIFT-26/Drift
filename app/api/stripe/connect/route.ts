@@ -121,7 +121,8 @@ export async function GET(req: Request) {
       }
     }
 
-    const redirectUri = new URL("/api/stripe/callback", req.url).toString();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
+const redirectUri = `${appUrl}/api/stripe/callback`;
 
     const connectUrl = stripeAuthorizeUrl({
       clientId: STRIPE_CLIENT_ID,

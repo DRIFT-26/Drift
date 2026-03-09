@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { computeDrift } from "@/lib/drift/compute";
 import { sendDriftEmail } from "@/lib/email/resend";
 import { renderStatusEmail } from "@/lib/email/templates";
 import { makeShareToken } from "@/lib/share";
 
 export const runtime = "nodejs";
 
+type EmailStatus = "stable" | "softening" | "attention";
+type DriftStatus = "stable" | "watch" | "softening" | "attention";
+
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-type EmailStatus = "stable" | "softening" | "attention";
-
-function statusForEmail(status: string | null | undefined): EmailStatus {
+function statusForEmail(status: DriftStatus): EmailStatus {
   if (status === "watch") return "softening";
   if (status === "stable" || status === "softening" || status === "attention") {
     return status;
@@ -21,17 +21,68 @@ function statusForEmail(status: string | null | undefined): EmailStatus {
   return "attention";
 }
 
-function normalizeReason(reason: unknown): string {
-  if (typeof reason === "string") return reason;
+function computeRevenueDrift(args: {
+  baselineRevenue14d: number;
+  currentRevenue14d: number;
+}): {
+  status: DriftStatus;
+  reasons: string[];
+  deltaPct: number;
+} {
+  const { baselineRevenue14d, currentRevenue14d } = args;
 
-  if (reason && typeof reason === "object") {
-    const r = reason as Record<string, unknown>;
-    if (typeof r.message === "string") return r.message;
-    if (typeof r.label === "string") return r.label;
-    if (typeof r.reason === "string") return r.reason;
+  if (baselineRevenue14d <= 0) {
+    return {
+      status: "watch",
+      reasons: ["Not enough baseline revenue history to classify confidently."],
+      deltaPct: 0,
+    };
   }
 
-  return "Signal detected.";
+  const deltaPct = (currentRevenue14d - baselineRevenue14d) / baselineRevenue14d;
+
+  if (deltaPct <= -0.2) {
+    return {
+      status: "attention",
+      reasons: [
+        `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
+        "The deviation is materially outside the expected range.",
+      ],
+      deltaPct,
+    };
+  }
+
+  if (deltaPct <= -0.1) {
+    return {
+      status: "softening",
+      reasons: [
+        `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
+        "The trend is softening and should be reviewed.",
+      ],
+      deltaPct,
+    };
+  }
+
+  if (deltaPct <= -0.05) {
+    return {
+      status: "watch",
+      reasons: [
+        `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
+        "Early movement has been detected relative to baseline.",
+      ],
+      deltaPct,
+    };
+  }
+
+  return {
+    status: "stable",
+    reasons: ["Revenue is tracking within the expected baseline range."],
+    deltaPct,
+  };
+}
+
+function dedupeReasons(reasons: string[]) {
+  return [...new Set(reasons.filter(Boolean))];
 }
 
 export async function POST(req: NextRequest) {
@@ -56,126 +107,135 @@ export async function POST(req: NextRequest) {
     if (bErr || !biz) {
       return NextResponse.json(
         { ok: false, error: bErr?.message ?? "Business not found" },
-        { status: 500 }
+        { status: 404 }
       );
     }
 
     const baselineDays = 60;
     const currentDays = 14;
 
-    const today = new Date();
-
-    const baselineStart = new Date(today);
-    baselineStart.setDate(today.getDate() - baselineDays);
-
-    const currentStart = new Date(today);
-    currentStart.setDate(today.getDate() - currentDays);
-
-    const baselineStartStr = isoDate(baselineStart);
-    const currentStartStr = isoDate(currentStart);
-    const todayStr = isoDate(today);
-
-    const { data: sources, error: sErr } = await supabase
+    const { data: revenueSources, error: sourceErr } = await supabase
       .from("sources")
       .select("id,type,is_connected")
-      .eq("business_id", businessId);
+      .eq("business_id", businessId)
+      .in("type", ["csv_revenue", "stripe_revenue"]);
 
-    if (sErr) {
+    if (sourceErr) {
       return NextResponse.json(
-        { ok: false, error: sErr.message },
+        { ok: false, error: sourceErr.message },
         { status: 500 }
       );
     }
 
-    const connected = (sources ?? []).filter((s) => s.is_connected);
-
-    const reviewsSource = connected.find(
-      (s) => s.type === "csv_reviews" || s.type === "google_reviews"
+    const connectedRevenueSources = (revenueSources ?? []).filter(
+      (s) => s.is_connected || s.type === "csv_revenue"
     );
 
-    const engagementSource = connected.find(
-      (s) => s.type === "csv_engagement" || s.type === "klaviyo"
-    );
-
-    const { data: baselineRows, error: baseErr } = await supabase
-      .from("snapshots")
-      .select("source_id,metrics")
-      .eq("business_id", businessId)
-      .gte("snapshot_date", baselineStartStr);
-
-    if (baseErr) {
+    if (!connectedRevenueSources.length) {
       return NextResponse.json(
-        { ok: false, error: baseErr.message },
-        { status: 500 }
+        { ok: false, error: "No revenue source connected for this business." },
+        { status: 400 }
       );
     }
 
-    const { data: currentRows, error: curErr } = await supabase
-      .from("snapshots")
-      .select("source_id,metrics")
-      .eq("business_id", businessId)
-      .gte("snapshot_date", currentStartStr);
+    const revenueSourceIds = connectedRevenueSources.map((s) => s.id);
 
-    if (curErr) {
-      return NextResponse.json(
-        { ok: false, error: curErr.message },
-        { status: 500 }
-      );
-    }
+    // Anchor analysis windows to the latest available snapshot date,
+    // not the server's current date.
+    const { data: latestSnapshot, error: latestErr } = await supabase
+  .from("snapshots")
+  .select("snapshot_date")
+  .eq("business_id", businessId)
+  .in("source_id", revenueSourceIds)
+  .order("snapshot_date", { ascending: false })
+  .limit(1)
+  .single();
 
-    const sum = (rows: any[], key: string) =>
-      rows.reduce((acc, r) => acc + (r.metrics?.[key] ?? 0), 0);
+if (latestErr || !latestSnapshot?.snapshot_date) {
+  return NextResponse.json(
+    { ok: false, error: latestErr?.message ?? "No snapshots found for business" },
+    { status: 404 }
+  );
+}
 
-    const avg = (rows: any[], key: string) => {
-      const vals = rows
-        .map((r) => r.metrics?.[key])
-        .filter((v) => typeof v === "number");
+const anchorDate = new Date(`${latestSnapshot.snapshot_date}T12:00:00Z`);
 
-      if (!vals.length) return 0;
-      return vals.reduce((a, b) => a + b, 0) / vals.length;
-    };
+// Current window = most recent 14 days ending on anchor date
+const currentStart = new Date(anchorDate);
+currentStart.setDate(anchorDate.getDate() - currentDays + 1);
 
-    const baselineReviews = reviewsSource
-      ? (baselineRows ?? []).filter((r) => r.source_id === reviewsSource.id)
-      : [];
+// Baseline window = 60 days immediately BEFORE the current window
+const baselineEnd = new Date(currentStart);
+baselineEnd.setDate(currentStart.getDate() - 1);
 
-    const currentReviews = reviewsSource
-      ? (currentRows ?? []).filter((r) => r.source_id === reviewsSource.id)
-      : [];
+const baselineStart = new Date(baselineEnd);
+baselineStart.setDate(baselineEnd.getDate() - baselineDays + 1);
 
-    const baselineEng = engagementSource
-      ? (baselineRows ?? []).filter((r) => r.source_id === engagementSource.id)
-      : [];
+const baselineStartStr = isoDate(baselineStart);
+const baselineEndStr = isoDate(baselineEnd);
+const currentStartStr = isoDate(currentStart);
+const anchorDateStr = isoDate(anchorDate);
 
-    const currentEng = engagementSource
-      ? (currentRows ?? []).filter((r) => r.source_id === engagementSource.id)
-      : [];
+const { data: baselineRows, error: baseErr } = await supabase
+  .from("snapshots")
+  .select("source_id, snapshot_date, metrics")
+  .eq("business_id", businessId)
+  .in("source_id", revenueSourceIds)
+  .gte("snapshot_date", baselineStartStr)
+  .lte("snapshot_date", baselineEndStr);
 
-    const drift = computeDrift({
-      baselineReviewCountPer14d:
-        (sum(baselineReviews, "review_count") / baselineDays) * currentDays,
-      currentReviewCount14d: sum(currentReviews, "review_count"),
-      baselineSentimentAvg: avg(baselineReviews, "sentiment_avg"),
-      currentSentimentAvg: avg(currentReviews, "sentiment_avg"),
-      baselineEngagement: sum(baselineEng, "engagement"),
-      currentEngagement: sum(currentEng, "engagement"),
-    } as any);
+if (baseErr) {
+  return NextResponse.json(
+    { ok: false, error: baseErr.message },
+    { status: 500 }
+  );
+}
+
+const { data: currentRows, error: curErr } = await supabase
+  .from("snapshots")
+  .select("source_id, snapshot_date, metrics")
+  .eq("business_id", businessId)
+  .in("source_id", revenueSourceIds)
+  .gte("snapshot_date", currentStartStr)
+  .lte("snapshot_date", anchorDateStr);
+
+if (curErr) {
+  return NextResponse.json(
+    { ok: false, error: curErr.message },
+    { status: 500 }
+  );
+}
+
+    const sumRevenue = (rows: any[]) =>
+      rows.reduce((acc, row) => {
+        const revenue = Number(row?.metrics?.revenue ?? 0);
+        return acc + (Number.isNaN(revenue) ? 0 : revenue);
+      }, 0);
+
+    const baselineRevenueWindow = sumRevenue(baselineRows ?? []);
+    const currentRevenue14d = sumRevenue(currentRows ?? []);
+
+    const baselineRevenue14d =
+      baselineDays > 0 ? (baselineRevenueWindow / baselineDays) * currentDays : 0;
+
+    const drift = computeRevenueDrift({
+      baselineRevenue14d,
+      currentRevenue14d,
+    });
+
+    const reasons = dedupeReasons(drift.reasons);
 
     const share_token = makeShareToken();
     const share_expires_at = new Date(
       Date.now() + 1000 * 60 * 60 * 24 * 14
     ).toISOString();
 
-    const shareUrl = process.env.NEXT_PUBLIC_APP_URL
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/s/${share_token}`
-      : undefined;
-
     const { data: alert, error: aErr } = await supabase
       .from("alerts")
       .insert({
         business_id: businessId,
         status: drift.status,
-        reasons: drift.reasons,
+        reasons,
         share_token,
         share_expires_at,
       })
@@ -189,32 +249,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (biz.alert_email) {
-      const emailReasons = (drift.reasons ?? []).map(normalizeReason);
+    const shareUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/s/${share_token}`
+      : undefined;
 
-      const { subject, text } = renderStatusEmail({
-        businessName: biz.name,
-        status: statusForEmail(drift.status),
-        reasons: emailReasons,
-        windowStart: currentStartStr,
-        windowEnd: todayStr,
-        shareUrl,
-      });
+    const shouldEmail =
+  drift.status === "softening" || drift.status === "attention";
 
-      await sendDriftEmail({
-        to: biz.alert_email,
-        subject,
-        text,
-      });
-    }
+if (biz.alert_email && shouldEmail) {
+  const { subject, text } = renderStatusEmail({
+    businessName: biz.name,
+    status: statusForEmail(drift.status),
+    reasons,
+    windowStart: currentStartStr,
+    windowEnd: anchorDateStr,
+    shareUrl,
+  });
+
+  await sendDriftEmail({
+    to: biz.alert_email,
+    subject,
+    text,
+  });
+}
 
     return NextResponse.json({
-      ok: true,
-      drift,
-      alert_id: alert.id,
-      share_token,
-      share_url: shareUrl ?? null,
-    });
+  ok: true,
+  drift: {
+    ...drift,
+    reasons,
+    baselineRevenue14d,
+    currentRevenue14d,
+    anchorDate: anchorDateStr,
+    baselineWindow: {
+      start: baselineStartStr,
+      end: baselineEndStr,
+    },
+    currentWindow: {
+      start: currentStartStr,
+      end: anchorDateStr,
+    },
+  },
+  shouldEmail,
+  alert_id: alert.id,
+  share_token,
+  share_url: shareUrl ?? null,
+});
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected server error";
