@@ -169,6 +169,11 @@ const businessTimezone = business?.timezone ?? "UTC";
     preview: "Movement detected — Confirm cause and direction.",
     next: "Validate cause → Confirm direction → Decide if controllable.",
   },
+  movement: {
+    label: "Momentum Detected",
+    dot: "bg-sky-400",
+    pill: "bg-sky-500/10 text-sky-300",
+  },
   stable: {
     label: "Stable",
     dot: "bg-emerald-300",
@@ -218,6 +223,15 @@ const whatChanged =
   Signal Ref: DRFT-{alert.business_id.slice(0, 4).toUpperCase()}
 </div>
 
+<div className="mt-2 flex items-center gap-2 text-xs text-white/60 font-mono">
+  <span className="text-white/40">Signal Confidence:</span>
+  <span className="text-emerald-300">HIGH</span>
+</div>
+
+<div className="mt-1 text-[11px] text-white/45 font-mono">
+  Based on rolling baseline model
+</div>
+
     <div className="mt-2 text-sm text-white/70">{tone.preview}</div>
 
    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono tracking-wide text-white/55 md:flex-nowrap md:gap-4">
@@ -254,9 +268,37 @@ const whatChanged =
     <div className="text-[11px] font-semibold text-white/60">
       WHAT CHANGED
     </div>
+    <div className="mt-4 rounded-xl bg-black/20 px-3 py-2 text-sm font-semibold text-white/80 ring-1 ring-white/10">
+  If this continues, it may begin to materially affect near-term revenue performance.
+</div>
     <div className="text-[10px] font-mono tracking-wide text-white/40">
       Control Output
     </div>
+    <div className="mt-8 border-t border-white/10 pt-4">
+  <div className="text-xs text-white/50 font-mono">
+    SHARE THIS SIGNAL
+  </div>
+
+  <div className="mt-3 flex flex-wrap gap-3">
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(window.location.href);
+      }}
+      className="rounded-md border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80 hover:bg-white/10 transition"
+    >
+      Copy Signal Link
+    </button>
+
+    <a
+      href={`mailto:?subject=DRIFT Signal&body=${encodeURIComponent(
+        window.location.href
+      )}`}
+      className="rounded-md border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80 hover:bg-white/10 transition"
+    >
+      Forward via Email
+    </a>
+  </div>
+</div>
   </div>
 
             <ul className="mt-3 space-y-2 text-sm text-white/80">

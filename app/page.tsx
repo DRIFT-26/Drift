@@ -28,13 +28,13 @@ function JobTicker() {
 
   useEffect(() => {
     const events = [
-      "Ingest: Stripe sync complete",
-      "Compute: Baseline checked",
-      "Compute: Drift evaluated",
-      "Alerts: No change",
-      "Alerts: Signal detected",
-      "Snapshots: Window updated",
-    ];
+  "Revenue ingest complete",
+  "Baseline model refreshed",
+  "Revenue signal evaluated",
+  "Material deviation scan complete",
+  "Momentum check complete",
+  "Signal dispatch window open",
+];
 
     const interval = setInterval(() => {
       const msg = events[Math.floor(Math.random() * events.length)];
@@ -48,12 +48,15 @@ function JobTicker() {
   const latest = ticks[0];
 
   return (
-    <span className="text-xs text-white/55 font-mono">
-      <span className="text-white/35">DRIFT</span>{" "}
-      <span className="text-white/45">{latest.t}</span>{" "}
-      <span className="text-white/70">{latest.msg}</span>
-    </span>
-  );
+  <span className="text-xs text-white/55 font-mono">
+    <span className="text-white/35">DRIFT</span>{" "}
+    <span className="text-white/45">{latest.t}</span>{" "}
+    <span className="text-white/35">·</span>{" "}
+    <span className="text-white/70">{latest.msg}</span>{" "}
+    <span className="text-white/35">·</span>{" "}
+    <span className="text-white/70">Confidence: High</span>
+  </span>
+);
 }
 
 function Pill({ children }: { children: React.ReactNode }) {
@@ -93,17 +96,20 @@ function ControlLayerSection() {
       <div className="mt-10 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
           <div className="text-xs text-white/45 font-mono">
-            REVENUE SYSTEMS
+            SUPPORTED REVENUE SOURCES
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Pill>Stripe</Pill>
-            <Pill>Toast</Pill>
-            <Pill>QuickBooks</Pill>
-            <Pill>Shopify</Pill>
+            <Pill>STRIPE</Pill>
+            <Pill>GOOGLE SHEETS</Pill>
             <Pill>CSV</Pill>
+            <Pill>TOAST</Pill>
+            <Pill>QUICKBOOKS</Pill>
+            <Pill>SHOPIFY</Pill>
+            <Pill>SQUARE</Pill>
+            
           </div>
           <p className="mt-4 text-sm text-white/55">
-            DRIFT connects to the systems that produce your revenue signals.
+            DRIFT connects directly to Stripe or ingests revenue data from Sheets and exports from systems like Toast, QuickBooks, Shopify, and Square.
           </p>
         </div>
 
@@ -285,6 +291,24 @@ export default function Home() {
   DRIFT continuously monitors your revenue infrastructure and alerts you the moment momentum shifts.
 </p>
 
+<div className="mt-8 mx-auto max-w-xl rounded-lg border border-white/10 bg-white/5 p-4 text-left">
+  <div className="flex items-center justify-between">
+    <div className="text-xs font-mono text-white/45">DRIFT SIGNAL</div>
+
+    <div className="rounded-full bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
+      Trending Down
+    </div>
+  </div>
+
+  <div className="mt-3 text-sm text-white/85">
+    Revenue is down 14% vs Baseline.
+  </div>
+
+  <div className="mt-1 text-xs text-white/60">
+    Below baseline for 4 consecutive days.
+  </div>
+</div>
+
         
 
         {/* CTA */}
@@ -311,7 +335,7 @@ export default function Home() {
         {/* Live System Preview */}
         <div className="text-sm text-white/65 mb-4 flex flex-wrap items-center gap-2">
   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-  <span>Simulated DRIFT Signal · beta environment</span>
+  <span>Simulated DRIFT Signal · Beta Environment</span>
 
   {/* System activity */}
   <span className="text-white/35">·</span>

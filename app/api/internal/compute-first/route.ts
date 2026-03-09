@@ -7,7 +7,7 @@ import { makeShareToken } from "@/lib/share";
 export const runtime = "nodejs";
 
 type EmailStatus = "stable" | "softening" | "attention";
-type DriftStatus = "stable" | "watch" | "softening" | "attention";
+type DriftStatus = "stable" | "watch" | "softening" | "attention" | "movement";
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -15,21 +15,20 @@ function isoDate(d: Date) {
 
 function statusForEmail(status: DriftStatus): EmailStatus {
   if (status === "watch") return "softening";
-  if (status === "stable" || status === "softening" || status === "attention") {
-    return status;
-  }
-  return "attention";
+  if (status === "movement") return "stable";
+  return status;
 }
 
 function computeRevenueDrift(args: {
   baselineRevenue14d: number;
   currentRevenue14d: number;
+  belowBaselineStreak: number;
 }): {
   status: DriftStatus;
   reasons: string[];
   deltaPct: number;
 } {
-  const { baselineRevenue14d, currentRevenue14d } = args;
+  const { baselineRevenue14d, currentRevenue14d, belowBaselineStreak } = args;
 
   if (baselineRevenue14d <= 0) {
     return {
@@ -41,28 +40,35 @@ function computeRevenueDrift(args: {
 
   const deltaPct = (currentRevenue14d - baselineRevenue14d) / baselineRevenue14d;
 
+  // 🚨 Severe contraction
   if (deltaPct <= -0.2) {
     return {
       status: "attention",
       reasons: [
         `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
-        "The deviation is materially outside the expected range.",
+        belowBaselineStreak > 0
+          ? `Revenue has remained below baseline for ${belowBaselineStreak} consecutive days.`
+          : "The deviation is materially outside the expected range.",
       ],
       deltaPct,
     };
   }
 
+  // 📉 Moderate contraction
   if (deltaPct <= -0.1) {
     return {
       status: "softening",
       reasons: [
         `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
-        "The trend is softening and should be reviewed.",
+        belowBaselineStreak > 0
+          ? `Revenue has remained below baseline for ${belowBaselineStreak} consecutive days.`
+          : "The trend is softening and should be reviewed.",
       ],
       deltaPct,
     };
   }
 
+  // 👀 Early contraction
   if (deltaPct <= -0.05) {
     return {
       status: "watch",
@@ -74,6 +80,19 @@ function computeRevenueDrift(args: {
     };
   }
 
+  // 📈 Expansion signal (NEW)
+  if (deltaPct >= 0.15) {
+    return {
+      status: "movement",
+      reasons: [
+        `Revenue is up ${(deltaPct * 100).toFixed(0)}% vs baseline.`,
+        "Revenue momentum is accelerating beyond the expected range.",
+      ],
+      deltaPct,
+    };
+  }
+
+  // ✅ Stable
   return {
     status: "stable",
     reasons: ["Revenue is tracking within the expected baseline range."],
@@ -83,6 +102,37 @@ function computeRevenueDrift(args: {
 
 function dedupeReasons(reasons: string[]) {
   return [...new Set(reasons.filter(Boolean))];
+}
+
+function consecutiveDaysBelowBaseline(
+  rows: Array<{ snapshot_date: string; metrics: any }>,
+  baselineDailyAverage: number
+) {
+  const dailyTotals = new Map<string, number>();
+
+  for (const row of rows) {
+    const date = row.snapshot_date;
+    const revenue = Number(row?.metrics?.revenue ?? 0);
+    if (!date || Number.isNaN(revenue)) continue;
+
+    dailyTotals.set(date, (dailyTotals.get(date) ?? 0) + revenue);
+  }
+
+  const orderedDates = [...dailyTotals.keys()].sort();
+  let streak = 0;
+
+  for (let i = orderedDates.length - 1; i >= 0; i--) {
+    const date = orderedDates[i];
+    const revenue = dailyTotals.get(date) ?? 0;
+
+    if (revenue < baselineDailyAverage) {
+      streak += 1;
+    } else {
+      break;
+    }
+  }
+
+  return streak;
 }
 
 export async function POST(req: NextRequest) {
@@ -218,10 +268,17 @@ if (curErr) {
     const baselineRevenue14d =
       baselineDays > 0 ? (baselineRevenueWindow / baselineDays) * currentDays : 0;
 
+    const baselineDailyAverage = baselineRevenue14d / 14;
+
+const belowBaselineStreak = consecutiveDaysBelowBaseline(
+  currentRows ?? [],
+  baselineDailyAverage
+);
     const drift = computeRevenueDrift({
-      baselineRevenue14d,
-      currentRevenue14d,
-    });
+  baselineRevenue14d,
+  currentRevenue14d,
+  belowBaselineStreak,
+}); 
 
     const reasons = dedupeReasons(drift.reasons);
 
