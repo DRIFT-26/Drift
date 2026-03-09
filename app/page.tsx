@@ -153,7 +153,7 @@ function ControlLayerSection() {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-white/85">DRIFT Signal</div>
                 <div className="text-xs text-white/45 font-mono">
-                  confidence: high
+                  Confidence: High
                 </div>
               </div>
               <div className="mt-2 text-sm text-white/80">Action Needed 🔴</div>
@@ -166,7 +166,7 @@ function ControlLayerSection() {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-white/85">DRIFT Signal</div>
                 <div className="text-xs text-white/45 font-mono">
-                  confidence: Medium
+                  Confidence: Medium
                 </div>
               </div>
               <div className="mt-2 text-sm text-white/80">Trending Down 🟠</div>
@@ -179,7 +179,7 @@ function ControlLayerSection() {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-white/85">DRIFT Signal</div>
                 <div className="text-xs text-white/45 font-mono">
-                  confidence: Medium
+                  Confidence: Medium
                 </div>
               </div>
               <div className="mt-2 text-sm text-white/80">
@@ -233,7 +233,7 @@ function MaterialDeviationSection() {
         <div className="mt-6 flex flex-wrap gap-2">
           <Pill>Baseline Window: 30–90d</Pill>
           <Pill>Detection: Statistical</Pill>
-          <Pill>Confidence Scoring</Pill>
+          <Pill>Confidence: Scoring</Pill>
         </div>
       </div>
     </section>
@@ -335,7 +335,7 @@ export default function Home() {
         {/* Live System Preview */}
         <div className="text-sm text-white/65 mb-4 flex flex-wrap items-center gap-2">
   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-  <span>Simulated DRIFT Signal · Beta Environment</span>
+  <span>Live Operator Signal Preview</span>
 
   {/* System activity */}
   <span className="text-white/35">·</span>
