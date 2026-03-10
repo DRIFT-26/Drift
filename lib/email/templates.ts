@@ -1,10 +1,23 @@
-type WeeklyPulseStatus = "stable" | "watch" | "softening" | "attention";
+type WeeklyPulseStatus =
+  | "stable"
+  | "movement"
+  | "watch"
+  | "softening"
+  | "attention";
+
+export type StatusEmailStatus =
+  | "stable"
+  | "movement"
+  | "watch"
+  | "softening"
+  | "attention";
 
 function weeklySubject(counts: {
   attention: number;
   softening: number;
   watch: number;
   stable: number;
+  movement: number;
 }) {
   if (counts.attention > 0) {
     return `DRIFT Weekly Pulse — ${counts.attention} require review 🔴`;
@@ -18,6 +31,10 @@ function weeklySubject(counts: {
     return `DRIFT Weekly Pulse — Watch list updated 🟡`;
   }
 
+  if (counts.movement > 0) {
+    return `DRIFT Weekly Pulse — Momentum detected 🔵`;
+  }
+
   return "DRIFT Weekly Pulse — Stable ✅";
 }
 
@@ -26,23 +43,26 @@ function weeklyPrompt(counts: {
   softening: number;
   watch: number;
   stable: number;
+  movement: number;
 }) {
   if (counts.attention > 0) {
-    return "Prompt: What needs intervention first this week?";
+    return "What needs intervention first this week?";
   }
 
   if (counts.softening > 0) {
-    return "Prompt: Where can we stabilize momentum before the slide continues?";
+    return "Where can we stabilize momentum before the slide continues?";
   }
 
   if (counts.watch > 0) {
-    return "Prompt: Which early movements are worth validating now?";
+    return "Which early movements are worth validating now?";
   }
 
-  return "Prompt: Stability confirmed — what’s worth a closer look to stay sharp?";
-}
+  if (counts.movement > 0) {
+    return "What is driving this acceleration — and is it repeatable?";
+  }
 
-export type StatusEmailStatus = "stable" | "softening" | "attention";
+  return "Stability confirmed — what’s worth a closer look to stay sharp?";
+}
 
 function statusSubject(status: StatusEmailStatus, businessName: string) {
   if (status === "attention") {
@@ -53,25 +73,43 @@ function statusSubject(status: StatusEmailStatus, businessName: string) {
     return `DRIFT — Trending Down 🟠 (${businessName})`;
   }
 
+  if (status === "watch") {
+    return `DRIFT — Movement Detected 🟡 (${businessName})`;
+  }
+
+  if (status === "movement") {
+    return `DRIFT — Momentum Detected 🔵 (${businessName})`;
+  }
+
   return `DRIFT — Stable ✅ (${businessName})`;
 }
 
 function statusLabel(status: StatusEmailStatus) {
   if (status === "attention") return "ACTION NEEDED 🔴";
   if (status === "softening") return "TRENDING DOWN 🟠";
+  if (status === "watch") return "MOVEMENT DETECTED 🟡";
+  if (status === "movement") return "MOMENTUM DETECTED 🔵";
   return "STABLE ✅";
 }
 
 function statusPrompt(status: StatusEmailStatus) {
   if (status === "attention") {
-    return "Prompt: What do we change in the next 24–48 hours?";
+    return "What do we change in the next 24–48 hours?";
   }
 
   if (status === "softening") {
-    return "Prompt: What’s the fastest intervention to stop the slide?";
+    return "What’s the fastest intervention to stop the slide?";
   }
 
-  return "Prompt: Stability confirmed — what’s worth a closer look to stay sharp?";
+  if (status === "watch") {
+    return "What early movement is worth validating now?";
+  }
+
+  if (status === "movement") {
+    return "What is driving this acceleration — and is it repeatable?";
+  }
+
+  return "Stability confirmed — what’s worth a closer look to stay sharp?";
 }
 
 function statusImpactLine(status: StatusEmailStatus) {
@@ -81,6 +119,14 @@ function statusImpactLine(status: StatusEmailStatus) {
 
   if (status === "softening") {
     return "If the trend continues, revenue may fall below the expected baseline for this period.";
+  }
+
+  if (status === "watch") {
+    return "Early movement has been detected. If it persists, it may begin to affect near-term revenue performance.";
+  }
+
+  if (status === "movement") {
+    return "If this momentum continues, revenue may outperform the expected baseline for this period.";
   }
 
   return null;
@@ -106,11 +152,11 @@ export function renderStatusEmail({
   const prompt = statusPrompt(status);
   const impactLine = statusImpactLine(status);
 
-  const uniqueReasons = [...new Set(reasons || [])];
+  const uniqueReasons = [...new Set((reasons || []).filter(Boolean))];
 
-const reasonLines = uniqueReasons.length
-  ? uniqueReasons.map((r) => `- ${r}`)
-  : ["- Material deviation detected."];
+  const reasonLines = uniqueReasons.length
+    ? uniqueReasons.map((r) => `- ${r}`).join("\n")
+    : "- No additional signal details available.";
 
   const shareBlock = shareUrl
     ? `
@@ -167,6 +213,7 @@ export function renderWeeklyPulseEmail({
       softening: 0,
       watch: 0,
       stable: 0,
+      movement: 0,
     } as Record<WeeklyPulseStatus, number>
   );
 
@@ -192,6 +239,7 @@ Summary
 - Action Needed: ${counts.attention}
 - Softening: ${counts.softening}
 - Watch: ${counts.watch}
+- Momentum: ${counts.movement}
 - Stable: ${counts.stable}
 
 ${prompt}
