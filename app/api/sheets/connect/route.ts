@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { sendDriftEmail } from "@/lib/email/resend";
+import { renderMonitoringStartedEmail } from "@/lib/email/templates";
 
 export const runtime = "nodejs";
 
@@ -38,6 +40,13 @@ export async function POST(req: Request) {
       .eq("type", "google_sheets_revenue")
       .maybeSingle();
 
+    if (sourceErr) {
+      return NextResponse.json(
+        { ok: false, error: sourceErr.message },
+        { status: 500 }
+      );
+    }
+
     let sourceId = source?.id ?? null;
 
     if (!sourceId) {
@@ -73,6 +82,7 @@ export async function POST(req: Request) {
         .from("sources")
         .update({
           is_connected: true,
+          display_name: "Google Sheets (Revenue)",
           config: {
             sheet_url,
             csv_url: csvUrl,
@@ -87,6 +97,25 @@ export async function POST(req: Request) {
           { status: 500 }
         );
       }
+    }
+
+    const { data: business } = await supabase
+      .from("businesses")
+      .select("name,alert_email")
+      .eq("id", business_id)
+      .maybeSingle();
+
+    if (business?.alert_email) {
+      const { subject, text } = renderMonitoringStartedEmail({
+        businessName: business.name,
+        source: "Google Sheets",
+      });
+
+      await sendDriftEmail({
+        to: business.alert_email,
+        subject,
+        text,
+      });
     }
 
     return NextResponse.json({

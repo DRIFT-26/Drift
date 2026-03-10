@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { sendDriftEmail } from "@/lib/email/resend";
+import { renderMonitoringStartedEmail } from "@/lib/email/templates";
 
 export const runtime = "nodejs";
 
@@ -26,10 +28,10 @@ export async function POST(req: Request) {
     }
 
     const { data: business, error: businessErr } = await supabase
-      .from("businesses")
-      .select("id")
-      .eq("id", businessId)
-      .single();
+  .from("businesses")
+  .select("id,name,alert_email")
+  .eq("id", businessId)
+  .single();
 
     if (businessErr || !business) {
       return NextResponse.json(
@@ -169,6 +171,19 @@ export async function POST(req: Request) {
   force_email: true,
 }),
     });
+
+    if (business?.alert_email) {
+  const { subject, text } = renderMonitoringStartedEmail({
+    businessName: business.name,
+    source: "CSV Upload",
+  });
+
+  await sendDriftEmail({
+    to: business.alert_email,
+    subject,
+    text,
+  });
+}
 
     const computeJson = await computeRes.json().catch(() => null);
 

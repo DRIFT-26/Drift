@@ -67,6 +67,10 @@ export default function SuccessClient({
             </div>
           </div>
 
+          <div className="mt-4 text-sm text-white/65">
+  DRIFT is now monitoring your revenue quietly in the background.
+</div>
+
           <div className="mt-8 space-y-3 text-sm text-white/70">
             <div className="flex gap-3">
               <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
@@ -94,7 +98,7 @@ export default function SuccessClient({
               href="/onboard"
               className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Start Another Onboarding
+              Start another onboarding
             </Link>
           </div>
 
