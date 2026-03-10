@@ -17,9 +17,9 @@ function nowStamp() {
 function JobTicker() {
   const seed = useMemo<Tick[]>(
     () => [
-      { t: nowStamp(), msg: "ingest: queued (14d)" },
-      { t: nowStamp(), msg: "compute: scheduled" },
-      { t: nowStamp(), msg: "alerts: standing by" },
+      { t: nowStamp(), msg: "Ingest: Queued (14d)" },
+      { t: nowStamp(), msg: "Compute: Scheduled" },
+      { t: nowStamp(), msg: "Alerts: Standing By" },
     ],
     []
   );
