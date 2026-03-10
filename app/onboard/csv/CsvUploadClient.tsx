@@ -53,7 +53,7 @@ export default function CsvUploadClient({
         throw new Error(data?.error ?? "Upload failed.");
       }
 
-      router.push("/onboard/success?signal=processing");
+      router.push("/onboard/success?signal=processing&source=csv");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed.";
       alert(message);
