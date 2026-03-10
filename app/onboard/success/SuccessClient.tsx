@@ -2,11 +2,22 @@
 
 import Link from "next/link";
 
+function sourceLabel(source: string) {
+  if (source === "stripe") return "Stripe";
+  if (source === "google_sheets") return "Google Sheets";
+  if (source === "csv") return "CSV Upload";
+  return "Revenue Source";
+}
+
 export default function SuccessClient({
   signal,
+  source,
 }: {
   signal: string;
+  source: string;
 }) {
+  const connectedSource = sourceLabel(source);
+
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -25,26 +36,36 @@ export default function SuccessClient({
           </div>
         </div>
 
-        <div className="mt-20 rounded-2xl border border-white/10 bg-white/[0.06] p-8 md:p-10 backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+        <div className="mt-20 rounded-2xl border border-white/10 bg-white/[0.06] p-8 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
             <span className="h-2 w-2 rounded-full bg-emerald-400/90" />
             Founding Cohort
           </div>
 
-          <h1 className="mt-5 text-3xl md:text-4xl font-semibold tracking-tight">
+          <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">
             You’re all set.
           </h1>
 
-          <p className="mt-4 text-white/70 leading-relaxed">
+          <p className="mt-4 leading-relaxed text-white/70">
             Your onboarding details have been received. DRIFT is now preparing your
             account and next steps.
           </p>
 
           {signal === "processing" && (
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-              Your first DRIFT signal is being generated and will arrive in your corresponding email inbox shortly.
+              Your first DRIFT signal is being generated and will arrive in your
+              corresponding email inbox shortly.
             </div>
           )}
+
+          <div className="mt-6 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <div className="text-xs font-mono tracking-wide text-white/45">
+              CONNECTED SOURCE
+            </div>
+            <div className="mt-2 text-sm font-semibold text-white/85">
+              {connectedSource}
+            </div>
+          </div>
 
           <div className="mt-8 space-y-3 text-sm text-white/70">
             <div className="flex gap-3">
@@ -73,11 +94,11 @@ export default function SuccessClient({
               href="/onboard"
               className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Start another onboarding
+              Start Another Onboarding
             </Link>
           </div>
 
-          <div className="mt-6 text-[11px] text-white/45 leading-relaxed">
+          <div className="mt-6 text-[11px] leading-relaxed text-white/45">
             DRIFT uses your connected data to compute drift signals and deliver
             operator-grade alerts.
           </div>
