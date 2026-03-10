@@ -6,13 +6,17 @@ export default async function SuccessPage({
 }: {
   searchParams: Promise<{
     signal?: string;
+    source?: string;
   }>;
 }) {
   const params = await searchParams;
 
   return (
     <Suspense fallback={null}>
-      <SuccessClient signal={params.signal ?? ""} />
+      <SuccessClient
+        signal={params.signal ?? ""}
+        source={params.source ?? ""}
+      />
     </Suspense>
   );
 }
