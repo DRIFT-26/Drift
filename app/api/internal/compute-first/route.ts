@@ -7,7 +7,7 @@ import { makeShareToken } from "@/lib/share";
 export const runtime = "nodejs";
 
 type EmailStatus = "stable" | "softening" | "attention";
-type DriftStatus = "stable" | "watch" | "softening" | "attention" | "movement";
+type DriftStatus = "stable" | "movement" | "watch" | "softening" | "attention";
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -33,20 +33,22 @@ function computeRevenueDrift(args: {
   if (baselineRevenue14d <= 0) {
     return {
       status: "watch",
-      reasons: ["Not enough baseline revenue history to classify confidently."],
+      reasons: [
+        "Monitoring period in progress — DRIFT is collecting baseline history.",
+      ],
       deltaPct: 0,
     };
   }
 
   const deltaPct = (currentRevenue14d - baselineRevenue14d) / baselineRevenue14d;
 
-  // 🚨 Severe contraction
-  if (deltaPct <= -0.2) {
+  // ACTION NEEDED
+  if (deltaPct <= -0.18) {
     return {
       status: "attention",
       reasons: [
         `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
-        belowBaselineStreak > 0
+        belowBaselineStreak >= 4
           ? `Revenue has remained below baseline for ${belowBaselineStreak} consecutive days.`
           : "The deviation is materially outside the expected range.",
       ],
@@ -54,13 +56,13 @@ function computeRevenueDrift(args: {
     };
   }
 
-  // 📉 Moderate contraction
+  // SOFTENING
   if (deltaPct <= -0.1) {
     return {
       status: "softening",
       reasons: [
         `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
-        belowBaselineStreak > 0
+        belowBaselineStreak >= 3
           ? `Revenue has remained below baseline for ${belowBaselineStreak} consecutive days.`
           : "The trend is softening and should be reviewed.",
       ],
@@ -68,20 +70,22 @@ function computeRevenueDrift(args: {
     };
   }
 
-  // 👀 Early contraction
+  // WATCH
   if (deltaPct <= -0.05) {
     return {
       status: "watch",
       reasons: [
         `Revenue is down ${Math.abs(deltaPct * 100).toFixed(0)}% vs baseline.`,
-        "Early movement has been detected relative to baseline.",
+        belowBaselineStreak >= 2
+          ? `Revenue has remained below baseline for ${belowBaselineStreak} consecutive days.`
+          : "Early movement has been detected relative to baseline.",
       ],
       deltaPct,
     };
   }
 
-  // 📈 Expansion signal (NEW)
-  if (deltaPct >= 0.15) {
+  // POSITIVE MOVEMENT
+  if (deltaPct >= 0.12) {
     return {
       status: "movement",
       reasons: [
@@ -92,7 +96,6 @@ function computeRevenueDrift(args: {
     };
   }
 
-  // ✅ Stable
   return {
     status: "stable",
     reasons: ["Revenue is tracking within the expected baseline range."],
