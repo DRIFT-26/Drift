@@ -165,10 +165,10 @@ export async function POST(req: NextRequest) {
     const currentDays = 14;
 
     const { data: revenueSources, error: sourceErr } = await supabase
-      .from("sources")
-      .select("id,type,is_connected")
-      .eq("business_id", businessId)
-      .in("type", ["csv_revenue", "stripe_revenue"]);
+  .from("sources")
+  .select("id,type,is_connected")
+  .eq("business_id", businessId)
+  .in("type", ["csv_revenue", "stripe_revenue", "google_sheets_revenue"]);
 
     if (sourceErr) {
       return NextResponse.json(
@@ -177,9 +177,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const connectedRevenueSources = (revenueSources ?? []).filter(
-      (s) => s.is_connected || s.type === "csv_revenue"
-    );
+    const connectedRevenueSources = (revenueSources ?? []).filter((s) => {
+  if (s.type === "csv_revenue") return true;
+  return s.is_connected;
+});
 
     if (!connectedRevenueSources.length) {
       return NextResponse.json(
