@@ -189,6 +189,36 @@ Revenue control for operators
   };
 }
 
+export function renderMonitoringStartedEmail({
+  businessName,
+  source,
+}: {
+  businessName: string;
+  source: string;
+}) {
+  const subject = "DRIFT — Monitoring Started";
+
+  const text = `DRIFT Monitoring Started
+
+Business: ${businessName}
+Source Connected: ${source}
+
+DRIFT is now watching your revenue.
+
+The system will quietly monitor revenue patterns and notify you only when something materially changes.
+
+No dashboards to check.
+No reports to run.
+
+You'll hear from DRIFT when it matters.
+
+— DRIFT
+Revenue control for operators
+`;
+
+  return { subject, text };
+}
+
 export function renderWeeklyPulseEmail({
   windowStart,
   windowEnd,

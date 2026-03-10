@@ -1,6 +1,8 @@
 // app/api/stripe/callback/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { renderMonitoringStartedEmail } from "@/lib/email/templates";
+import { sendDriftEmail } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
 
@@ -123,6 +125,26 @@ export async function GET(req: Request) {
         },
       })
       .eq("id", source.id);
+
+      // Send monitoring started email
+const { data: business } = await supabase
+  .from("businesses")
+  .select("name,alert_email")
+  .eq("id", source.business_id)
+  .maybeSingle();
+
+if (business?.alert_email) {
+  const { subject, text } = renderMonitoringStartedEmail({
+    businessName: business.name,
+    source: "Stripe",
+  });
+
+  await sendDriftEmail({
+    to: business.alert_email,
+    subject,
+    text,
+  });
+}
 
     if (upErr) {
       return jsonError(`Failed to mark Stripe source connected: ${upErr.message}`, 500);
