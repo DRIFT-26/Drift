@@ -135,15 +135,15 @@ function makeSignalId() {
   return out;
 }
 
-type Confidence = "low" | "medium" | "high";
+type Confidence = "Low" | "Medium" | "High";
 
 function confidenceFrom(status: DriftStatus, deltaPct: number): Confidence {
   // You can tune this later when you wire real stats.
   const magnitude = Math.abs(deltaPct);
-  if (status === "attention") return magnitude > 0.12 ? "high" : "medium";
-  if (status === "softening") return magnitude > 0.08 ? "high" : "medium";
-  if (status === "watch") return magnitude > 0.05 ? "medium" : "low";
-  return "high";
+  if (status === "attention") return magnitude > 0.12 ? "High" : "Medium";
+  if (status === "softening") return magnitude > 0.08 ? "High" : "Medium";
+  if (status === "watch") return magnitude > 0.05 ? "Medium" : "Low";
+  return "High";
 }
 
 function operatorScoreFrom(
@@ -183,8 +183,8 @@ export default function DemoCard() {
 
   // Operator-grade meta
   const [signalId, setSignalId] = useState<string>(() => makeSignalId());
-  const baselineWindow = "rolling (90d)";
-  const detection = "material deviation";
+  const baselineWindow = "Rolling (90d)";
+  const detection = "Material Deviation";
 
   // Background job ticker (most recent first)
   const [events, setEvents] = useState<JobEvent[]>([
@@ -293,7 +293,7 @@ export default function DemoCard() {
   <div className="flex items-center justify-between">
     <div>
       <div className="text-[11px] font-semibold text-white/55">OPERATOR SCORE</div>
-      <div className="mt-1 text-xs text-white/45">0–100 · control confidence</div>
+      <div className="mt-1 text-xs text-white/45">0–100 · Control Confidence</div>
     </div>
 
     <div className="text-3xl font-black text-white tabular-nums">
