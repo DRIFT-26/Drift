@@ -28,12 +28,12 @@ function JobTicker() {
 
   useEffect(() => {
     const events = [
-  "Revenue ingest complete",
-  "Baseline model refreshed",
-  "Revenue signal evaluated",
-  "Material deviation scan complete",
-  "Momentum check complete",
-  "Signal dispatch window open",
+  "Revenue Ingest Complete",
+  "Baseline Model Refreshed",
+  "Revenue Signal Evaluated",
+  "Material Deviation Scan Complete",
+  "Momentum Check Complete",
+  "Signal Dispatch Window Open",
 ];
 
     const interval = setInterval(() => {
@@ -75,10 +75,10 @@ function ControlLayerSection() {
           THE CONTROL LAYER
         </div>
 
-        <h2 className="mt-3 text-2xl md:text-3xl font-semibold tracking-tight leading-tight text-balance">
-  DRIFT sits between your{" "}
-  <span className="whitespace-nowrap">revenue systems</span> and your{" "}
-  <span className="whitespace-nowrap">attention</span>.
+        <h2 className="mt-3 text-2xl md:text-3xl font-semibold tracking-tight leading-tight">
+  <span className="whitespace-nowrap">DRIFT sits between</span>{" "}
+  <span className="whitespace-nowrap">your revenue systems</span>{" "}
+  <span className="whitespace-nowrap">and your attention.</span>
 </h2>
 
         <p className="mt-4 text-sm md:text-base text-white/80">
