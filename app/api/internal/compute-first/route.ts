@@ -23,12 +23,13 @@ function computeRevenueDrift(args: {
   baselineRevenue14d: number;
   currentRevenue14d: number;
   belowBaselineStreak: number;
+  latestRevenue: number;
 }): {
   status: DriftStatus;
   reasons: string[];
   deltaPct: number;
 } {
-  const { baselineRevenue14d, currentRevenue14d, belowBaselineStreak } = args;
+  const { baselineRevenue14d, currentRevenue14d, belowBaselineStreak, latestRevenue, } = args;
 
   if (baselineRevenue14d <= 0) {
     return {
@@ -41,6 +42,21 @@ function computeRevenueDrift(args: {
   }
 
   const deltaPct = (currentRevenue14d - baselineRevenue14d) / baselineRevenue14d;
+  // SHOCK DETECTION (sudden abnormal day)
+const baselineDailyAvg = baselineRevenue14d / 14;
+const todayRevenue = latestRevenue; // most recent snapshot revenue
+const todayDelta = (todayRevenue - baselineDailyAvg) / baselineDailyAvg;
+
+if (todayDelta <= -0.4) {
+  return {
+    status: "attention",
+    reasons: [
+      `Today's revenue is down ${Math.abs(todayDelta * 100).toFixed(0)}% vs normal daily performance.`,
+      "This appears to be a sudden revenue shock.",
+    ],
+    deltaPct: todayDelta,
+  };
+}
 
   // ACTION NEEDED
   if (deltaPct <= -0.18) {
@@ -278,11 +294,16 @@ const belowBaselineStreak = consecutiveDaysBelowBaseline(
   currentRows ?? [],
   baselineDailyAverage
 );
+
+const latestRevenue =
+  currentRows?.[currentRows.length - 1]?.metrics?.revenue ?? 0;
+
     const drift = computeRevenueDrift({
   baselineRevenue14d,
   currentRevenue14d,
   belowBaselineStreak,
-}); 
+  latestRevenue,
+});
 
     const reasons = dedupeReasons(drift.reasons);
 
