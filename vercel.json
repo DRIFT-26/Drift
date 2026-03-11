@@ -4,7 +4,7 @@
     { "path": "/api/jobs/ingest", "schedule": "5 13 * * *" },
     { "path": "/api/jobs/daily", "schedule": "0 14 * * *" },
     { "path": "/api/jobs/weekly", "schedule": "0 15 * * 1" },
-    { "path": "/api/jobs/sheets-sync", "schedule": "0 * * * *" }
+    { "path": "/api/jobs/sheets-sync", "schedule": "15 * * * *" }
   ]
 }
 
