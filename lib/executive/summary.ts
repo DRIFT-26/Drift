@@ -1,17 +1,17 @@
 // lib/executive/summary.ts
-export type DriftStatus = "stable" | "watch" | "softening" | "attention";
-export type EmailStatus = "stable" | "softening" | "attention"; // templates often don’t include "watch"
+export type DriftStatus = "stable" | "movement" | "watch" | "softening" | "attention";
+export type EmailStatus = "stable" | "movement" | "watch" | "softening" | "attention"; // templates often don’t include "watch"
 export type Confidence = "low" | "medium" | "high";
 
 export function capReasons(reasons: any[], n = 3) {
   return Array.isArray(reasons) ? reasons.slice(0, n) : [];
 }
 
-export function normalizeStatus(raw: any): DriftStatus {
-  const s = String(raw ?? "").toLowerCase();
-  if (s === "attention") return "attention";
-  if (s === "softening") return "softening";
-  if (s === "watch") return "watch";
+export function normalizeStatus(status: any): DriftStatus {
+  if (status === "attention") return "attention";
+  if (status === "softening") return "softening";
+  if (status === "watch") return "watch";
+  if (status === "movement") return "movement";
   return "stable";
 }
 
