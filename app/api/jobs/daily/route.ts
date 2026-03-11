@@ -2,7 +2,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendDriftEmail } from "@/lib/email/resend";
-import { renderStatusEmail } from "@/lib/email/templates";
+import {
+  renderStatusEmail,
+  renderDailyMonitorEmail,
+} from "@/lib/email/templates";
 import { shouldRunDailyNow } from "@/lib/dispatch";
 import {
   capReasons,
@@ -54,9 +57,6 @@ function uniqueReasonCodes(reasons: any[]): string[] {
  * Timezone-aware dispatch:
  * - default: run all businesses
  * - dispatch=1: only run businesses whose local time is around 08:15 and Mon–Fri
- *
- * NOTE: We don’t need perfect timezone math for v1—just “good enough” behavior.
- * If timezone parsing fails, it will safely skip dispatch filtering.
  */
 function shouldRunNowForBiz(tz: string | null | undefined) {
   if (!tz) return false;
@@ -72,11 +72,12 @@ function shouldRunNowForBiz(tz: string | null | undefined) {
     }).formatToParts(now);
 
     const get = (t: string) => parts.find((p) => p.type === t)?.value;
-    const weekday = get("weekday"); // Mon, Tue...
+    const weekday = get("weekday");
     const hour = Number(get("hour"));
     const minute = Number(get("minute"));
 
-    const isWeekday = weekday && ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday);
+    const isWeekday =
+      weekday && ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday);
     if (!isWeekday) return false;
 
     // Run window: 08:10–08:20 local to allow a 15-min cron
@@ -92,14 +93,16 @@ export async function POST(req: Request) {
 
   const dryRun = url.searchParams.get("dry_run") === "true";
   const debug = url.searchParams.get("debug") === "1";
-  const forceEmail = url.searchParams.get("force_email") === "true"; // doesn’t bypass paid gate
+  const forceEmail = url.searchParams.get("force_email") === "true";
   const dispatch = url.searchParams.get("dispatch") === "1";
-
   const filterBusinessId = (url.searchParams.get("business_id") || "").trim();
 
   const auth = requireCronAuth(req);
   if (!auth.ok) {
-    return NextResponse.json({ ok: false, error: auth.error }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: auth.error },
+      { status: 401 }
+    );
   }
 
   const supabase = supabaseAdmin();
@@ -107,11 +110,16 @@ export async function POST(req: Request) {
 
   const { data: businesses, error: bErr } = await supabase
     .from("businesses")
-    .select("id,name,timezone,is_paid,alert_email,monthly_revenue_cents,monthly_revenue,created_at,last_drift,last_drift_at")
+    .select(
+      "id,name,timezone,is_paid,alert_email,monthly_revenue_cents,monthly_revenue,created_at,last_drift,last_drift_at"
+    )
     .order("created_at", { ascending: true });
 
   if (bErr) {
-    return NextResponse.json({ ok: false, step: "read_businesses", error: bErr.message }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, step: "read_businesses", error: bErr.message },
+      { status: 500 }
+    );
   }
 
   const today = new Date();
@@ -126,51 +134,63 @@ export async function POST(req: Request) {
     if (filterBusinessId && biz.id !== filterBusinessId) continue;
 
     if (dispatch && !shouldRunDailyNow((biz as any).timezone)) {
-      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "dispatch_window" });
+      results.push({
+        business_id: biz.id,
+        name: biz.name,
+        skipped: true,
+        reason: "dispatch_window",
+      });
       continue;
     }
 
     const isPaid = (biz as any).is_paid === true;
 
-// --- Beta allowlist (fastest path; no DB changes) ---
-// Comma-separated emails in Vercel env: BETA_ALLOWLIST_EMAILS
-// Example: "carlosjarrett27@gmail.com,ceo@company.com"
-const allowlistRaw = (process.env.BETA_ALLOWLIST_EMAILS || "").trim();
-const allowlist = allowlistRaw
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
+    // --- Beta allowlist ---
+    const allowlistRaw = (process.env.BETA_ALLOWLIST_EMAILS || "").trim();
+    const allowlist = allowlistRaw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
 
-const bizEmail = String((biz as any).alert_email || "").trim().toLowerCase();
-const isBetaAllowed = bizEmail && allowlist.includes(bizEmail);
-const paidMode = isPaid ? "paid" : isBetaAllowed ? "beta_allowlist" : "unpaid";
+    const bizEmail = String((biz as any).alert_email || "")
+      .trim()
+      .toLowerCase();
+    const isBetaAllowed = Boolean(bizEmail) && allowlist.includes(bizEmail);
+    const paidMode = isPaid
+      ? "paid"
+      : isBetaAllowed
+      ? "beta_allowlist"
+      : "unpaid";
 
-// Paid-only for alerts unless explicitly beta-allowed
-if (!isPaid && !isBetaAllowed) {
-  results.push({
-    business_id: biz.id,
-    name: biz.name,
-    skipped: true,
-    reason: "not_paid",
-  });
-  continue;
-}
+    if (!isPaid && !isBetaAllowed) {
+      results.push({
+        business_id: biz.id,
+        name: biz.name,
+        skipped: true,
+        reason: "not_paid",
+        paid_mode: paidMode,
+      });
+      continue;
+    }
 
-if (!biz.alert_email) {
-  results.push({
-    business_id: biz.id,
-    name: biz.name,
-    skipped: true,
-    reason: "no_alert_email",
-  });
-  continue;
-}
+    if (!biz.alert_email) {
+      results.push({
+        business_id: biz.id,
+        name: biz.name,
+        skipped: true,
+        reason: "no_alert_email",
+      });
+      continue;
+    }
 
-    // Your compute job should already update businesses.last_drift via /api/jobs/daily compute.
-    // If you want this route to *only* send emails based on last_drift, we read it here.
     const lastDrift = (biz as any).last_drift ?? null;
     if (!lastDrift?.status) {
-      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "no_last_drift" });
+      results.push({
+        business_id: biz.id,
+        name: biz.name,
+        skipped: true,
+        reason: "no_last_drift",
+      });
       continue;
     }
 
@@ -178,9 +198,9 @@ if (!biz.alert_email) {
     const reasons = Array.isArray(lastDrift.reasons) ? lastDrift.reasons : [];
     const meta = lastDrift.meta ?? {};
 
-    // CEO-grade dedupe:
-    // Only email if status changed OR reason codes changed, unless force_email=1
-    const prevStatus: DriftStatus | null = (lastDrift?.meta?.prev_status ? normalizeStatus(lastDrift.meta.prev_status) : null);
+    const prevStatus: DriftStatus | null = lastDrift?.meta?.prev_status
+      ? normalizeStatus(lastDrift.meta.prev_status)
+      : null;
 
     const prevCodes = Array.isArray(lastDrift?.meta?.prev_reason_codes)
       ? (lastDrift.meta.prev_reason_codes as any[]).map(String)
@@ -188,18 +208,23 @@ if (!biz.alert_email) {
 
     const currentCodes = uniqueReasonCodes(reasons);
 
-    const statusChanged = prevStatus ? prevStatus !== status : true; // first time => true
-    const reasonsChanged =
-      prevCodes ? currentCodes.join("|") !== prevCodes.map(String).join("|") : currentCodes.length > 0;
+    const statusChanged = prevStatus ? prevStatus !== status : true;
+    const reasonsChanged = prevCodes
+      ? currentCodes.join("|") !== prevCodes.map(String).join("|")
+      : currentCodes.length > 0;
 
     const shouldEmail = forceEmail || statusChanged || reasonsChanged;
 
     if (!shouldEmail) {
-      results.push({ business_id: biz.id, name: biz.name, skipped: true, reason: "no_change" });
+      results.push({
+        business_id: biz.id,
+        name: biz.name,
+        skipped: true,
+        reason: "no_change",
+      });
       continue;
     }
 
-    // Monthly revenue cents: accept cents field or dollars field
     const monthlyRevenueCents =
       typeof (biz as any).monthly_revenue_cents === "number"
         ? (biz as any).monthly_revenue_cents
@@ -216,38 +241,71 @@ if (!biz.alert_email) {
       monthlyRevenueCents,
     });
 
-    const emailStatus = statusForEmail(status);
     const limitedReasons = capReasons(reasons, 3);
 
-    const { subject, text } = renderStatusEmail({
-      businessName: biz.name,
-      status: emailStatus,
-      reasons: limitedReasons,
-      windowStart: windowStartStr,
-      windowEnd: windowEndStr,
-    });
-
-    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://drift-app-indol.vercel.app").replace(/\/$/, "");
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://drifthq.co"
+    ).replace(/\/$/, "");
     const detailsUrl = `${baseUrl}${exec.detailsPath}`;
 
-    const finalText =
-      `${exec.headline}\n` +
-      (exec.impact.est_monthly ? `Estimated monthly impact: ${exec.impact.est_monthly}\n` : "") +
-      (exec.drivers?.length ? `Key driver: ${exec.drivers[0].label} ${exec.drivers[0].value} (baseline ${exec.drivers[0].baseline})\n` : "") +
-      `Confidence: ${exec.confidence}\n` +
-      `\nNext steps:\n- ${exec.nextSteps.slice(0, 3).join("\n- ")}\n\n` +
-      `View details: ${detailsUrl}\n\n` +
-      `---\n` +
-      text;
+    let subject = "";
+    let finalText = "";
+    let emailType = "daily_monitor";
+
+    // Daily monitor for quiet states
+    if (
+      status === "stable" ||
+      status === "watch" ||
+      status === "movement"
+    ) {
+      const daily = renderDailyMonitorEmail({
+        businessName: biz.name,
+        status,
+      });
+
+      subject = daily.subject;
+      finalText = daily.text;
+      emailType = "daily_monitor";
+    }
+
+    // Stronger alert-style daily email for louder states
+    if (status === "softening" || status === "attention") {
+      const alert = renderStatusEmail({
+        businessName: biz.name,
+        status: statusForEmail(status),
+        reasons: limitedReasons,
+        windowStart: windowStartStr,
+        windowEnd: windowEndStr,
+        shareUrl: detailsUrl,
+      });
+
+      subject = alert.subject;
+      finalText = alert.text;
+      emailType = "daily_alert";
+    }
+
+    if (!subject || !finalText) {
+      results.push({
+        business_id: biz.id,
+        name: biz.name,
+        skipped: true,
+        reason: "no_email_content",
+        status,
+      });
+      continue;
+    }
 
     if (dryRun) {
       results.push({
         business_id: biz.id,
         name: biz.name,
+        emailed: false,
         dry_run: true,
-        would_email: true,
         status,
-        email_to: biz.alert_email,
+        subject,
+        email_type: emailType,
         detailsUrl,
       });
       continue;
@@ -260,12 +318,13 @@ if (!biz.alert_email) {
         text: finalText,
       });
 
-      const emailId = (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
+      const emailId =
+        (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
       const sendErr = (sendResult as any)?.error ?? null;
 
       await supabase.from("email_logs").insert({
         business_id: biz.id,
-        email_type: "daily_alert",
+        email_type: emailType,
         to_email: biz.alert_email,
         subject,
         status: sendErr ? "error" : "sent",
@@ -294,8 +353,6 @@ if (!biz.alert_email) {
         },
       });
 
-      // Update prev markers to support next dedupe run
-      // (store on last_drift.meta to avoid schema changes)
       await supabase
         .from("businesses")
         .update({
@@ -315,6 +372,7 @@ if (!biz.alert_email) {
         name: biz.name,
         emailed: !sendErr,
         email_id: emailId,
+        email_type: emailType,
         status,
         detailsUrl,
       });
@@ -327,7 +385,12 @@ if (!biz.alert_email) {
           error: e?.message ?? String(e),
         });
       } else {
-        results.push({ business_id: biz.id, name: biz.name, emailed: false, error: "send_failed" });
+        results.push({
+          business_id: biz.id,
+          name: biz.name,
+          emailed: false,
+          error: "send_failed",
+        });
       }
     }
   }
