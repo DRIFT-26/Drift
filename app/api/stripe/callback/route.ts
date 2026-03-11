@@ -180,20 +180,13 @@ if (business?.alert_email) {
     // 5) Trigger first compute in the background
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
 
-    try {
-      await fetch(`${appUrl}/api/internal/compute-first`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          business_id: source.business_id,
-          force_email: true,
-        }),
-      });
-    } catch {
-      // do not fail the callback redirect if compute fails
-    }
+    await supabase
+  .from("businesses")
+  .update({
+    needs_compute: true,
+    last_ingested_at: new Date().toISOString(),
+  })
+  .eq("id", source.business_id);
 
     // 6) Redirect to onboarding success, not /alerts/:id
     const redirectTo = new URL(

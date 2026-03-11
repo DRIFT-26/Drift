@@ -153,24 +153,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!appUrl) {
-      return NextResponse.json(
-        { ok: false, error: "NEXT_PUBLIC_APP_URL is not configured" },
-        { status: 500 }
-      );
-    }
+   await supabase
+  .from("businesses")
+  .update({
+    needs_compute: true,
+    last_ingested_at: new Date().toISOString(),
+  })
+  .eq("id", businessId); 
 
-    const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-  business_id: businessId,
-  force_email: true,
-}),
-    });
+    
 
     if (business?.alert_email) {
   const { subject, text } = renderMonitoringStartedEmail({
@@ -184,18 +175,6 @@ export async function POST(req: Request) {
     text,
   });
 }
-
-    const computeJson = await computeRes.json().catch(() => null);
-
-    if (!computeRes.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: computeJson?.error ?? "Failed to compute first DRIFT signal",
-        },
-        { status: 500 }
-      );
-    }
 
     return NextResponse.json({
       ok: true,

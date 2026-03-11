@@ -62,15 +62,13 @@ export async function GET() {
         onConflict: "source_id,snapshot_date",
       });
 
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/compute-first`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          business_id: source.business_id,
-        }),
-      });
+      await supabase
+  .from("businesses")
+  .update({
+    needs_compute: true,
+    last_ingested_at: new Date().toISOString(),
+  })
+  .eq("id", source.business_id);
     }
 
     return NextResponse.json({ ok: true });
