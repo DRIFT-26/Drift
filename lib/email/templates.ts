@@ -109,7 +109,7 @@ function statusPrompt(status: StatusEmailStatus) {
     return "What is driving this acceleration — and is it repeatable?";
   }
 
-  return "Stability confirmed — what’s worth a closer look to stay sharp?";
+  return "Stability Confirmed — What’s worth a closer look to stay sharp?";
 }
 
 function statusImpactLine(status: StatusEmailStatus) {

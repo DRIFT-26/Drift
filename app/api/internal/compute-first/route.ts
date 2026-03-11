@@ -6,7 +6,7 @@ import { makeShareToken } from "@/lib/share";
 
 export const runtime = "nodejs";
 
-type EmailStatus = "stable" | "softening" | "attention";
+type EmailStatus = "stable" | "movement" | "watch" | "softening" | "attention";
 type DriftStatus = "stable" | "movement" | "watch" | "softening" | "attention";
 
 function isoDate(d: Date) {
