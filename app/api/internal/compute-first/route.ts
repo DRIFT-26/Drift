@@ -358,6 +358,13 @@ if (biz.alert_email && shouldEmail) {
     text,
   });
 }
+await supabase
+  .from("businesses")
+  .update({
+    needs_compute: false,
+    last_computed_at: new Date().toISOString(),
+  })
+  .eq("id", businessId);  
 
     return NextResponse.json({
   ok: true,
@@ -384,6 +391,7 @@ if (biz.alert_email && shouldEmail) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected server error";
+
 
     return NextResponse.json(
       { ok: false, error: message },
