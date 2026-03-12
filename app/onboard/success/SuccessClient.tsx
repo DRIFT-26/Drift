@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 function sourceLabel(source: string) {
   if (source === "stripe") return "Stripe";
@@ -17,6 +18,17 @@ export default function SuccessClient({
   source: string;
 }) {
   const connectedSource = sourceLabel(source);
+  const [showPreview, setShowPreview] = useState(signal === "processing");
+
+useEffect(() => {
+  if (signal !== "processing") return;
+
+  const timer = setTimeout(() => {
+    setShowPreview(false);
+  }, 10000);
+
+  return () => clearTimeout(timer);
+}, [signal]);
 
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
@@ -57,6 +69,34 @@ export default function SuccessClient({
               corresponding email inbox shortly.
             </div>
           )}
+
+          {showPreview && (
+  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-4">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-xs font-mono tracking-wide text-white/45">
+          DRIFT SIGNAL
+        </div>
+        <div className="mt-1 text-sm font-semibold text-white/85">
+          Evaluating revenue patterns…
+        </div>
+      </div>
+
+      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/65">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/90" />
+        Live Compute
+      </div>
+    </div>
+
+    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
+  <div className="h-full w-full animate-previewLoad rounded-full bg-white/50" />
+</div>
+
+    <div className="mt-2 text-[11px] text-white/45">
+      DRIFT is establishing your first signal now.
+    </div>
+  </div>
+)}
 
           <div className="mt-6 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
             <div className="text-xs font-mono tracking-wide text-white/45">

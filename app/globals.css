@@ -26,10 +26,15 @@ body {
 }
 
 @keyframes previewLoad {
-  from {
+  0% {
     transform: scaleX(0);
   }
-  to {
+  100% {
     transform: scaleX(1);
   }
+}
+
+.animate-previewLoad {
+  animation: previewLoad 10s linear forwards;
+  transform-origin: left;
 }
