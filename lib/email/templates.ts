@@ -219,6 +219,66 @@ Revenue control for operators
   return { subject, text };
 }
 
+export function renderDailyMonitorEmail({
+  businessName,
+  status,
+}: {
+  businessName: string;
+  status: "stable" | "watch" | "movement";
+}) {
+  if (status === "watch") {
+    return {
+      subject: `DRIFT Daily Monitor — Movement Detected 🟡 (${businessName})`,
+      text: `DRIFT Daily Monitor
+
+Business: ${businessName}
+
+Status: MOVEMENT DETECTED 🟡
+
+Early movement has been detected relative to baseline.
+
+No intervention is recommended yet, but DRIFT is watching closely.
+
+— DRIFT
+Revenue control for operators`,
+    };
+  }
+
+  if (status === "movement") {
+    return {
+      subject: `DRIFT Daily Monitor — Momentum Detected 🔵 (${businessName})`,
+      text: `DRIFT Daily Monitor
+
+Business: ${businessName}
+
+Status: MOMENTUM DETECTED 🔵
+
+Revenue is trending above the expected baseline.
+
+DRIFT is monitoring for persistence.
+
+— DRIFT
+Revenue control for operators`,
+    };
+  }
+
+  return {
+    subject: `DRIFT Daily Monitor — Stable ✅ (${businessName})`,
+    text: `DRIFT Daily Monitor
+
+Business: ${businessName}
+
+Status: STABLE ✅
+
+Revenue is tracking within the expected baseline range.
+
+DRIFT continues monitoring performance.
+
+— DRIFT
+Revenue control for operators`,
+  };
+}
+
 export function renderWeeklyPulseEmail({
   windowStart,
   windowEnd,
@@ -282,64 +342,5 @@ Revenue control for operators
     subject,
     text,
   };
-}; 
-
-export function renderDailyMonitorEmail({
-  businessName,
-  status,
-}: {
-  businessName: string;
-  status: "stable" | "watch" | "movement";
-}) {
-  if (status === "watch") {
-    return {
-      subject: `DRIFT Daily Monitor — Movement Detected 🟡 (${businessName})`,
-      text: `DRIFT Daily Monitor
-
-Business: ${businessName}
-
-Status: MOVEMENT DETECTED 🟡
-
-Early movement has been detected relative to baseline.
-
-No intervention is recommended yet, but DRIFT is watching closely.
-
-— DRIFT
-Revenue control for operators`,
-    };
-  }
-
-  if (status === "movement") {
-    return {
-      subject: `DRIFT Daily Monitor — Momentum Detected 🔵 (${businessName})`,
-      text: `DRIFT Daily Monitor
-
-Business: ${businessName}
-
-Status: MOMENTUM DETECTED 🔵
-
-Revenue is trending above the expected baseline.
-
-DRIFT is monitoring for persistence.
-
-— DRIFT
-Revenue control for operators`,
-    };
-  }
-
-  return {
-    subject: `DRIFT Daily Monitor — Stable ✅ (${businessName})`,
-    text: `DRIFT Daily Monitor
-
-Business: ${businessName}
-
-Status: STABLE ✅
-
-Revenue is tracking within the expected baseline range.
-
-DRIFT continues monitoring performance.
-
-— DRIFT
-Revenue control for operators`,
-  };
 }
+
