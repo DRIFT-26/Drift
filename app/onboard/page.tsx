@@ -233,6 +233,35 @@ export default function OnboardPage() {
                     Stripe and Google Sheets are available now. CSV is available as a fallback for
                     historical onboarding and testing.
                   </p>
+
+                  {source === "google_sheets" && (
+                    <p className="mt-2 text-[11px] text-white/45">
+                      Works with Toast • Square • Clover • QuickBooks • Shopify exports
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs font-semibold tracking-wide text-white/55">
+                    WHAT HAPPENS NEXT
+                  </div>
+
+                  <div className="mt-3 space-y-2 text-sm text-white/70">
+                    <div className="flex gap-3">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+                      <span>DRIFT connects to your revenue data.</span>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+                      <span>DRIFT establishes a baseline for your business.</span>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+                      <span>You receive signal-level alerts only when something materially changes.</span>
+                    </div>
+                  </div>
                 </div>
 
                 <button
