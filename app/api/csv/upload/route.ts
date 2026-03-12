@@ -153,18 +153,30 @@ export async function POST(req: Request) {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
 
-await fetch(`${appUrl}/api/internal/compute-first`, {
+const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
     business_id: businessId,
-    force_email: true
+    force_email: true,
   }),
 });
+
+const computeJson = await computeRes.json().catch(() => null);
+
+if (!computeRes.ok) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: computeJson?.error ?? "Failed to compute DRIFT signal after CSV upload",
+    },
+    { status: 500 }
+  );
+}
 
    await supabase
   .from("businesses")
