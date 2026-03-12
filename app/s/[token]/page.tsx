@@ -24,7 +24,7 @@ function normalizeStatus(status: string | null | undefined): AlertStatus {
   return "stable";
 }
 
-function statusLabel(status: AlertStatus) {
+function statusLabel(status: string | null | undefined) {
   if (status === "attention") return "ACTION NEEDED 🔴";
   if (status === "softening") return "TRENDING DOWN 🟠";
   if (status === "watch") return "MOVEMENT DETECTED 🟡";
@@ -32,7 +32,7 @@ function statusLabel(status: AlertStatus) {
   return "STABLE ✅";
 }
 
-function statusTone(status: AlertStatus) {
+function statusTone(status: string | null | undefined) {
   if (status === "attention") {
     return {
       dot: "bg-red-400",
