@@ -282,6 +282,7 @@ Revenue control for operators
     subject,
     text,
   };
+}; 
 
 export function renderDailyMonitorEmail({
   businessName,
@@ -341,5 +342,4 @@ DRIFT continues monitoring performance.
 — DRIFT
 Revenue control for operators`,
   };
-}
 }
