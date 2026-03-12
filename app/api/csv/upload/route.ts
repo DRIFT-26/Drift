@@ -3,6 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendDriftEmail } from "@/lib/email/resend";
 import { renderMonitoringStartedEmail } from "@/lib/email/templates";
 
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
@@ -118,7 +122,7 @@ export async function POST(req: Request) {
       const snapshotDate = dateRaw?.trim();
       const revenue = Number(revenueRaw?.trim());
 
-      if (!snapshotDate || Number.isNaN(revenue)) continue;
+      if (!snapshotDate || !isIsoDate(snapshotDate) || Number.isNaN(revenue)) continue;
 
       snapshotPayload.push({
         business_id: businessId,
@@ -139,6 +143,44 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    const uniqueDates = new Set(snapshotPayload.map((row) => row.snapshot_date));
+
+if (uniqueDates.size !== snapshotPayload.length) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: "CSV contains duplicate dates. Please include only one row per day.",
+    },
+    { status: 400 }
+  );
+}
+
+if (snapshotPayload.length < 74) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error:
+        "For the most accurate assessment and best results, include ~60 days of baseline revenue plus your most recent 14 days.",
+    },
+    { status: 400 }
+  );
+}
+
+const sortedDates = [...uniqueDates].sort();
+const earliest = sortedDates[0];
+const latest = sortedDates[sortedDates.length - 1];
+
+if (!earliest || !latest) {
+  return NextResponse.json(
+    { ok: false, error: "CSV must include valid revenue rows." },
+    { status: 400 }
+  );
+}
+
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
 
     const { error: snapshotErr } = await supabase
   .from("snapshots")
