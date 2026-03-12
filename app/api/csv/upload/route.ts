@@ -153,6 +153,19 @@ export async function POST(req: Request) {
       );
     }
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+await fetch(`${appUrl}/api/internal/compute-first`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    business_id: businessId,
+    force_email: true
+  }),
+});
+
    await supabase
   .from("businesses")
   .update({
