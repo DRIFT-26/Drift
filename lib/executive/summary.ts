@@ -16,8 +16,6 @@ export function normalizeStatus(status: any): DriftStatus {
 }
 
 export function statusForEmail(status: DriftStatus): EmailStatus {
-  // “watch” becomes “softening” for emails/templates
-  if (status === "watch") return "softening";
   return status;
 }
 
