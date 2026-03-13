@@ -151,48 +151,46 @@ function ControlLayerSection() {
             OPERATOR SIGNALS
           </div>
 
-          <div className="mt-4 space-y-3">
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-white/85">DRIFT Signal</div>
-                <div className="text-xs text-white/45 font-mono">
-                  Confidence: High
-                </div>
-              </div>
-              <div className="mt-2 text-sm text-white/80">Action Needed 🔴</div>
-              <div className="mt-1 text-xs text-white/55">
-                Material Deviation vs Baseline — Investigate cause.
-              </div>
-            </div>
+          <section className="mx-auto mt-20 max-w-5xl px-6">
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
 
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-white/85">DRIFT Signal</div>
-                <div className="text-xs text-white/45 font-mono">
-                  Confidence: Medium
-                </div>
-              </div>
-              <div className="mt-2 text-sm text-white/80">Trending Down 🟠</div>
-              <div className="mt-1 text-xs text-white/55">
-                Early Softening — Confirm direction and controllability.
-              </div>
-            </div>
+    <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+      <div className="text-xs text-white/45">Stable</div>
+      <div className="mt-1 text-sm text-white/75">
+        Revenue tracking within expected baseline.
+      </div>
+    </div>
 
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-white/85">DRIFT Signal</div>
-                <div className="text-xs text-white/45 font-mono">
-                  Confidence: Medium
-                </div>
-              </div>
-              <div className="mt-2 text-sm text-white/80">
-                Movement Detected 🟡
-              </div>
-              <div className="mt-1 text-xs text-white/55">
-                New Pattern Emerging — Capture evidence before it compounds.
-              </div>
-            </div>
-          </div>
+    <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+      <div className="text-xs text-white/45">Movement Detected</div>
+      <div className="mt-1 text-sm text-white/75">
+        Early movement relative to baseline
+      </div>
+    </div>
+
+    <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+      <div className="text-xs text-white/45">Softening</div>
+      <div className="mt-1 text-sm text-white/75">
+        Revenue trending below baseline
+      </div>
+    </div>
+
+    <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+      <div className="text-xs text-white/45">Action Needed</div>
+      <div className="mt-1 text-sm text-white/75">
+        Material deviation detected
+      </div>
+    </div>
+
+    <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+      <div className="text-xs text-white/45">Momentum</div>
+      <div className="mt-1 text-sm text-white/75">
+        Revenue accelerating beyond baseline
+      </div>
+    </div>
+
+  </div>
+</section>
 
           <p className="mt-4 text-xs text-white/45 font-mono">
             Evidence Only — The signal is the product.
@@ -364,7 +362,14 @@ export default function Home() {
       <OperatorFitSection />
 
       </section>
-
+    <div className="mt-12 flex justify-center">
+  <a
+    href="/onboard"
+    className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-8 py-3 text-sm font-semibold text-white transition hover:bg-[#09306F]"
+  >
+    Join the Founding Cohort
+  </a>
+</div>
       
     </main>
   );

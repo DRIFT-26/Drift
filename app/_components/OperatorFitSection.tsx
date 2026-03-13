@@ -1,6 +1,6 @@
 export default function OperatorFitSection() {
   return (
-    <section className="mx-auto mt-24 max-w-5xl px-6">
+    <section className="mx-auto mt-10 max-w-5xl px-6">
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10">
           <h3 className="text-sm font-mono tracking-wide text-white/45">
