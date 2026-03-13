@@ -372,18 +372,19 @@ export default function Home() {
       </section>
 
       <section className="mx-auto mt-2 max-w-5xl px-6">
-        <div className="mb-6">
-          <div className="font-mono text-xs tracking-wide text-white/45">
-            OPERATOR FIT
-          </div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-            Built for operators, not analysts.
-          </h2>
-        </div>
+        <div className="mb-8 text-center flex flex-col items-center">
+  <div className="text-xs font-mono tracking-wide text-white/45 text-center">
+    OPERATOR FIT
+  </div>
+
+  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white text-center">
+    Built for operators, not analysts.
+  </h2>
+</div>
 
         <OperatorFitSection />
 
-        <div className="mt-8 text-center">
+        <div className="mt-10 pb-24 text-center">
           <a
             href="/onboard"
             className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-8 py-3 text-sm font-semibold text-white transition hover:bg-[#09306F]"
