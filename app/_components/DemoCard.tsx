@@ -332,7 +332,7 @@ export default function DemoCard() {
           {events.map((e, i) => (
             <div
   key={i}
-  className="flex items-center justify-between gap-3 text-[11px] text-white/70 transition-all duration-300 ease-out"
+  className="flex items-center justify-between gap-3 text-[11px] text-white/70 transition-all duration-300 ease-out hover:translate-x-[2px]"
 >
               <div className="truncate">
                 <span className="mr-2 text-white/45">•</span>
