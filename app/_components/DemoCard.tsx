@@ -330,7 +330,10 @@ export default function DemoCard() {
 
         <div className="mt-2 space-y-1.5">
           {events.map((e, i) => (
-            <div key={i} className="flex items-center justify-between gap-3 text-[11px] text-white/70">
+            <div
+  key={i}
+  className="flex items-center justify-between gap-3 text-[11px] text-white/70 transition-all duration-300 ease-out"
+>
               <div className="truncate">
                 <span className="mr-2 text-white/45">•</span>
                 {e.msg}
