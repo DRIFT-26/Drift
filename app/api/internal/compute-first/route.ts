@@ -6,16 +6,27 @@ import { makeShareToken } from "@/lib/share";
 
 export const runtime = "nodejs";
 
-type EmailStatus = "stable" | "movement" | "watch" | "softening" | "attention";
-type DriftStatus = "stable" | "movement" | "watch" | "softening" | "attention";
+type EmailStatus =
+  | "stable"
+  | "movement"
+  | "watch"
+  | "softening"
+  | "attention";
+
+type DriftStatus =
+  | "stable"
+  | "movement"
+  | "watch"
+  | "softening"
+  | "attention";
+
+type DriftConfidence = "low" | "medium" | "high";
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
 function statusForEmail(status: DriftStatus): EmailStatus {
-  if (status === "watch") return "softening";
-  if (status === "movement") return "stable";
   return status;
 }
 
@@ -28,8 +39,14 @@ function computeRevenueDrift(args: {
   status: DriftStatus;
   reasons: string[];
   deltaPct: number;
+  confidence: DriftConfidence;
 } {
-  const { baselineRevenue14d, currentRevenue14d, belowBaselineStreak, latestRevenue, } = args;
+  const {
+    baselineRevenue14d,
+    currentRevenue14d,
+    belowBaselineStreak,
+    latestRevenue,
+  } = args;
 
   if (baselineRevenue14d <= 0) {
     return {
@@ -38,25 +55,29 @@ function computeRevenueDrift(args: {
         "Monitoring period in progress — DRIFT is collecting baseline history.",
       ],
       deltaPct: 0,
+      confidence: "low",
     };
   }
 
-  const deltaPct = (currentRevenue14d - baselineRevenue14d) / baselineRevenue14d;
-  // SHOCK DETECTION (sudden abnormal day)
-const baselineDailyAvg = baselineRevenue14d / 14;
-const todayRevenue = latestRevenue; // most recent snapshot revenue
-const todayDelta = (todayRevenue - baselineDailyAvg) / baselineDailyAvg;
+  const deltaPct =
+    (currentRevenue14d - baselineRevenue14d) / baselineRevenue14d;
 
-if (todayDelta <= -0.4) {
-  return {
-    status: "attention",
-    reasons: [
-      `Today's revenue is down ${Math.abs(todayDelta * 100).toFixed(0)}% vs normal daily performance.`,
-      "This appears to be a sudden revenue shock.",
-    ],
-    deltaPct: todayDelta,
-  };
-}
+  // SHOCK DETECTION (sudden abnormal day)
+  const baselineDailyAvg = baselineRevenue14d / 14;
+  const todayRevenue = latestRevenue;
+  const todayDelta = (todayRevenue - baselineDailyAvg) / baselineDailyAvg;
+
+  if (todayDelta <= -0.4) {
+    return {
+      status: "attention",
+      reasons: [
+        `Today's revenue is down ${Math.abs(todayDelta * 100).toFixed(0)}% vs normal daily performance.`,
+        "This appears to be a sudden revenue shock.",
+      ],
+      deltaPct: todayDelta,
+      confidence: "high",
+    };
+  }
 
   // ACTION NEEDED
   if (deltaPct <= -0.18) {
@@ -69,6 +90,7 @@ if (todayDelta <= -0.4) {
           : "The deviation is materially outside the expected range.",
       ],
       deltaPct,
+      confidence: belowBaselineStreak >= 4 ? "high" : "medium",
     };
   }
 
@@ -83,6 +105,7 @@ if (todayDelta <= -0.4) {
           : "The trend is softening and should be reviewed.",
       ],
       deltaPct,
+      confidence: belowBaselineStreak >= 3 ? "high" : "medium",
     };
   }
 
@@ -97,6 +120,7 @@ if (todayDelta <= -0.4) {
           : "Early movement has been detected relative to baseline.",
       ],
       deltaPct,
+      confidence: belowBaselineStreak >= 2 ? "medium" : "low",
     };
   }
 
@@ -109,6 +133,7 @@ if (todayDelta <= -0.4) {
         "Revenue momentum is accelerating beyond the expected range.",
       ],
       deltaPct,
+      confidence: "medium",
     };
   }
 
@@ -116,6 +141,7 @@ if (todayDelta <= -0.4) {
     status: "stable",
     reasons: ["Revenue is tracking within the expected baseline range."],
     deltaPct,
+    confidence: "medium",
   };
 }
 
@@ -184,10 +210,10 @@ export async function POST(req: NextRequest) {
     const currentDays = 14;
 
     const { data: revenueSources, error: sourceErr } = await supabase
-  .from("sources")
-  .select("id,type,is_connected")
-  .eq("business_id", businessId)
-  .in("type", ["csv_revenue", "stripe_revenue", "google_sheets_revenue"]);
+      .from("sources")
+      .select("id,type,is_connected")
+      .eq("business_id", businessId)
+      .in("type", ["csv_revenue", "stripe_revenue", "google_sheets_revenue"]);
 
     if (sourceErr) {
       return NextResponse.json(
@@ -197,9 +223,9 @@ export async function POST(req: NextRequest) {
     }
 
     const connectedRevenueSources = (revenueSources ?? []).filter((s) => {
-  if (s.type === "csv_revenue") return true;
-  return s.is_connected;
-});
+      if (s.type === "csv_revenue") return true;
+      return s.is_connected;
+    });
 
     if (!connectedRevenueSources.length) {
       return NextResponse.json(
@@ -210,71 +236,70 @@ export async function POST(req: NextRequest) {
 
     const revenueSourceIds = connectedRevenueSources.map((s) => s.id);
 
-    // Anchor analysis windows to the latest available snapshot date,
-    // not the server's current date.
     const { data: latestSnapshot, error: latestErr } = await supabase
-  .from("snapshots")
-  .select("snapshot_date")
-  .eq("business_id", businessId)
-  .in("source_id", revenueSourceIds)
-  .order("snapshot_date", { ascending: false })
-  .limit(1)
-  .single();
+      .from("snapshots")
+      .select("snapshot_date")
+      .eq("business_id", businessId)
+      .in("source_id", revenueSourceIds)
+      .order("snapshot_date", { ascending: false })
+      .limit(1)
+      .single();
 
-if (latestErr || !latestSnapshot?.snapshot_date) {
-  return NextResponse.json(
-    { ok: false, error: latestErr?.message ?? "No snapshots found for business" },
-    { status: 404 }
-  );
-}
+    if (latestErr || !latestSnapshot?.snapshot_date) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: latestErr?.message ?? "No snapshots found for business",
+        },
+        { status: 404 }
+      );
+    }
 
-const anchorDate = new Date(`${latestSnapshot.snapshot_date}T12:00:00Z`);
+    const anchorDate = new Date(`${latestSnapshot.snapshot_date}T12:00:00Z`);
 
-// Current window = most recent 14 days ending on anchor date
-const currentStart = new Date(anchorDate);
-currentStart.setDate(anchorDate.getDate() - currentDays + 1);
+    const currentStart = new Date(anchorDate);
+    currentStart.setDate(anchorDate.getDate() - currentDays + 1);
 
-// Baseline window = 60 days immediately BEFORE the current window
-const baselineEnd = new Date(currentStart);
-baselineEnd.setDate(currentStart.getDate() - 1);
+    const baselineEnd = new Date(currentStart);
+    baselineEnd.setDate(currentStart.getDate() - 1);
 
-const baselineStart = new Date(baselineEnd);
-baselineStart.setDate(baselineEnd.getDate() - baselineDays + 1);
+    const baselineStart = new Date(baselineEnd);
+    baselineStart.setDate(baselineEnd.getDate() - baselineDays + 1);
 
-const baselineStartStr = isoDate(baselineStart);
-const baselineEndStr = isoDate(baselineEnd);
-const currentStartStr = isoDate(currentStart);
-const anchorDateStr = isoDate(anchorDate);
+    const baselineStartStr = isoDate(baselineStart);
+    const baselineEndStr = isoDate(baselineEnd);
+    const currentStartStr = isoDate(currentStart);
+    const anchorDateStr = isoDate(anchorDate);
 
-const { data: baselineRows, error: baseErr } = await supabase
-  .from("snapshots")
-  .select("source_id, snapshot_date, metrics")
-  .eq("business_id", businessId)
-  .in("source_id", revenueSourceIds)
-  .gte("snapshot_date", baselineStartStr)
-  .lte("snapshot_date", baselineEndStr);
+    const { data: baselineRows, error: baseErr } = await supabase
+      .from("snapshots")
+      .select("source_id, snapshot_date, metrics")
+      .eq("business_id", businessId)
+      .in("source_id", revenueSourceIds)
+      .gte("snapshot_date", baselineStartStr)
+      .lte("snapshot_date", baselineEndStr);
 
-if (baseErr) {
-  return NextResponse.json(
-    { ok: false, error: baseErr.message },
-    { status: 500 }
-  );
-}
+    if (baseErr) {
+      return NextResponse.json(
+        { ok: false, error: baseErr.message },
+        { status: 500 }
+      );
+    }
 
-const { data: currentRows, error: curErr } = await supabase
-  .from("snapshots")
-  .select("source_id, snapshot_date, metrics")
-  .eq("business_id", businessId)
-  .in("source_id", revenueSourceIds)
-  .gte("snapshot_date", currentStartStr)
-  .lte("snapshot_date", anchorDateStr);
+    const { data: currentRows, error: curErr } = await supabase
+      .from("snapshots")
+      .select("source_id, snapshot_date, metrics")
+      .eq("business_id", businessId)
+      .in("source_id", revenueSourceIds)
+      .gte("snapshot_date", currentStartStr)
+      .lte("snapshot_date", anchorDateStr);
 
-if (curErr) {
-  return NextResponse.json(
-    { ok: false, error: curErr.message },
-    { status: 500 }
-  );
-}
+    if (curErr) {
+      return NextResponse.json(
+        { ok: false, error: curErr.message },
+        { status: 500 }
+      );
+    }
 
     const sumRevenue = (rows: any[]) =>
       rows.reduce((acc, row) => {
@@ -290,20 +315,20 @@ if (curErr) {
 
     const baselineDailyAverage = baselineRevenue14d / 14;
 
-const belowBaselineStreak = consecutiveDaysBelowBaseline(
-  currentRows ?? [],
-  baselineDailyAverage
-);
+    const belowBaselineStreak = consecutiveDaysBelowBaseline(
+      currentRows ?? [],
+      baselineDailyAverage
+    );
 
-const latestRevenue =
-  currentRows?.[currentRows.length - 1]?.metrics?.revenue ?? 0;
+    const latestRevenue =
+      currentRows?.[currentRows.length - 1]?.metrics?.revenue ?? 0;
 
     const drift = computeRevenueDrift({
-  baselineRevenue14d,
-  currentRevenue14d,
-  belowBaselineStreak,
-  latestRevenue,
-});
+      baselineRevenue14d,
+      currentRevenue14d,
+      belowBaselineStreak,
+      latestRevenue,
+    });
 
     const reasons = dedupeReasons(drift.reasons);
 
@@ -320,6 +345,9 @@ const latestRevenue =
         reasons,
         share_token,
         share_expires_at,
+        meta: {
+          confidence: drift.confidence,
+        },
       })
       .select()
       .single();
@@ -337,61 +365,61 @@ const latestRevenue =
 
     const forceEmail = body?.force_email === true;
 
-const shouldEmail =
-  forceEmail ||
-  drift.status === "softening" ||
-  drift.status === "attention";
+    const shouldEmail =
+      forceEmail ||
+      drift.status === "softening" ||
+      drift.status === "attention";
 
-if (biz.alert_email && shouldEmail) {
-  const { subject, text } = renderStatusEmail({
-    businessName: biz.name,
-    status: statusForEmail(drift.status),
-    reasons,
-    windowStart: currentStartStr,
-    windowEnd: anchorDateStr,
-    shareUrl,
-  });
+    if (biz.alert_email && shouldEmail) {
+      const { subject, text } = renderStatusEmail({
+        businessName: biz.name,
+        status: statusForEmail(drift.status),
+        reasons,
+        windowStart: currentStartStr,
+        windowEnd: anchorDateStr,
+        shareUrl,
+      });
 
-  await sendDriftEmail({
-    to: biz.alert_email,
-    subject,
-    text,
-  });
-}
-await supabase
-  .from("businesses")
-  .update({
-    needs_compute: false,
-    last_computed_at: new Date().toISOString(),
-  })
-  .eq("id", businessId);  
+      await sendDriftEmail({
+        to: biz.alert_email,
+        subject,
+        text,
+      });
+    }
+
+    await supabase
+      .from("businesses")
+      .update({
+        needs_compute: false,
+        last_computed_at: new Date().toISOString(),
+      })
+      .eq("id", businessId);
 
     return NextResponse.json({
-  ok: true,
-  drift: {
-    ...drift,
-    reasons,
-    baselineRevenue14d,
-    currentRevenue14d,
-    anchorDate: anchorDateStr,
-    baselineWindow: {
-      start: baselineStartStr,
-      end: baselineEndStr,
-    },
-    currentWindow: {
-      start: currentStartStr,
-      end: anchorDateStr,
-    },
-  },
-  shouldEmail,
-  alert_id: alert.id,
-  share_token,
-  share_url: shareUrl ?? null,
-});
+      ok: true,
+      drift: {
+        ...drift,
+        reasons,
+        baselineRevenue14d,
+        currentRevenue14d,
+        anchorDate: anchorDateStr,
+        baselineWindow: {
+          start: baselineStartStr,
+          end: baselineEndStr,
+        },
+        currentWindow: {
+          start: currentStartStr,
+          end: anchorDateStr,
+        },
+      },
+      shouldEmail,
+      alert_id: alert.id,
+      share_token,
+      share_url: shareUrl ?? null,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected server error";
-
 
     return NextResponse.json(
       { ok: false, error: message },
