@@ -2,6 +2,7 @@
 
 import DemoCard from "@/app/_components/DemoCard";
 import OperatorFitSection from "@/app/_components/OperatorFitSection";
+import HowOperatorsUseDrift from "@/app/_components/HowOperatorsUseDrift";
 import { useEffect, useMemo, useState } from "react";
 
 type Tick = { t: string; msg: string };
@@ -351,8 +352,10 @@ export default function Home() {
 
       <ControlLayerSection />
 
+      <HowOperatorsUseDrift />
+      
       {/* Demo Section */}
-      <section id="demo" className="mx-auto max-w-4xl px-6 pb-12">
+      <section id="demo" className="mx-auto max-w-4xl px-6 pt-12 pb-16">
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-white/65">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
           <span>Live Operator Signal Preview</span>
@@ -366,7 +369,7 @@ export default function Home() {
 
         <DemoCard />
 
-        <div className="mt-4">
+        <div className="mt-12">
           <MaterialDeviationSection />
         </div>
       </section>
