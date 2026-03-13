@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const businessName = body.company ?? body.business_name ?? body.name ?? null;
-    const email = body.email ?? body.alert_email ?? null;
+    const email = String(body?.email || "").trim().toLowerCase();
     const timezone = body.timezone ?? null;
     const source = body.source ?? null;
     const ownerId = body.owner_id ?? null;

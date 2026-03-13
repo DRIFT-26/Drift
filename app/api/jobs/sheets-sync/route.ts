@@ -3,6 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export async function GET() {
   try {
     const supabase = supabaseAdmin();
@@ -35,40 +39,179 @@ export async function GET() {
 
       if (rows.length < 2) continue;
 
+      const header = rows[0].toLowerCase();
+      const hasLocation = header === "location,date,revenue";
+      const isSingleLocation = header === "date,revenue";
+
+      if (!hasLocation && !isSingleLocation) {
+        continue;
+      }
+
       const dataRows = rows.slice(1);
 
-      const snapshots = dataRows
-        .map((row) => {
-          const [dateRaw, revenueRaw] = row.split(",");
-          const snapshotDate = dateRaw?.trim();
-          const revenue = Number(revenueRaw?.trim());
+      const { data: parentBusiness } = await supabase
+        .from("businesses")
+        .select("id,name,alert_email,timezone")
+        .eq("id", source.business_id)
+        .maybeSingle();
 
-          if (!snapshotDate || Number.isNaN(revenue)) return null;
+      if (!parentBusiness) continue;
 
-          return {
-            business_id: source.business_id,
-            source_id: source.id,
-            snapshot_date: snapshotDate,
-            metrics: {
-              revenue,
-            },
-          };
-        })
-        .filter(Boolean);
+      const grouped: Record<
+        string,
+        Array<{ snapshot_date: string; revenue: number }>
+      > = {};
 
-      if (!snapshots.length) continue;
+      for (const row of dataRows) {
+        const parts = row.split(",");
 
-      await supabase.from("snapshots").upsert(snapshots, {
-        onConflict: "source_id,snapshot_date",
-      });
+        const location = hasLocation ? parts[0]?.trim() : "default";
+        const snapshotDate = hasLocation ? parts[1]?.trim() : parts[0]?.trim();
+        const revenueRaw = hasLocation ? parts[2] : parts[1];
+        const revenue = Number(revenueRaw?.trim());
 
-      await supabase
-  .from("businesses")
-  .update({
-    needs_compute: true,
-    last_ingested_at: new Date().toISOString(),
-  })
-  .eq("id", source.business_id);
+        if (!snapshotDate || !isIsoDate(snapshotDate) || Number.isNaN(revenue)) {
+          continue;
+        }
+
+        const key = location || "default";
+
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
+
+        grouped[key].push({
+          snapshot_date: snapshotDate,
+          revenue,
+        });
+      }
+
+      if (!Object.keys(grouped).length) continue;
+
+      for (const locationName of Object.keys(grouped)) {
+        const locationRows = grouped[locationName];
+        if (!locationRows.length) continue;
+
+        const businessName =
+          locationName === "default"
+            ? parentBusiness.name
+            : `${parentBusiness.name} — ${locationName}`;
+
+        let locationBusinessId = parentBusiness.id;
+
+        if (locationName !== "default") {
+          const { data: existingBusiness } = await supabase
+            .from("businesses")
+            .select("id")
+            .eq("name", businessName)
+            .eq("alert_email", parentBusiness.alert_email)
+            .maybeSingle();
+
+          if (existingBusiness?.id) {
+            locationBusinessId = existingBusiness.id;
+          } else {
+            const { data: createdBusiness, error: createBusinessErr } =
+              await supabase
+                .from("businesses")
+                .insert({
+                  name: businessName,
+                  alert_email: parentBusiness.alert_email,
+                  timezone: parentBusiness.timezone ?? null,
+                })
+                .select("id")
+                .single();
+
+            if (createBusinessErr || !createdBusiness?.id) {
+              continue;
+            }
+
+            locationBusinessId = createdBusiness.id;
+          }
+        }
+
+        const { data: existingLocationSource } = await supabase
+          .from("sources")
+          .select("id")
+          .eq("business_id", locationBusinessId)
+          .eq("type", "google_sheets_revenue")
+          .maybeSingle();
+
+        let locationSourceId = existingLocationSource?.id ?? null;
+
+        if (!locationSourceId) {
+          const { data: createdSource, error: createSourceErr } = await supabase
+            .from("sources")
+            .insert({
+              business_id: locationBusinessId,
+              type: "google_sheets_revenue",
+              display_name: "Google Sheets (Revenue)",
+              is_connected: true,
+              config: {
+                sheet_url: source.config?.sheet_url ?? null,
+                csv_url: csvUrl,
+                location: locationName === "default" ? null : locationName,
+                created_via: "sheets_sync",
+              },
+              meta: {
+                created_at: new Date().toISOString(),
+              },
+            })
+            .select("id")
+            .single();
+
+          if (createSourceErr || !createdSource?.id) {
+            continue;
+          }
+
+          locationSourceId = createdSource.id;
+        } else {
+          await supabase
+            .from("sources")
+            .update({
+              is_connected: true,
+              display_name: "Google Sheets (Revenue)",
+              config: {
+                ...(source.config ?? {}),
+                csv_url: csvUrl,
+                location: locationName === "default" ? null : locationName,
+                updated_at: new Date().toISOString(),
+              },
+            })
+            .eq("id", locationSourceId);
+        }
+
+        const snapshots = locationRows.map((row) => ({
+          business_id: locationBusinessId,
+          source_id: locationSourceId,
+          snapshot_date: row.snapshot_date,
+          metrics: {
+            revenue: row.revenue,
+          },
+        }));
+
+        const uniqueDates = new Set(snapshots.map((row) => row.snapshot_date));
+        if (uniqueDates.size !== snapshots.length) {
+          continue;
+        }
+
+        const { error: snapshotErr } = await supabase
+          .from("snapshots")
+          .upsert(snapshots, {
+            onConflict: "source_id,snapshot_date",
+          });
+
+        if (snapshotErr) {
+          continue;
+        }
+
+        await supabase
+          .from("businesses")
+          .update({
+            needs_compute: true,
+            last_ingested_at: new Date().toISOString(),
+          })
+          .eq("id", locationBusinessId);
+      }
     }
 
     return NextResponse.json({ ok: true });
