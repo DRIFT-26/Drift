@@ -194,11 +194,11 @@ export default function DemoCard() {
   const tone = useMemo(() => statusTone(status), [status]);
   const deltaPct = baseline14d > 0 ? (net14d - baseline14d) / baseline14d : 0;
   const operatorScore = operatorScoreFrom(
-  status,
-  deltaPct,
-  refundRate,
-  baselineRefundRate
-);
+    status,
+    deltaPct,
+    refundRate,
+    baselineRefundRate
+  );
 
   const confidence = useMemo(
     () => confidenceFrom(status, deltaPct),
@@ -290,17 +290,17 @@ export default function DemoCard() {
       </div>
 
       <div className="mt-4 rounded-2xl bg-black/20 px-4 py-3 ring-1 ring-white/10">
-  <div className="flex items-center justify-between">
-    <div>
-      <div className="text-[11px] font-semibold text-white/55">OPERATOR SCORE</div>
-      <div className="mt-1 text-xs text-white/45">0–100 · Control Confidence</div>
-    </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-semibold text-white/55">OPERATOR SCORE</div>
+            <div className="mt-1 text-xs text-white/45">0–100 · Control Confidence</div>
+          </div>
 
-    <div className="text-3xl font-black text-white tabular-nums">
-      {operatorScore}
-    </div>
-  </div>
-</div>
+          <div className="text-3xl font-black text-white tabular-nums">
+            {operatorScore}
+          </div>
+        </div>
+      </div>
 
       {/* Auto-update bar */}
       <div className="mt-4 flex items-center justify-between rounded-2xl bg-black/20 px-4 py-3 ring-1 ring-white/10">
@@ -344,55 +344,58 @@ export default function DemoCard() {
       </div>
 
       {/* Why + prompt */}
-      <div className="mt-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-        <div className="text-[11px] font-semibold text-white/60">WHY THIS SHOWED UP</div>
-        <ul className="mt-2 space-y-2 text-sm text-white/80">
-          {reasons.slice(0, 3).map((r, i) => (
+      <div className="mt-4 min-h-[120px]">
+        <div className="text-[11px] font-semibold text-white/60">
+          WHY THIS SHOWED UP
+        </div>
+
+        <ul className="mt-3 space-y-2 text-sm text-white/80">
+          {reasons.map((reason, i) => (
             <li key={i} className="flex gap-2">
               <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-              <span>{r}</span>
+              <span>{reason}</span>
             </li>
           ))}
         </ul>
+      </div>
 
-        <div className="mt-4 rounded-xl bg-black/20 px-3 py-2 text-sm font-semibold text-white/80 ring-1 ring-white/10">
-          {decisionPrompt(status)}
+      <div className="mt-4 rounded-xl bg-black/20 px-3 py-2 text-sm font-semibold text-white/80 ring-1 ring-white/10">
+        {decisionPrompt(status)}
+      </div>
+
+      {/* Supporting detail toggle (keeps it from feeling like a dashboard) */}
+      <div className="mt-4 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setShowDetail((v) => !v)}
+          className="text-[12px] font-semibold text-white/70 hover:text-white transition"
+        >
+          {showDetail ? "Hide Evidence" : "Show Evidence"}
+        </button>
+        <div className="text-[11px] text-white/45">
+          Evidence Only — The signal is the product.
         </div>
+      </div>
 
-        {/* Supporting detail toggle (keeps it from feeling like a dashboard) */}
-        <div className="mt-4 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setShowDetail((v) => !v)}
-            className="text-[12px] font-semibold text-white/70 hover:text-white transition"
-          >
-            {showDetail ? "Hide Evidence" : "Show Evidence"}
-          </button>
-          <div className="text-[11px] text-white/45">
-            Evidence Only — the signal is the product.
+      {showDetail ? (
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
+            <div className="text-[11px] font-semibold text-white/55">NET REV (14D)</div>
+            <div className="mt-2 text-xl font-black text-white">{money(net14d)}</div>
+            <div className="mt-1 text-xs text-white/45">
+              Baseline {money(baseline14d)} · Δ {(deltaPct * 100).toFixed(0)}%
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
+            <div className="text-[11px] font-semibold text-white/55">REFUND RATE</div>
+            <div className="mt-2 text-xl font-black text-white">{pct(refundRate)}</div>
+            <div className="mt-1 text-xs text-white/45">
+              Baseline {pct(baselineRefundRate)}
+            </div>
           </div>
         </div>
-
-        {showDetail ? (
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-  <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
-    <div className="text-[11px] font-semibold text-white/55">NET REV (14D)</div>
-    <div className="mt-2 text-xl font-black text-white">{money(net14d)}</div>
-    <div className="mt-1 text-xs text-white/45">
-      Baseline {money(baseline14d)} · Δ {(deltaPct * 100).toFixed(0)}%
-    </div>
-  </div>
-
-  <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
-    <div className="text-[11px] font-semibold text-white/55">REFUND RATE</div>
-    <div className="mt-2 text-xl font-black text-white">{pct(refundRate)}</div>
-    <div className="mt-1 text-xs text-white/45">
-      Baseline {pct(baselineRefundRate)}
-    </div>
-  </div>
-</div>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }

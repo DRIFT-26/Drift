@@ -1,6 +1,7 @@
 "use client";
 
 import DemoCard from "@/app/_components/DemoCard";
+import OperatorFitSection from "@/app/_components/OperatorFitSection";
 import { useEffect, useMemo, useState } from "react";
 
 type Tick = { t: string; msg: string };
@@ -322,7 +323,8 @@ export default function Home() {
 
         {/* Founding Cohort Line */}
         <p className="mt-3 text-xs text-white/45 max-w-2xl mx-auto">
-          Built for operators who run the business by the numbers. Signals currently generated from Stripe + operational data.
+          Built for operators who run the business by the numbers. 
+          Signals currently generated from Stripe + Operational data.
         </p>
       </section>
 
@@ -359,27 +361,8 @@ export default function Home() {
       {/* Footer spacer */}
       <div className="pb-16" />
 
-        {/* Request Access CTA */}
-        <div className="mt-2 flex flex-col items-center">
-          <a
-            href="/onboard"
-            className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white hover:bg-[#09306F] transition shadow-[0_10px_30px_rgba(10,42,102,0.35)]"
-          >
-            Join the Founding Cohort
-          </a>
+      <OperatorFitSection />
 
-          <p className="mt-2 text-xs text-white/50">
-            Takes ~30 seconds · No commitment required
-          </p>
-        </div>
-
-        <div className="mt-3 text-center text-xs text-white/55">
-          Founding Cohort · Limited to 10 companies
-        </div>
-
-        <div className="mt-3 text-center text-xs text-white/45">
-Forwarded by an operator using DRIFT
-</div>
       </section>
 
       
