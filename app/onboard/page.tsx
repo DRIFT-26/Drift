@@ -247,6 +247,17 @@ export default function OnboardPage() {
   revenue plus your most recent 14 days.
 </p>
 
+<p className="mt-2 text-[11px] text-white/40">
+  Need a starting point?{" "}
+  <a
+    href="/drift-revenue-template.csv"
+    download
+    className="text-white/60 hover:text-white underline underline-offset-4"
+  >
+    View DRIFT revenue template
+  </a>
+</p>
+
                   {source === "google_sheets" && (
                     <p className="mt-2 text-[11px] text-white/45">
                       Works with Toast • Square • Clover • QuickBooks • Shopify exports
