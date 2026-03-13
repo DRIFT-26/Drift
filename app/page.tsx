@@ -339,7 +339,7 @@ export default function Home() {
             href="#demo"
             className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(10,42,102,0.35)] transition hover:bg-[#09306F]"
           >
-            See what DRIFT looks like
+            See DRIFT in Action
           </a>
         </div>
 
@@ -353,7 +353,7 @@ export default function Home() {
       <ControlLayerSection />
 
       <HowOperatorsUseDrift />
-      
+
       {/* Demo Section */}
       <section id="demo" className="mx-auto max-w-4xl px-6 pt-12 pb-16">
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-white/65">
