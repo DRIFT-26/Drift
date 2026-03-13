@@ -16,7 +16,10 @@ export async function POST(req: Request) {
     const supabase = supabaseAdmin();
     const body = await req.json();
 
-    const businessName = body.company ?? body.business_name ?? body.name ?? null;
+    const businessName = String(
+      body.company ?? body.business_name ?? body.name ?? ""
+    ).trim();
+
     const email = String(body?.email || "").trim().toLowerCase();
     const timezone = body.timezone ?? null;
     const source = body.source ?? null;
@@ -54,7 +57,10 @@ export async function POST(req: Request) {
 
     if (businessError || !business?.id) {
       return NextResponse.json(
-        { ok: false, error: businessError?.message ?? "Failed to create business" },
+        {
+          ok: false,
+          error: businessError?.message ?? "Failed to create business",
+        },
         { status: 500 }
       );
     }
@@ -66,7 +72,7 @@ export async function POST(req: Request) {
       .insert({
         business_id: business.id,
         type: normalizedSource,
-        is_connected: normalizedSource === "google_sheets_revenue" ? false : false,
+        is_connected: false,
       })
       .select("id")
       .single();
