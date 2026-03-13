@@ -8,6 +8,9 @@ type AlertRow = {
   created_at: string | null;
   business_id: string;
   share_expires_at: string | null;
+  meta?: {
+    confidence?: "low" | "medium" | "high";
+  } | null;
 };
 
 function normalizeStatus(status: string | null | undefined): AlertStatus {
@@ -166,7 +169,7 @@ export default async function SignalPreview({
 
   const { data: alert, error } = await supabase
     .from("alerts")
-    .select("status, reasons, created_at, business_id, share_expires_at")
+    .select("status, reasons, created_at, business_id, share_expires_at, meta")
     .eq("share_token", token)
     .single<AlertRow>();
 
@@ -220,6 +223,15 @@ export default async function SignalPreview({
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
   const shareUrl = `${baseUrl}/s/${token}`;
 
+  const confidence = alert.meta?.confidence ?? "medium";
+  const confidenceLabel = confidence.toUpperCase();
+  const confidenceColor =
+    confidence === "high"
+      ? "text-emerald-300"
+      : confidence === "medium"
+      ? "text-yellow-300"
+      : "text-white/60";
+
   return (
     <main className="min-h-screen bg-[#0B1220] px-6 py-20 text-white">
       <div className="mx-auto max-w-2xl">
@@ -241,7 +253,7 @@ export default async function SignalPreview({
 
               <div className="mt-2 flex items-center gap-2 font-mono text-xs text-white/60">
                 <span className="text-white/40">Signal Confidence:</span>
-                <span className="text-emerald-300">HIGH</span>
+                <span className={confidenceColor}>{confidenceLabel}</span>
               </div>
 
               <div className="mt-1 text-[11px] font-mono text-white/45">
