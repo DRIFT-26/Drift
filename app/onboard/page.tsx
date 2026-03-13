@@ -230,9 +230,22 @@ export default function OnboardPage() {
                   </select>
 
                   <p className="mt-3 text-xs text-white/40">
-                    Stripe and Google Sheets are available now. CSV is available as a fallback for
-                    historical onboarding and testing.
-                  </p>
+  Stripe and Google Sheets are available now. CSV is available as a fallback for
+  historical onboarding and testing.
+</p>
+
+<p className="mt-2 text-[11px] text-white/35">
+  Accepted CSV format:
+  <br />
+  <span className="text-white/50">Date,Revenue</span>
+  <br />
+  <span className="text-white/50">Location,Date,Revenue</span>
+</p>
+
+<p className="mt-2 text-[11px] text-white/35">
+  For the most accurate assessment and best results, include ~60 days of baseline
+  revenue plus your most recent 14 days.
+</p>
 
                   {source === "google_sheets" && (
                     <p className="mt-2 text-[11px] text-white/45">
