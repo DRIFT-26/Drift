@@ -71,11 +71,25 @@ export default function SheetsConnectClient({
           </h1>
 
           <p className="mt-3 text-sm text-white/65">
-            Paste a Google Sheets link with two columns:{" "}
-            <span className="text-white/80">date</span> and{" "}
-            <span className="text-white/80">revenue</span>. DRIFT will sync it
-            automatically in the background.
-          </p>
+  Paste a Google Sheets link with either of the following formats:
+</p>
+
+<p className="mt-3 text-xs text-white/60">
+  Single location:
+  <br />
+  <span className="text-white/80">Date,Revenue</span>
+</p>
+
+<p className="mt-2 text-xs text-white/60">
+  Multiple locations:
+  <br />
+  <span className="text-white/80">Location,Date,Revenue</span>
+</p>
+
+<p className="mt-3 text-xs text-white/50">
+  For the most accurate assessment and best results, include ~60 days of
+  baseline revenue plus your most recent 14 days.
+</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             <div>
