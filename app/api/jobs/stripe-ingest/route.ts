@@ -16,7 +16,17 @@ function addDays(date: Date, days: number) {
 }
 
 function midnightUtc(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      0,
+      0,
+      0,
+      0
+    )
+  );
 }
 
 function requireCronAuth(req: Request) {
@@ -66,7 +76,11 @@ function isSuccessfulCharge(ch: Stripe.Charge) {
   return Boolean(ch.paid) && succeeded;
 }
 
-async function listChargesInRange(args: { stripe: Stripe; startSec: number; endSec: number }) {
+async function listChargesInRange(args: {
+  stripe: Stripe;
+  startSec: number;
+  endSec: number;
+}) {
   const { stripe, startSec, endSec } = args;
 
   const out: Stripe.Charge[] = [];
@@ -104,19 +118,21 @@ export async function POST(req: Request) {
 
   const STRIPE_SECRET_KEY = (process.env.STRIPE_SECRET_KEY || "").trim();
   if (!STRIPE_SECRET_KEY) {
-    return NextResponse.json({ ok: false, error: "STRIPE_SECRET_KEY missing" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "STRIPE_SECRET_KEY missing" },
+      { status: 500 }
+    );
   }
 
-  // ✅ Fix: keep Stripe init compatible with your installed stripe package typings
   const stripe = new Stripe(STRIPE_SECRET_KEY);
-
   const supabase = supabaseAdmin();
 
   const dryRun = url.searchParams.get("dry_run") === "true";
-  const days = Math.max(1, Number(url.searchParams.get("days") || 14));
+  const days = Math.max(1, Number(url.searchParams.get("days") || 74));
 
-  // Window: [start..end] where end is today @ 00:00 UTC (so we ingest full past days)
-  const end = midnightUtc(new Date());
+  // Ingest completed days only: yesterday is the last fully completed day
+  const today = midnightUtc(new Date());
+  const end = addDays(today, -1);
   const start = addDays(end, -(days - 1));
 
   const startStr = isoDate(start);
@@ -139,13 +155,17 @@ export async function POST(req: Request) {
   const { data: sources, error: sErr } = await q;
 
   if (sErr) {
-    return NextResponse.json({ ok: false, step: "read_sources", error: sErr.message }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, step: "read_sources", error: sErr.message },
+      { status: 500 }
+    );
   }
 
   const results: any[] = [];
 
   for (const source of sources ?? []) {
     const cfg = (source.config || {}) as StripeSourceConfig;
+    void cfg;
 
     try {
       let snapshotsWritten = 0;
@@ -165,13 +185,23 @@ export async function POST(req: Request) {
 
         const successful = charges.filter(isSuccessfulCharge);
 
-        const revenueCents = successful.reduce((acc, ch) => acc + (ch.amount || 0), 0);
-        const refundsCents = successful.reduce((acc, ch) => acc + (ch.amount_refunded || 0), 0);
+        const revenueCents = successful.reduce(
+          (acc, ch) => acc + (ch.amount || 0),
+          0
+        );
+        const refundsCents = successful.reduce(
+          (acc, ch) => acc + (ch.amount_refunded || 0),
+          0
+        );
 
         const netRevenueCents = revenueCents - refundsCents;
-        const refundRate = revenueCents > 0 ? clamp01(refundsCents / revenueCents) : 0;
+        const refundRate =
+          revenueCents > 0 ? clamp01(refundsCents / revenueCents) : 0;
 
         const metrics = {
+          // Critical: compute-first expects this
+          revenue: netRevenueCents / 100,
+
           revenue_cents: revenueCents,
           refunds_cents: refundsCents,
           net_revenue_cents: netRevenueCents,
@@ -192,11 +222,21 @@ export async function POST(req: Request) {
               { onConflict: "business_id,source_id,snapshot_date" }
             );
 
-          if (upErr) throw new Error(`upsert_snapshot_failed: ${upErr.message}`);
+          if (upErr) {
+            throw new Error(`upsert_snapshot_failed: ${upErr.message}`);
+          }
         }
 
         snapshotsWritten += 1;
       }
+
+      await supabase
+        .from("businesses")
+        .update({
+          needs_compute: true,
+          last_ingested_at: new Date().toISOString(),
+        })
+        .eq("id", source.business_id);
 
       results.push({
         source_id: source.id,
@@ -222,7 +262,10 @@ export async function POST(req: Request) {
     ok: true,
     dry_run: dryRun,
     window: { start: startStr, end: endStr, days },
-    filters: { business_id: filterBusinessId ?? null, source_id: filterSourceId ?? null },
+    filters: {
+      business_id: filterBusinessId ?? null,
+      source_id: filterSourceId ?? null,
+    },
     sources_processed: (sources ?? []).length,
     duration_ms: Date.now() - startedAt,
     results,
