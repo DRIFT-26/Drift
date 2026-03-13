@@ -3,8 +3,26 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+const DEFAULT_TIMEZONE = "America/Chicago";
+
 function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function normalizeLocation(value: string | undefined | null) {
+  return (value || "default")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function displayLocationName(value: string) {
+  if (value === "default") return value;
+
+  return value
+    .split(" ")
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(" ");
 }
 
 export async function GET() {
@@ -40,47 +58,56 @@ export async function GET() {
       if (rows.length < 2) continue;
 
       const header = rows[0].toLowerCase();
-      const hasLocation = header === "location,date,revenue";
       const isSingleLocation = header === "date,revenue";
+      const isMultiLocation = header === "location,date,revenue";
 
-      if (!hasLocation && !isSingleLocation) {
+      if (!isSingleLocation && !isMultiLocation) {
         continue;
       }
 
-      const dataRows = rows.slice(1);
-
-      const { data: parentBusiness } = await supabase
+      const { data: parentBusiness, error: parentBusinessErr } = await supabase
         .from("businesses")
         .select("id,name,alert_email,timezone")
         .eq("id", source.business_id)
         .maybeSingle();
 
-      if (!parentBusiness) continue;
+      if (parentBusinessErr || !parentBusiness) continue;
 
       const grouped: Record<
         string,
         Array<{ snapshot_date: string; revenue: number }>
       > = {};
 
-      for (const row of dataRows) {
+      const uniqueLocationDateKeys = new Set<string>();
+
+      for (const row of rows.slice(1)) {
         const parts = row.split(",");
 
-        const location = hasLocation ? parts[0]?.trim() : "default";
-        const snapshotDate = hasLocation ? parts[1]?.trim() : parts[0]?.trim();
-        const revenueRaw = hasLocation ? parts[2] : parts[1];
+        const rawLocation = isMultiLocation ? parts[0] : "default";
+        const location = normalizeLocation(rawLocation);
+
+        const snapshotDate = isMultiLocation
+          ? parts[1]?.trim()
+          : parts[0]?.trim();
+
+        const revenueRaw = isMultiLocation ? parts[2] : parts[1];
         const revenue = Number(revenueRaw?.trim());
 
         if (!snapshotDate || !isIsoDate(snapshotDate) || Number.isNaN(revenue)) {
           continue;
         }
 
-        const key = location || "default";
+        const uniqueKey = `${location}:${snapshotDate}`;
+        if (uniqueLocationDateKeys.has(uniqueKey)) {
+          continue;
+        }
+        uniqueLocationDateKeys.add(uniqueKey);
 
-        if (!grouped[key]) {
-          grouped[key] = [];
+        if (!grouped[location]) {
+          grouped[location] = [];
         }
 
-        grouped[key].push({
+        grouped[location].push({
           snapshot_date: snapshotDate,
           revenue,
         });
@@ -88,24 +115,31 @@ export async function GET() {
 
       if (!Object.keys(grouped).length) continue;
 
-      for (const locationName of Object.keys(grouped)) {
-        const locationRows = grouped[locationName];
+      for (const location of Object.keys(grouped)) {
+        const locationRows = grouped[location];
         if (!locationRows.length) continue;
 
+        const locationDisplayName = displayLocationName(location);
+
         const businessName =
-          locationName === "default"
+          location === "default"
             ? parentBusiness.name
-            : `${parentBusiness.name} — ${locationName}`;
+            : `${parentBusiness.name} — ${locationDisplayName}`;
 
         let locationBusinessId = parentBusiness.id;
 
-        if (locationName !== "default") {
-          const { data: existingBusiness } = await supabase
-            .from("businesses")
-            .select("id")
-            .eq("name", businessName)
-            .eq("alert_email", parentBusiness.alert_email)
-            .maybeSingle();
+        if (location !== "default") {
+          const { data: existingBusiness, error: existingBusinessErr } =
+            await supabase
+              .from("businesses")
+              .select("id")
+              .eq("name", businessName)
+              .eq("alert_email", parentBusiness.alert_email)
+              .maybeSingle();
+
+          if (existingBusinessErr) {
+            continue;
+          }
 
           if (existingBusiness?.id) {
             locationBusinessId = existingBusiness.id;
@@ -116,7 +150,7 @@ export async function GET() {
                 .insert({
                   name: businessName,
                   alert_email: parentBusiness.alert_email,
-                  timezone: parentBusiness.timezone ?? null,
+                  timezone: parentBusiness.timezone ?? DEFAULT_TIMEZONE,
                 })
                 .select("id")
                 .single();
@@ -129,12 +163,17 @@ export async function GET() {
           }
         }
 
-        const { data: existingLocationSource } = await supabase
-          .from("sources")
-          .select("id")
-          .eq("business_id", locationBusinessId)
-          .eq("type", "google_sheets_revenue")
-          .maybeSingle();
+        const { data: existingLocationSource, error: existingSourceErr } =
+          await supabase
+            .from("sources")
+            .select("id")
+            .eq("business_id", locationBusinessId)
+            .eq("type", "google_sheets_revenue")
+            .maybeSingle();
+
+        if (existingSourceErr) {
+          continue;
+        }
 
         let locationSourceId = existingLocationSource?.id ?? null;
 
@@ -149,7 +188,7 @@ export async function GET() {
               config: {
                 sheet_url: source.config?.sheet_url ?? null,
                 csv_url: csvUrl,
-                location: locationName === "default" ? null : locationName,
+                location: location === "default" ? null : locationDisplayName,
                 created_via: "sheets_sync",
               },
               meta: {
@@ -173,7 +212,7 @@ export async function GET() {
               config: {
                 ...(source.config ?? {}),
                 csv_url: csvUrl,
-                location: locationName === "default" ? null : locationName,
+                location: location === "default" ? null : locationDisplayName,
                 updated_at: new Date().toISOString(),
               },
             })
@@ -182,17 +221,12 @@ export async function GET() {
 
         const snapshots = locationRows.map((row) => ({
           business_id: locationBusinessId,
-          source_id: locationSourceId,
+          source_id: locationSourceId!,
           snapshot_date: row.snapshot_date,
           metrics: {
             revenue: row.revenue,
           },
         }));
-
-        const uniqueDates = new Set(snapshots.map((row) => row.snapshot_date));
-        if (uniqueDates.size !== snapshots.length) {
-          continue;
-        }
 
         const { error: snapshotErr } = await supabase
           .from("snapshots")
