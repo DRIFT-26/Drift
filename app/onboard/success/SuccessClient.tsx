@@ -78,7 +78,7 @@ useEffect(() => {
           DRIFT SIGNAL
         </div>
         <div className="mt-1 text-sm font-semibold text-white/85">
-          Evaluating revenue patterns…
+          Evaluating Revenue Patterns…
         </div>
       </div>
 
