@@ -11,6 +11,22 @@ function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function normalizeLocation(value: string | undefined | null) {
+  return (value || "default")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function displayLocationName(value: string) {
+  if (value === "default") return value;
+
+  return value
+    .split(" ")
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = supabaseAdmin();
@@ -26,21 +42,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: parentBusiness } = await supabase
+    const { data: parentBusiness, error: parentBusinessErr } = await supabase
       .from("businesses")
       .select("id,name,alert_email,timezone")
       .eq("id", businessId)
       .single();
 
-    if (!parentBusiness) {
+    if (parentBusinessErr || !parentBusiness) {
       return NextResponse.json(
-        { ok: false, error: "Business not found" },
+        { ok: false, error: parentBusinessErr?.message ?? "Business not found" },
         { status: 404 }
       );
     }
 
     const text = await file.text();
-    const rows = text.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+    const rows = text
+      .split(/\r?\n/)
+      .map((r) => r.trim())
+      .filter(Boolean);
 
     if (rows.length < 2) {
       return NextResponse.json(
@@ -49,38 +68,57 @@ export async function POST(req: Request) {
       );
     }
 
-    const headers = rows[0].toLowerCase();
-    const hasLocation = headers.startsWith("location");
+    const header = rows[0].toLowerCase();
+    const isSingleLocation = header === "date,revenue";
+    const isMultiLocation = header === "location,date,revenue";
 
-    const grouped: Record<string, any[]> = {};
+    if (!isSingleLocation && !isMultiLocation) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Accepted CSV format: date,revenue or location,date,revenue",
+        },
+        { status: 400 }
+      );
+    }
+
+    const grouped: Record<
+      string,
+      Array<{ snapshot_date: string; revenue: number }>
+    > = {};
+
     const uniqueLocationDateKeys = new Set<string>();
 
     for (const row of rows.slice(1)) {
       const parts = row.split(",");
 
-      const rawLocation = hasLocation ? parts[0] : "default";
-const location =
-  (rawLocation || "default")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
-      const date = hasLocation ? parts[1]?.trim() : parts[0]?.trim();
-      const revenueRaw = hasLocation ? parts[2] : parts[1];
+      const rawLocation = isMultiLocation ? parts[0] : "default";
+      const location = normalizeLocation(rawLocation);
 
+      const snapshotDate = isMultiLocation
+        ? parts[1]?.trim()
+        : parts[0]?.trim();
+
+      const revenueRaw = isMultiLocation ? parts[2] : parts[1];
       const revenue = Number(revenueRaw?.trim());
 
-      if (!date || !isIsoDate(date) || Number.isNaN(revenue)) continue;
+      if (!snapshotDate || !isIsoDate(snapshotDate) || Number.isNaN(revenue)) {
+        continue;
+      }
 
-      const key = `${location || "default"}:${date}`;
-      if (uniqueLocationDateKeys.has(key)) continue;
-      uniqueLocationDateKeys.add(key);
+      const uniqueKey = `${location}:${snapshotDate}`;
+      if (uniqueLocationDateKeys.has(uniqueKey)) {
+        continue;
+      }
+      uniqueLocationDateKeys.add(uniqueKey);
 
-      const groupKey = location || "default";
+      if (!grouped[location]) {
+        grouped[location] = [];
+      }
 
-      if (!grouped[groupKey]) grouped[groupKey] = [];
-
-      grouped[groupKey].push({
-        snapshot_date: date,
+      grouped[location].push({
+        snapshot_date: snapshotDate,
         revenue,
       });
     }
@@ -95,10 +133,12 @@ const location =
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
 
     for (const location of Object.keys(grouped)) {
+      const locationDisplayName = displayLocationName(location);
+
       const businessName =
         location === "default"
           ? parentBusiness.name
-          : `${parentBusiness.name} — ${location}`;
+          : `${parentBusiness.name} — ${locationDisplayName}`;
 
       let locationBusinessId = parentBusiness.id;
 
@@ -124,7 +164,7 @@ const location =
               .insert({
                 name: businessName,
                 alert_email: parentBusiness.alert_email,
-                timezone: parentBusiness?.timezone ?? DEFAULT_TIMEZONE,
+                timezone: parentBusiness.timezone ?? DEFAULT_TIMEZONE,
               })
               .select("id")
               .single();
@@ -160,7 +200,7 @@ const location =
             is_connected: true,
             config: {
               created_via: "csv_upload",
-              location: location === "default" ? null : location,
+              location: location === "default" ? null : locationDisplayName,
             },
             meta: {
               created_at: new Date().toISOString(),
@@ -182,27 +222,37 @@ const location =
             display_name: "CSV (Revenue)",
             config: {
               created_via: "csv_upload",
-              location: location === "default" ? null : location,
+              location: location === "default" ? null : locationDisplayName,
               updated_at: new Date().toISOString(),
             },
           })
           .eq("id", locationSourceId);
       }
 
-      const snapshots = grouped[location].map((r) => ({
+      const snapshots = grouped[location].map((row) => ({
         business_id: locationBusinessId,
         source_id: locationSourceId!,
-        snapshot_date: r.snapshot_date,
-        metrics: { revenue: r.revenue },
+        snapshot_date: row.snapshot_date,
+        metrics: {
+          revenue: row.revenue,
+        },
       }));
 
-      await supabase.from("snapshots").upsert(snapshots, {
-        onConflict: "source_id,snapshot_date",
-      });
+      const { error: snapshotErr } = await supabase
+        .from("snapshots")
+        .upsert(snapshots, {
+          onConflict: "source_id,snapshot_date",
+        });
+
+      if (snapshotErr) {
+        continue;
+      }
 
       await fetch(`${appUrl}/api/internal/compute-first`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           business_id: locationBusinessId,
           force_email: true,
@@ -227,9 +277,12 @@ const location =
       ok: true,
       locations_detected: Object.keys(grouped).length,
     });
-  } catch (err) {
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "CSV ingestion failed";
+
     return NextResponse.json(
-      { ok: false, error: "CSV ingestion failed" },
+      { ok: false, error: message },
       { status: 500 }
     );
   }
