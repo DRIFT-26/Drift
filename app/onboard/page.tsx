@@ -138,8 +138,12 @@ export default function OnboardPage() {
                 <span>Short, Specific, Actionable alerts — built for operators.</span>
               </div>
               <div className="flex gap-3">
+  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+  <span>Works for single-location operators and multi-location groups.</span>
+</div>
+              <div className="flex gap-3">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                <span>Founding members get priority access to upcoming integrations.</span>
+                <span>Founding members get priority access to upcoming integrations and features.</span>
               </div>
             </div>
           </div>
