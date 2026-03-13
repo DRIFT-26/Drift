@@ -23,6 +23,7 @@ export default function OnboardPage() {
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [source, setSource] = useState("stripe");
+  const [revenueFormat, setRevenueFormat] = useState<"single" | "multi">("single");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -246,6 +247,56 @@ export default function OnboardPage() {
   For the most accurate assessment and best results, include ~60 days of baseline
   revenue plus your most recent 14 days.
 </p>
+
+{(source === "csv" || source === "google_sheets") && (
+  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+    <div className="text-xs font-semibold tracking-wide text-white/55">
+      REVENUE FORMAT
+    </div>
+
+    <div className="mt-3 flex gap-2">
+      <button
+        type="button"
+        onClick={() => setRevenueFormat("single")}
+        className={`rounded-md px-3 py-2 text-xs transition ${
+          revenueFormat === "single"
+            ? "bg-white text-black"
+            : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+        }`}
+      >
+        Single Location
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setRevenueFormat("multi")}
+        className={`rounded-md px-3 py-2 text-xs transition ${
+          revenueFormat === "multi"
+            ? "bg-white text-black"
+            : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+        }`}
+      >
+        Multiple Locations
+      </button>
+    </div>
+
+    <div className="mt-3 text-[11px] text-white/45">
+      {revenueFormat === "single" ? (
+        <>
+          Expected Format:
+          <br />
+          <span className="text-white/60">Date,Revenue</span>
+        </>
+      ) : (
+        <>
+          Expected Format:
+          <br />
+          <span className="text-white/60">Location,Date,Revenue</span>
+        </>
+      )}
+    </div>
+  </div>
+)}
 
 <p className="mt-2 text-[11px] text-white/40">
   Need a starting point?{" "}
