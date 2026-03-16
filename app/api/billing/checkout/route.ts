@@ -22,37 +22,64 @@ export async function POST(req: Request) {
 
     const businessId = body?.business_id as string | undefined;
     if (!businessId) {
-      return NextResponse.json({ ok: false, error: "business_id required" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "business_id required" },
+        { status: 400 }
+      );
     }
 
     const { data: biz, error } = await supabase
       .from("businesses")
-      .select("id,name,alert_email,stripe_customer_id")
+      .select("id,name,alert_email,stripe_customer_id,billing_status")
       .eq("id", businessId)
       .single();
 
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error || !biz) {
+      return NextResponse.json(
+        { ok: false, error: error?.message ?? "Business not found" },
+        { status: 500 }
+      );
+    }
+
+    if (biz.billing_status === "internal") {
+      return NextResponse.json(
+        { ok: false, error: "Internal businesses cannot create checkout sessions." },
+        { status: 403 }
+      );
+    }
+
+    if (biz.billing_status === "active") {
+      return NextResponse.json(
+        { ok: false, error: "Business already has active billing." },
+        { status: 409 }
+      );
     }
 
     const priceId = process.env.STRIPE_PRICE_ID;
     if (!priceId) {
-      return NextResponse.json({ ok: false, error: "Missing STRIPE_PRICE_ID" }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: "Missing STRIPE_PRICE_ID" },
+        { status: 500 }
+      );
     }
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      client_reference_id: biz.id,
 
       customer: biz.stripe_customer_id || undefined,
-      customer_email: biz.stripe_customer_id ? undefined : (biz.alert_email ?? undefined),
+      customer_email: biz.stripe_customer_id
+        ? undefined
+        : biz.alert_email ?? undefined,
 
       line_items: [{ price: priceId, quantity: 1 }],
 
-      // Attach business_id to BOTH the session and the subscription
       metadata: { business_id: biz.id },
-      subscription_data: { metadata: { business_id: biz.id } },
+      subscription_data: {
+        metadata: { business_id: biz.id },
+      },
 
       success_url: `${appUrl}/onboard/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/onboard/cancel`,
@@ -60,6 +87,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, url: session.url });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? String(e) },
+      { status: 500 }
+    );
   }
 }

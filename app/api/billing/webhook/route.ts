@@ -20,13 +20,18 @@ export async function POST(req: Request) {
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {
-    return NextResponse.json({ ok: false, error: "Missing stripe-signature" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Missing stripe-signature" },
+      { status: 400 }
+    );
   }
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    // Return 200 so Stripe doesn't retry forever while you're setting env vars
-    return NextResponse.json({ ok: false, error: "Missing STRIPE_WEBHOOK_SECRET" }, { status: 200 });
+    return NextResponse.json(
+      { ok: false, error: "Missing STRIPE_WEBHOOK_SECRET" },
+      { status: 200 }
+    );
   }
 
   const rawBody = await req.text();
@@ -36,25 +41,35 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err: any) {
     return NextResponse.json(
-      { ok: false, error: `Webhook signature verification failed: ${err?.message ?? String(err)}` },
+      {
+        ok: false,
+        error: `Webhook signature verification failed: ${err?.message ?? String(err)}`,
+      },
       { status: 400 }
     );
   }
 
   try {
-    // 1) Checkout completed => mark paid and store ids
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
 
-      const businessId = session.metadata?.business_id;
-      const customerId = typeof session.customer === "string" ? session.customer : null;
-      const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+      const businessId =
+        session.metadata?.business_id ||
+        (typeof session.client_reference_id === "string"
+          ? session.client_reference_id
+          : undefined);
+
+      const customerId =
+        typeof session.customer === "string" ? session.customer : null;
+
+      const subscriptionId =
+        typeof session.subscription === "string" ? session.subscription : null;
 
       if (businessId) {
         await supabase
           .from("businesses")
           .update({
-            is_paid: true,
+            billing_status: "active",
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
           })
@@ -62,15 +77,12 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2) Invoice paid (covers renewals + some flows where checkout event isn't used)
     if (
-      event.type === "invoice_payment.paid" ||
       event.type === "invoice.paid" ||
       event.type === "invoice.payment_succeeded"
     ) {
       const invoice = event.data.object as Stripe.Invoice;
 
-      // Stripe types differ across versions; safely read from raw payload
       const subscriptionId =
         typeof (invoice as any).subscription === "string"
           ? (invoice as any).subscription
@@ -78,14 +90,16 @@ export async function POST(req: Request) {
 
       if (subscriptionId) {
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        const businessId = (sub.metadata?.business_id as string | undefined) || undefined;
-        const customerId = typeof sub.customer === "string" ? sub.customer : null;
+        const businessId =
+          (sub.metadata?.business_id as string | undefined) || undefined;
+        const customerId =
+          typeof sub.customer === "string" ? sub.customer : null;
 
         if (businessId) {
           await supabase
             .from("businesses")
             .update({
-              is_paid: true,
+              billing_status: "active",
               stripe_customer_id: customerId,
               stripe_subscription_id: sub.id,
             })
@@ -94,20 +108,35 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3) Subscription canceled => mark unpaid
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+
+      const subscriptionId =
+        typeof (invoice as any).subscription === "string"
+          ? (invoice as any).subscription
+          : null;
+
+      if (subscriptionId) {
+        await supabase
+          .from("businesses")
+          .update({
+            billing_status: "expired",
+          })
+          .eq("stripe_subscription_id", subscriptionId);
+      }
+    }
+
     if (event.type === "customer.subscription.deleted") {
       const sub = event.data.object as Stripe.Subscription;
 
       await supabase
         .from("businesses")
         .update({
-          is_paid: false,
-          paid_until: null,
+          billing_status: "canceled",
         })
         .eq("stripe_subscription_id", sub.id);
     }
   } catch (e: any) {
-    // IMPORTANT: return 200 so Stripe doesn't keep retrying while you're iterating
     return NextResponse.json(
       { ok: false, error: e?.message ?? String(e), event_type: event.type },
       { status: 200 }
