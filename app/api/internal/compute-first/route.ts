@@ -141,7 +141,7 @@ function computeRevenueDrift(args: {
     status: "stable",
     reasons: ["Revenue is tracking within the expected baseline range."],
     deltaPct,
-    confidence: "medium",
+    confidence: "high",
   };
 }
 

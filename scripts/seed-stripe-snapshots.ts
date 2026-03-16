@@ -37,26 +37,49 @@ async function main() {
     let revenue = 200;
 
     switch (MODE) {
-      case "stable":
-        revenue = 200 + Math.random() * 10 - 5;
-        break;
+  case "stable":
+    // Very tight band around baseline
+    revenue = 200 + (Math.random() * 6 - 3);
+    break;
 
-      case "movement":
-        revenue = 200 + Math.sin(i / 2) * 40;
-        break;
+  case "movement":
+    // Target watch / Movement Detected:
+    // baseline first 60 days ~200, current 14 days ~186-188 (-6% to -7%)
+    revenue = i < 60
+      ? 200 + (Math.random() * 8 - 4)
+      : 187 + (Math.random() * 6 - 3);
+    break;
 
-      case "softening":
-        revenue = 220 - i * 1.2;
-        break;
+  case "softening":
+    // Target softening:
+    // baseline first 60 days ~200, current 14 days ~174-178 (-11% to -13%)
+    // keep last day close enough to avoid shock detection
+    revenue = i < 60
+      ? 200 + (Math.random() * 8 - 4)
+      : 176 + (Math.random() * 6 - 3);
+    break;
 
-      case "attention":
-        revenue = i < 60 ? 220 : 90;
-        break;
+  case "attention":
+    // Target attention:
+    // baseline first 60 days ~200, current 14 days ~150 (-25%)
+    // also avoid absurd final day unless you want pure shock
+    revenue = i < 60
+      ? 200 + (Math.random() * 8 - 4)
+      : 150 + (Math.random() * 8 - 4);
+    break;
 
-      case "momentum":
-        revenue = 150 + i * 1.8;
-        break;
-    }
+  case "momentum":
+    // Target positive movement:
+    // baseline first 60 days ~170, current 14 days ~200 (+17% to +18%)
+    revenue = i < 60
+      ? 170 + (Math.random() * 8 - 4)
+      : 200 + (Math.random() * 8 - 4);
+    break;
+
+  default:
+    revenue = 200;
+    break;
+}
 
     const revenueCents = Math.round(revenue * 100);
     const refunds = Math.round(revenueCents * (0.02 + Math.random() * 0.02));
