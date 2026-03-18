@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { businessHasAccess } from "@/lib/billing/access";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";

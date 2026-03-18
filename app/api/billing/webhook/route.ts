@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { businessHasAccess } from "@/lib/billing/access";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
