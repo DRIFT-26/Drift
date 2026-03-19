@@ -126,25 +126,25 @@ export async function GET(req: Request) {
       })
       .eq("id", source.id);
 
-      // Send monitoring started email
-const { data: business } = await supabase
-  .from("businesses")
-  .select("name,alert_email")
-  .eq("id", source.business_id)
-  .maybeSingle();
+    // Send monitoring started email
+    const { data: business } = await supabase
+      .from("businesses")
+      .select("name,alert_email")
+      .eq("id", source.business_id)
+      .maybeSingle();
 
-if (business?.alert_email) {
-  const { subject, text } = renderMonitoringStartedEmail({
-    businessName: business.name,
-    source: "Stripe",
-  });
+    if (business?.alert_email) {
+      const { subject, text } = renderMonitoringStartedEmail({
+        businessName: business.name,
+        source: "Stripe",
+      });
 
-  await sendDriftEmail({
-    to: business.alert_email,
-    subject,
-    text,
-  });
-}
+      await sendDriftEmail({
+        to: business.alert_email,
+        subject,
+        text,
+      });
+    }
 
     if (upErr) {
       return jsonError(`Failed to mark Stripe source connected: ${upErr.message}`, 500);
@@ -181,16 +181,18 @@ if (business?.alert_email) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
 
     await supabase
-  .from("businesses")
-  .update({
-    needs_compute: true,
-    last_ingested_at: new Date().toISOString(),
-  })
-  .eq("id", source.business_id);
+      .from("businesses")
+      .update({
+        needs_compute: true,
+        last_ingested_at: new Date().toISOString(),
+      })
+      .eq("id", source.business_id);
 
-    // 6) Redirect to onboarding success, not /alerts/:id
+    // 6) Redirect to onboarding success with business_id
     const redirectTo = new URL(
-      `/onboard/success?signal=processing&source=stripe`,
+      `/onboard/success?business_id=${encodeURIComponent(
+        source.business_id
+      )}&signal=processing&source=stripe`,
       appUrl
     ).toString();
 
