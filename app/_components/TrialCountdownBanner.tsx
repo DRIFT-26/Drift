@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 type TrialCountdownBannerProps = {
+  businessId: string;
   billingStatus: string | null;
   trialEndsAt?: string | null;
 };
@@ -18,6 +19,7 @@ function getDaysRemaining(trialEndsAt?: string | null) {
 }
 
 export default function TrialCountdownBanner({
+  businessId,
   billingStatus,
   trialEndsAt,
 }: TrialCountdownBannerProps) {
@@ -42,7 +44,7 @@ export default function TrialCountdownBanner({
           </div>
 
           <Link
-            href="/upgrade"
+            href={`/upgrade?business_id=${businessId}`}
             className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#09306F]"
           >
             Upgrade to Continue Monitoring
@@ -66,7 +68,7 @@ export default function TrialCountdownBanner({
           </div>
 
           <Link
-            href="/upgrade"
+            href={`/upgrade?business_id=${businessId}`}
             className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#09306F]"
           >
             Upgrade Now
