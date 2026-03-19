@@ -49,7 +49,7 @@ export default function SheetsConnectClient({
         throw new Error(data?.error ?? "Failed to connect Google Sheet.");
       }
 
-      router.push("/onboard/success?signal=processing&source=google_sheets");
+      router.push("/onboard/success?business_id=${businessId}&signal=processing&source=google_sheets");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to connect Google Sheet.";
