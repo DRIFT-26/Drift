@@ -33,12 +33,13 @@ export default async function SuccessPage({
   return (
     <Suspense fallback={null}>
       <div className="mx-auto max-w-5xl px-6 pt-6">
-        {business && (
-          <TrialCountdownBanner
-            billingStatus={business.billing_status}
-            trialEndsAt={business.trial_ends_at}
-          />
-        )}
+        {business && params.business_id && (
+  <TrialCountdownBanner
+    businessId={params.business_id}
+    billingStatus={business.billing_status}
+    trialEndsAt={business.trial_ends_at}
+  />
+)}
       </div>
 
       <SuccessClient
