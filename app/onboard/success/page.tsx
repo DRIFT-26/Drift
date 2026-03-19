@@ -1,7 +1,9 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import SuccessClient from "./SuccessClient";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import TrialCountdownBanner from "@/app/_components/TrialCountdownBanner";
+import { businessHasAccess } from "@/lib/billing/access";
 
 export default async function SuccessPage({
   searchParams,
@@ -30,16 +32,20 @@ export default async function SuccessPage({
     business = data;
   }
 
+  if (business && params.business_id && !businessHasAccess(business)) {
+    redirect(`/upgrade?business_id=${encodeURIComponent(params.business_id)}`);
+  }
+
   return (
     <Suspense fallback={null}>
       <div className="mx-auto max-w-5xl px-6 pt-6">
         {business && params.business_id && (
-  <TrialCountdownBanner
-    businessId={params.business_id}
-    billingStatus={business.billing_status}
-    trialEndsAt={business.trial_ends_at}
-  />
-)}
+          <TrialCountdownBanner
+            businessId={params.business_id}
+            billingStatus={business.billing_status}
+            trialEndsAt={business.trial_ends_at}
+          />
+        )}
       </div>
 
       <SuccessClient
