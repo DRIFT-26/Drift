@@ -5,7 +5,7 @@ export default function OperatorFitSection() {
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10">
           <h3 className="text-sm font-mono tracking-wide text-white/45">
-            WHO DRIFT IS FOR
+            WHO DRIFT IS FOR:
           </h3>
 
           <p className="mt-3 text-sm text-white/70">
@@ -22,7 +22,7 @@ export default function OperatorFitSection() {
 
         <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10">
           <h3 className="text-sm font-mono tracking-wide text-white/45">
-            WHO DRIFT IS NOT FOR
+            WHO DRIFT IS NOT FOR:
           </h3>
 
           <p className="mt-3 text-sm text-white/70">
