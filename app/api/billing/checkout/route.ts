@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { businessHasAccess } from "@/lib/billing/access";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -31,7 +30,9 @@ export async function POST(req: Request) {
 
     const { data: biz, error } = await supabase
       .from("businesses")
-      .select("id,name,alert_email,stripe_customer_id,billing_status")
+      .select(
+        "id,name,alert_email,stripe_customer_id,billing_status,founding_cohort"
+      )
       .eq("id", businessId)
       .single();
 
@@ -44,7 +45,10 @@ export async function POST(req: Request) {
 
     if (biz.billing_status === "internal") {
       return NextResponse.json(
-        { ok: false, error: "Internal businesses cannot create checkout sessions." },
+        {
+          ok: false,
+          error: "Internal businesses cannot create checkout sessions.",
+        },
         { status: 403 }
       );
     }
@@ -56,15 +60,39 @@ export async function POST(req: Request) {
       );
     }
 
-    const priceId = process.env.STRIPE_PRICE_ID;
-    if (!priceId) {
+    const plan = String(body?.plan || "standard");
+
+    const priceMap: Record<string, string | undefined> = {
+      standard: process.env.STRIPE_PRICE_STANDARD,
+      founder_299: process.env.STRIPE_PRICE_FOUNDER_299,
+      founder_399: process.env.STRIPE_PRICE_FOUNDER_399,
+    };
+
+    if (
+      (plan === "founder_299" || plan === "founder_399") &&
+      !biz.founding_cohort
+    ) {
       return NextResponse.json(
-        { ok: false, error: "Missing STRIPE_PRICE_ID" },
-        { status: 500 }
+        { ok: false, error: "Founder pricing not available." },
+        { status: 403 }
       );
     }
 
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+    const priceId = priceMap[plan];
+
+    if (!priceId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Invalid or missing Stripe price for selected plan.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const appUrl = (
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    ).replace(/\/$/, "");
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
