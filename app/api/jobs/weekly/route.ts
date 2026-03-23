@@ -151,8 +151,16 @@ export async function POST(req: Request) {
   const byEmail = new Map<string, any[]>();
 
   for (const biz of businesses ?? []) {
-    const isPaid = biz.is_paid === true;
-    if (!isPaid && !forceSend) continue;
+    const billingStatus = biz.billing_status;
+
+const hasAccess =
+  billingStatus === "active" ||
+  billingStatus === "internal" ||
+  (billingStatus === "trialing" &&
+    biz.trial_ends_at &&
+    new Date(biz.trial_ends_at).getTime() > Date.now());
+
+if (!hasAccess && !forceSend) continue;
 
     if (dispatch && !shouldRunWeeklyNow(biz.timezone)) continue;
 

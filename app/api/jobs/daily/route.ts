@@ -14,6 +14,7 @@ import {
   statusForEmail,
   type DriftStatus,
 } from "@/lib/executive/summary";
+import { businessHasAccess } from "@/lib/billing/access";
 
 export const runtime = "nodejs";
 
@@ -111,8 +112,8 @@ export async function POST(req: Request) {
   const { data: businesses, error: bErr } = await supabase
     .from("businesses")
     .select(
-      "id,name,timezone,is_paid,alert_email,monthly_revenue_cents,monthly_revenue,created_at,last_drift,last_drift_at"
-    )
+  "id,name,timezone,alert_email,monthly_revenue_cents,monthly_revenue,created_at,last_drift,last_drift_at,billing_status,trial_ends_at"
+)
     .order("created_at", { ascending: true });
 
   if (bErr) {
@@ -143,35 +144,38 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const isPaid = (biz as any).is_paid === true;
+    const hasAccess = businessHasAccess({
+  billing_status: (biz as any).billing_status ?? null,
+  trial_ends_at: (biz as any).trial_ends_at ?? null,
+});
 
-    // --- Beta allowlist ---
-    const allowlistRaw = (process.env.BETA_ALLOWLIST_EMAILS || "").trim();
-    const allowlist = allowlistRaw
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
+// --- Beta allowlist ---
+const allowlistRaw = (process.env.BETA_ALLOWLIST_EMAILS || "").trim();
+const allowlist = allowlistRaw
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
 
-    const bizEmail = String((biz as any).alert_email || "")
-      .trim()
-      .toLowerCase();
-    const isBetaAllowed = Boolean(bizEmail) && allowlist.includes(bizEmail);
-    const paidMode = isPaid
-      ? "paid"
-      : isBetaAllowed
-      ? "beta_allowlist"
-      : "unpaid";
+const bizEmail = String((biz as any).alert_email || "")
+  .trim()
+  .toLowerCase();
+const isBetaAllowed = Boolean(bizEmail) && allowlist.includes(bizEmail);
+const accessMode = hasAccess
+  ? "billing_access"
+  : isBetaAllowed
+  ? "beta_allowlist"
+  : "no_access";
 
-    if (!isPaid && !isBetaAllowed) {
-      results.push({
-        business_id: biz.id,
-        name: biz.name,
-        skipped: true,
-        reason: "not_paid",
-        paid_mode: paidMode,
-      });
-      continue;
-    }
+if (!hasAccess && !isBetaAllowed) {
+  results.push({
+    business_id: biz.id,
+    name: biz.name,
+    skipped: true,
+    reason: "no_access",
+    access_mode: accessMode,
+  });
+  continue;
+}
 
     if (!biz.alert_email) {
       results.push({
