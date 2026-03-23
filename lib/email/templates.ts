@@ -398,3 +398,48 @@ Revenue control for operators
     text,
   };
 }
+
+export function renderTrialLifecycleEmail({
+  businessName,
+  daysRemaining,
+  upgradeUrl,
+}: {
+  businessName: string;
+  daysRemaining: number;
+  upgradeUrl?: string;
+}) {
+  const subject =
+    daysRemaining > 0
+      ? `DRIFT Trial Status — ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`
+      : "DRIFT Trial Status — Expired";
+
+  const statusLine =
+    daysRemaining > 0
+      ? `Monitoring remains active for ${daysRemaining} more day${daysRemaining === 1 ? "" : "s"}.`
+      : "Monitoring is now paused.";
+
+  const actionLine =
+    daysRemaining > 0
+      ? "Upgrade to maintain uninterrupted signal coverage."
+      : "Upgrade to restore signal coverage.";
+
+  const upgradeBlock = upgradeUrl
+    ? `
+
+Upgrade DRIFT:
+${upgradeUrl}`
+    : "";
+
+  const text = `DRIFT Trial Status
+
+Business: ${businessName}
+
+${statusLine}
+${actionLine}${upgradeBlock}
+
+— DRIFT
+Revenue control for operators
+`;
+
+  return { subject, text };
+}
