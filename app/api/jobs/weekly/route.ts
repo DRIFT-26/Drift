@@ -145,7 +145,7 @@ export async function POST(req: Request) {
 
   const { data: businesses } = await supabase
     .from("businesses")
-    .select("id,name,timezone,is_paid,alert_email,last_drift,created_at")
+    .select("id,name,timezone,is_paid,alert_email,last_drift,created_at,billing_status,trial_ends_at")
     .order("created_at", { ascending: true });
 
   const byEmail = new Map<string, any[]>();
@@ -194,6 +194,9 @@ export async function POST(req: Request) {
             null
         : null,
   })),
+  billingStatus: bizList[0]?.billing_status ?? null,
+  trialEndsAt: bizList[0]?.trial_ends_at ?? null,
+  openDriftUrl: `${baseUrl()}/alerts`,
 });
 
   if (dryRun) {

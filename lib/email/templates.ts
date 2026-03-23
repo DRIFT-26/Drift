@@ -12,6 +12,18 @@ export type StatusEmailStatus =
   | "softening"
   | "attention";
 
+function getDaysRemaining(trialEndsAt?: string | null) {
+  if (!trialEndsAt) return null;
+
+  const end = new Date(trialEndsAt).getTime();
+  const now = Date.now();
+  const diff = end - now;
+
+  if (diff <= 0) return 0;
+
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 function weeklySubject(counts: {
   attention: number;
   softening: number;
@@ -283,6 +295,9 @@ export function renderWeeklyPulseEmail({
   windowStart,
   windowEnd,
   businesses,
+  billingStatus,
+  trialEndsAt,
+  openDriftUrl,
 }: {
   windowStart: string;
   windowEnd: string;
@@ -292,6 +307,9 @@ export function renderWeeklyPulseEmail({
     status: WeeklyPulseStatus;
     reason?: string | null;
   }>;
+  billingStatus?: string | null;
+  trialEndsAt?: string | null;
+  openDriftUrl?: string;
 }) {
   const counts = businesses.reduce(
     (acc, business) => {
@@ -320,7 +338,42 @@ export function renderWeeklyPulseEmail({
           .join("\n")
       : "- No businesses included in this pulse.";
 
-  const text = `DRIFT Weekly Pulse
+  let trialBlock = "";
+
+  if (billingStatus === "trialing") {
+    const daysRemaining = getDaysRemaining(trialEndsAt);
+
+    if (daysRemaining !== null) {
+      if (daysRemaining > 7) {
+        trialBlock = `
+DRIFT Trial Status
+- ${daysRemaining} days remaining
+- Monitoring active. No action required.
+`;
+      } else if (daysRemaining > 0) {
+        trialBlock = `
+DRIFT Trial Status
+- ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining
+- Monitoring remains active. Upgrade to maintain uninterrupted signal coverage.
+`;
+      } else {
+        trialBlock = `
+DRIFT Trial Status
+- Expired
+- Monitoring paused. Upgrade to restore signal coverage.
+`;
+      }
+    }
+  }
+
+const driftLinkBlock = openDriftUrl
+  ? `
+Open DRIFT
+${openDriftUrl}
+`
+  : "";
+
+const text = `DRIFT Weekly Pulse
 Window: ${windowStart} → ${windowEnd}
 
 ${lines}
@@ -332,8 +385,10 @@ Summary
 - Momentum: ${counts.movement}
 - Stable: ${counts.stable}
 
-${prompt}
+${trialBlock ? `${trialBlock}
+` : ""}${prompt}
 
+${driftLinkBlock}
 — DRIFT
 Revenue control for operators
 `;
@@ -343,4 +398,3 @@ Revenue control for operators
     text,
   };
 }
-
