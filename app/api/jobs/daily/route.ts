@@ -5,6 +5,7 @@ import { sendDriftEmail } from "@/lib/email/resend";
 import {
   renderStatusEmail,
   renderDailyMonitorEmail,
+  renderTrialLifecycleEmail,
 } from "@/lib/email/templates";
 import { shouldRunDailyNow } from "@/lib/dispatch";
 import {
@@ -20,6 +21,35 @@ export const runtime = "nodejs";
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+function getDaysRemaining(trialEndsAt?: string | null) {
+  if (!trialEndsAt) return null;
+
+  const end = new Date(trialEndsAt).getTime();
+  const now = Date.now();
+  const diff = end - now;
+
+  if (diff <= 0) return 0;
+
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+async function lifecycleEmailAlreadySent(params: {
+  supabase: ReturnType<typeof supabaseAdmin>;
+  businessId: string;
+  emailType: "trial_7_days" | "trial_3_days" | "trial_expired";
+}) {
+  const { supabase, businessId, emailType } = params;
+
+  const { data } = await supabase
+    .from("email_logs")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("email_type", emailType)
+    .limit(1);
+
+  return (data?.length ?? 0) > 0;
 }
 
 /**
@@ -112,8 +142,8 @@ export async function POST(req: Request) {
   const { data: businesses, error: bErr } = await supabase
     .from("businesses")
     .select(
-  "id,name,timezone,alert_email,monthly_revenue_cents,monthly_revenue,created_at,last_drift,last_drift_at,billing_status,trial_ends_at"
-)
+      "id,name,timezone,alert_email,monthly_revenue_cents,monthly_revenue,created_at,last_drift,last_drift_at,billing_status,trial_ends_at"
+    )
     .order("created_at", { ascending: true });
 
   if (bErr) {
@@ -144,45 +174,127 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const hasAccess = businessHasAccess({
-  billing_status: (biz as any).billing_status ?? null,
-  trial_ends_at: (biz as any).trial_ends_at ?? null,
-});
-
-// --- Beta allowlist ---
-const allowlistRaw = (process.env.BETA_ALLOWLIST_EMAILS || "").trim();
-const allowlist = allowlistRaw
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
-
-const bizEmail = String((biz as any).alert_email || "")
-  .trim()
-  .toLowerCase();
-const isBetaAllowed = Boolean(bizEmail) && allowlist.includes(bizEmail);
-const accessMode = hasAccess
-  ? "billing_access"
-  : isBetaAllowed
-  ? "beta_allowlist"
-  : "no_access";
-
-if (!hasAccess && !isBetaAllowed) {
-  results.push({
-    business_id: biz.id,
-    name: biz.name,
-    skipped: true,
-    reason: "no_access",
-    access_mode: accessMode,
-  });
-  continue;
-}
-
     if (!biz.alert_email) {
       results.push({
         business_id: biz.id,
         name: biz.name,
         skipped: true,
         reason: "no_alert_email",
+      });
+      continue;
+    }
+
+    const billingStatus = (biz as any).billing_status ?? null;
+    const trialEndsAt = (biz as any).trial_ends_at ?? null;
+    const daysRemaining = getDaysRemaining(trialEndsAt);
+
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://drifthq.co"
+    ).replace(/\/$/, "");
+    const upgradeUrl = `${baseUrl}/upgrade?business_id=${encodeURIComponent(
+      biz.id
+    )}`;
+
+    let lifecycleEmailType:
+      | "trial_7_days"
+      | "trial_3_days"
+      | "trial_expired"
+      | null = null;
+
+    if (billingStatus === "trialing" && daysRemaining === 7) {
+      lifecycleEmailType = "trial_7_days";
+    } else if (billingStatus === "trialing" && daysRemaining === 3) {
+      lifecycleEmailType = "trial_3_days";
+    } else if (
+      (billingStatus === "trialing" && daysRemaining === 0) ||
+      billingStatus === "expired"
+    ) {
+      lifecycleEmailType = "trial_expired";
+    }
+
+    if (lifecycleEmailType) {
+      const alreadySent = await lifecycleEmailAlreadySent({
+        supabase,
+        businessId: biz.id,
+        emailType: lifecycleEmailType,
+      });
+
+      if (!alreadySent && !dryRun) {
+        const { subject, text } = renderTrialLifecycleEmail({
+          businessName: biz.name,
+          daysRemaining:
+            lifecycleEmailType === "trial_expired" ? 0 : daysRemaining ?? 0,
+          upgradeUrl,
+        });
+
+        const sendResult = await sendDriftEmail({
+          to: biz.alert_email,
+          subject,
+          text,
+        });
+
+        const emailId =
+          (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
+        const sendErr = (sendResult as any)?.error ?? null;
+
+        await supabase.from("email_logs").insert({
+          business_id: biz.id,
+          email_type: lifecycleEmailType,
+          to_email: biz.alert_email,
+          subject,
+          status: sendErr ? "error" : "sent",
+          provider: "resend",
+          provider_message_id: emailId,
+          error: sendErr ? JSON.stringify(sendErr) : null,
+          meta: {
+            kind: "trial_lifecycle",
+            billing_status: billingStatus,
+            trial_ends_at: trialEndsAt,
+            days_remaining: daysRemaining,
+            upgrade_url: upgradeUrl,
+          },
+        });
+      }
+
+      if (billingStatus === "trialing" && daysRemaining === 0) {
+        await supabase
+          .from("businesses")
+          .update({ billing_status: "expired" })
+          .eq("id", biz.id);
+      }
+    }
+
+    const hasAccess = businessHasAccess({
+      billing_status: billingStatus,
+      trial_ends_at: trialEndsAt,
+    });
+
+    // --- Beta allowlist ---
+    const allowlistRaw = (process.env.BETA_ALLOWLIST_EMAILS || "").trim();
+    const allowlist = allowlistRaw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    const bizEmail = String((biz as any).alert_email || "")
+      .trim()
+      .toLowerCase();
+    const isBetaAllowed = Boolean(bizEmail) && allowlist.includes(bizEmail);
+    const accessMode = hasAccess
+      ? "billing_access"
+      : isBetaAllowed
+      ? "beta_allowlist"
+      : "no_access";
+
+    if (!hasAccess && !isBetaAllowed) {
+      results.push({
+        business_id: biz.id,
+        name: biz.name,
+        skipped: true,
+        reason: "no_access",
+        access_mode: accessMode,
       });
       continue;
     }
@@ -246,12 +358,6 @@ if (!hasAccess && !isBetaAllowed) {
     });
 
     const limitedReasons = capReasons(reasons, 3);
-
-    const baseUrl = (
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "https://drifthq.co"
-    ).replace(/\/$/, "");
     const detailsUrl = `${baseUrl}${exec.detailsPath}`;
 
     let subject = "";
