@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { businessHasAccess } from "@/lib/billing/access";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -60,6 +59,8 @@ export async function POST(req: Request) {
           ? session.client_reference_id
           : undefined);
 
+      const plan = session.metadata?.plan ?? "standard";
+
       const customerId =
         typeof session.customer === "string" ? session.customer : null;
 
@@ -71,10 +72,54 @@ export async function POST(req: Request) {
           .from("businesses")
           .update({
             billing_status: "active",
+            billing_plan: plan,
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
           })
           .eq("id", businessId);
+      }
+
+      if (
+        plan === "founder_299" &&
+        subscriptionId &&
+        process.env.STRIPE_PRICE_FOUNDER_299 &&
+        process.env.STRIPE_PRICE_STANDARD
+      ) {
+        try {
+          const schedule = await stripe.subscriptionSchedules.create({
+            from_subscription: subscriptionId,
+          });
+
+          const nowSec = Math.floor(Date.now() / 1000);
+          const oneYearLaterSec = nowSec + 60 * 60 * 24 * 365;
+
+          await stripe.subscriptionSchedules.update(schedule.id, {
+            end_behavior: "release",
+            phases: [
+              {
+                start_date: nowSec,
+                end_date: oneYearLaterSec,
+                items: [
+                  {
+                    price: process.env.STRIPE_PRICE_FOUNDER_299,
+                    quantity: 1,
+                  },
+                ],
+              },
+              {
+                start_date: oneYearLaterSec,
+                items: [
+                  {
+                    price: process.env.STRIPE_PRICE_STANDARD,
+                    quantity: 1,
+                  },
+                ],
+              },
+            ],
+          });
+        } catch (scheduleErr) {
+          console.error("Failed to apply founder_299 schedule", scheduleErr);
+        }
       }
     }
 
@@ -95,12 +140,15 @@ export async function POST(req: Request) {
           (sub.metadata?.business_id as string | undefined) || undefined;
         const customerId =
           typeof sub.customer === "string" ? sub.customer : null;
+        const plan =
+          (sub.metadata?.plan as string | undefined) || "standard";
 
         if (businessId) {
           await supabase
             .from("businesses")
             .update({
               billing_status: "active",
+              billing_plan: plan,
               stripe_customer_id: customerId,
               stripe_subscription_id: sub.id,
             })

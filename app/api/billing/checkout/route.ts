@@ -105,10 +105,10 @@ export async function POST(req: Request) {
 
       line_items: [{ price: priceId, quantity: 1 }],
 
-      metadata: { business_id: biz.id },
-      subscription_data: {
-        metadata: { business_id: biz.id },
-      },
+      metadata: { business_id: biz.id, plan },
+subscription_data: {
+  metadata: { business_id: biz.id, plan },
+},
 
       success_url: `${appUrl}/onboard/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/onboard/cancel`,
