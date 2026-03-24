@@ -15,16 +15,17 @@ export default async function UpgradePage({
   const supabase = supabaseAdmin();
 
   let business: {
-    id: string;
-    name: string;
-    founding_cohort: boolean | null;
-    billing_status: string | null;
-  } | null = null;
+  id: string;
+  name: string;
+  founding_cohort: boolean | null;
+  billing_status: string | null;
+  alert_email: string | null;
+} | null = null;
 
   if (businessId) {
     const { data } = await supabase
       .from("businesses")
-      .select("id,name,founding_cohort,billing_status")
+      .select("id,name,founding_cohort,billing_status,alert_email")
       .eq("id", businessId)
       .single();
 
@@ -54,12 +55,28 @@ export default async function UpgradePage({
 </div>
 )}
 
-{business ? (
-          <UpgradeActions
-            businessId={business.id}
-            foundingCohort={Boolean(business.founding_cohort)}
-          />
-        ) : (
+{business ? (() => {
+  const allowlistRaw = (process.env.BETA_FOUNDER_EMAILS || "").trim();
+
+  const allowlist = allowlistRaw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const email = String(business.alert_email || "").toLowerCase();
+
+  const isAllowlisted = Boolean(email) && allowlist.includes(email);
+
+  const showFounder =
+    Boolean(business.founding_cohort) || isAllowlisted;
+
+  return (
+    <UpgradeActions
+      businessId={business.id}
+      foundingCohort={showFounder}
+    />
+  );
+})() : (
           <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-white/10 bg-white/5 p-6 text-center ring-1 ring-white/10">
             <div className="text-sm text-white/70">
               Missing business context. Return to onboarding and try again.
