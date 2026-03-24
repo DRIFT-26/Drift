@@ -20,15 +20,15 @@ export default function SuccessClient({
   const connectedSource = sourceLabel(source);
   const [showPreview, setShowPreview] = useState(signal === "processing");
 
-useEffect(() => {
-  if (signal !== "processing") return;
+  useEffect(() => {
+    if (signal !== "processing") return;
 
-  const timer = setTimeout(() => {
-    setShowPreview(false);
-  }, 10000);
+    const timer = setTimeout(() => {
+      setShowPreview(false);
+    }, 10000);
 
-  return () => clearTimeout(timer);
-}, [signal]);
+    return () => clearTimeout(timer);
+  }, [signal]);
 
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
@@ -55,48 +55,48 @@ useEffect(() => {
           </div>
 
           <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">
-            You’re all set.
+            You’re live on DRIFT.
           </h1>
 
           <p className="mt-4 leading-relaxed text-white/70">
-            Your onboarding details have been received. DRIFT is now preparing your
-            account and next steps.
+            Monitoring is active. DRIFT is now watching your revenue quietly in the
+            background and will surface movement when it materially matters.
           </p>
 
           {signal === "processing" && (
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
               Your first DRIFT signal is being generated and will arrive in your
-              corresponding email inbox shortly.
+              inbox shortly.
             </div>
           )}
 
           {showPreview && (
-  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-4">
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <div className="text-xs font-mono tracking-wide text-white/45">
-          DRIFT SIGNAL
-        </div>
-        <div className="mt-1 text-sm font-semibold text-white/85">
-          Evaluating Revenue Patterns…
-        </div>
-      </div>
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-mono tracking-wide text-white/45">
+                    DRIFT SIGNAL
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white/85">
+                    Evaluating Revenue Patterns…
+                  </div>
+                </div>
 
-      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/65">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/90" />
-        Live Compute
-      </div>
-    </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/65">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/90" />
+                  Live Compute
+                </div>
+              </div>
 
-    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
-  <div className="h-full w-full animate-previewLoad rounded-full bg-white/50" />
-</div>
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div className="h-full w-full animate-previewLoad rounded-full bg-white/50" />
+              </div>
 
-    <div className="mt-2 text-[11px] text-white/45">
-      DRIFT is establishing your first signal now.
-    </div>
-  </div>
-)}
+              <div className="mt-2 text-[11px] text-white/45">
+                DRIFT is establishing your first signal now.
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
             <div className="text-xs font-mono tracking-wide text-white/45">
@@ -108,8 +108,9 @@ useEffect(() => {
           </div>
 
           <div className="mt-4 text-sm text-white/65">
-  DRIFT is now monitoring your revenue quietly in the background.
-</div>
+            You’ll receive operator-grade alerts as soon as DRIFT detects
+            trajectory-changing movement.
+          </div>
 
           <div className="mt-8 space-y-3 text-sm text-white/70">
             <div className="flex gap-3">
@@ -118,27 +119,27 @@ useEffect(() => {
             </div>
             <div className="flex gap-3">
               <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-              <span>DRIFT will begin computing signal-level output from your revenue data.</span>
+              <span>DRIFT is establishing a baseline from your revenue data.</span>
             </div>
             <div className="flex gap-3">
               <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-              <span>You’ll receive alerts when revenue deviates materially.</span>
+              <span>You’ll hear from DRIFT when something materially changes.</span>
             </div>
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/"
+              href="/alerts"
               className="inline-flex items-center justify-center rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
             >
-              Return home
+              Open DRIFT
             </Link>
 
             <Link
               href="/onboard"
               className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Start another onboarding
+              Start Another Onboarding
             </Link>
           </div>
 

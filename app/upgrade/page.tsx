@@ -5,10 +5,12 @@ export default async function UpgradePage({
   searchParams,
 }: {
   searchParams: Promise<{
-    business_id?: string;
-  }>;
+  business_id?: string;
+  canceled?: string;
+}>;
 }) {
   const params = await searchParams;
+  const canceled = params.canceled === "true";
   const businessId = params.business_id ?? "";
   const supabase = supabaseAdmin();
 
@@ -46,7 +48,13 @@ export default async function UpgradePage({
           </p>
         </div>
 
-        {business ? (
+        {canceled && (
+  <div className="mx-auto mt-6 max-w-2xl rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+  Your upgrade wasn’t completed. Monitoring will pause when your trial ends.
+</div>
+)}
+
+{business ? (
           <UpgradeActions
             businessId={business.id}
             foundingCohort={Boolean(business.founding_cohort)}

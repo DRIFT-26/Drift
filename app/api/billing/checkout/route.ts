@@ -110,8 +110,8 @@ subscription_data: {
   metadata: { business_id: biz.id, plan },
 },
 
-      success_url: `${appUrl}/onboard/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/onboard/cancel`,
+      success_url: `${appUrl}/onboard/success?business_id=${biz.id}&session_id={CHECKOUT_SESSION_ID}`,
+cancel_url: `${appUrl}/upgrade?canceled=true&business_id=${biz.id}`,
     });
 
     return NextResponse.json({ ok: true, url: session.url });
