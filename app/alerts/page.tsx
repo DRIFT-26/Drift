@@ -1,6 +1,7 @@
 // app/alerts/page.tsx
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { formatReason } from "@/lib/executive/reasons";
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 
@@ -142,14 +143,9 @@ export default async function AlertsIndexPage() {
     const engine = String(last?.meta?.engine ?? "—");
     const updated = b?.last_drift_at ?? null;
     const reason =
-      Array.isArray(last?.reasons) && last.reasons.length > 0
-        ? typeof last.reasons[0] === "string"
-          ? last.reasons[0]
-          : last.reasons[0]?.message ??
-            last.reasons[0]?.label ??
-            last.reasons[0]?.reason ??
-            "Signal detected"
-        : "No signal detail available";
+  Array.isArray(last?.reasons) && last.reasons.length > 0
+    ? formatReason(last.reasons[0])
+    : "Signal detected - Review Recommended";
 
     return {
       ...b,
