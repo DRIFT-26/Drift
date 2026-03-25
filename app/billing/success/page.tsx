@@ -70,6 +70,9 @@ export default async function BillingSuccessPage({
             continue watching revenue quietly in the background and surface
             movement when it materially matters.
           </p>
+          <div className="mt-4 text-sm text-white/65">
+  Your next DRIFT signal will arrive as soon as movement is detected.
+</div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
@@ -90,6 +93,9 @@ export default async function BillingSuccessPage({
               <div className="mt-2 text-sm font-semibold text-white/85">
                 {planLabel}
               </div>
+              <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+  DRIFT is continuously evaluating your revenue patterns in the background.
+</div>
             </div>
           </div>
 
@@ -110,8 +116,7 @@ export default async function BillingSuccessPage({
           </div>
 
           <div className="mt-6 text-[11px] leading-relaxed text-white/45">
-            DRIFT will continue sending operator-grade signal alerts as revenue
-            movement is detected.
+            DRIFT will continue delivering signal alerts as revenue movement becomes actionable.
           </div>
         </div>
 

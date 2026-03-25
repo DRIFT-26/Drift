@@ -215,7 +215,7 @@ export function renderMonitoringStartedEmail({
 Business: ${businessName}
 Source Connected: ${source}
 
-DRIFT is now watching your revenue.
+DRIFT is now tracking your revenue in real time.
 
 The system will quietly monitor revenue patterns and notify you only when something materially changes.
 
@@ -373,6 +373,13 @@ ${openDriftUrl}
 `
   : "";
 
+const monitoringFooter =
+  billingStatus === "active" || billingStatus === "trialing"
+    ? `Monitoring remains active. No action required.
+
+`
+    : "";  
+
 const text = `DRIFT Weekly Pulse
 Window: ${windowStart} → ${windowEnd}
 
@@ -388,7 +395,7 @@ Summary
 ${trialBlock ? `${trialBlock}
 ` : ""}${prompt}
 
-${driftLinkBlock}
+${monitoringFooter}${driftLinkBlock}
 — DRIFT
 Revenue control for operators
 `;
@@ -414,9 +421,9 @@ export function renderTrialLifecycleEmail({
       : "DRIFT Trial Status — Expired";
 
   const statusLine =
-    daysRemaining > 0
-      ? `Monitoring remains active for ${daysRemaining} more day${daysRemaining === 1 ? "" : "s"}.`
-      : "Monitoring is now paused.";
+  daysRemaining > 0
+    ? `Monitoring remains active — DRIFT is tracking your revenue in real time for ${daysRemaining} more day${daysRemaining === 1 ? "" : "s"}.`
+    : "Monitoring is now paused.";
 
   const actionLine =
     daysRemaining > 0
