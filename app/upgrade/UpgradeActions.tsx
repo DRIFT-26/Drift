@@ -66,6 +66,9 @@ export default function UpgradeActions({
           </div>
           <div className="mt-2 text-2xl font-black">$499</div>
           <div className="mt-1 text-sm text-white/60">per month</div>
+          <div className="mt-4 text-xs text-white/50">
+  Cancel anytime · No long-term commitment
+</div>
           <p className="mt-4 text-sm leading-relaxed text-white/65">
             Full DRIFT monitoring for operators joining after the founding
             cohort closes.
@@ -91,6 +94,9 @@ export default function UpgradeActions({
             <div className="mt-1 text-sm text-white/60">
               per month · first 12 months
             </div>
+            <div className="mt-4 text-xs text-white/50">
+  Cancel anytime · No long-term commitment
+</div>
             <p className="mt-4 text-sm leading-relaxed text-white/65">
               Early operator pricing for teams joining DRIFT during the founding
               cohort window.
@@ -115,8 +121,11 @@ export default function UpgradeActions({
             </div>
             <div className="mt-2 text-2xl font-black">$399</div>
             <div className="mt-1 text-sm text-white/60">
-              Per Month · Locked-in Founder Pricing
+              Per Month · Lifetime Locked-in Founder Pricing
             </div>
+            <div className="mt-4 text-xs text-white/50">
+  Cancel anytime · No long-term commitment
+</div>
             <p className="mt-4 text-sm leading-relaxed text-white/65">
               Lock in founder pricing permanently and continue monitoring with
               DRIFT long-term.
