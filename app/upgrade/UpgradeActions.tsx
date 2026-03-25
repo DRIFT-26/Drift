@@ -60,10 +60,13 @@ export default function UpgradeActions({
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 ring-1 ring-white/10">
+        <div className="rounded-2xl border border-white/20 bg-white/10 p-6 ring-2 ring-white/20">
           <div className="text-xs font-mono tracking-wide text-white/45">
             STANDARD
           </div>
+          <div className="mb-3 inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-black">
+  Recommended
+</div>
           <div className="mt-2 text-2xl font-black">$499</div>
           <div className="mt-1 text-sm text-white/60">per month</div>
           <div className="mt-4 text-xs text-white/50">

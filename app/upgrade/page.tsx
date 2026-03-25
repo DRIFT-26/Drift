@@ -41,13 +41,17 @@ export default async function UpgradePage({
           </div>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-            Continue monitoring with DRIFT.
-          </h1>
+  Keep DRIFT monitoring your revenue.
+</h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-sm text-white/65">
-            Upgrade to keep revenue signal monitoring, alert delivery, and operator previews active.
-          </p>
+  DRIFT is already tracking your revenue signals. Upgrade to maintain continuous monitoring and alert coverage.
+</p>
+<div className="mt-4 text-center text-xs text-white/40">
+  Continuous monitoring requires an active plan.
+</div>
         </div>
+        
 
         {canceled && (
   <div className="mx-auto mt-6 max-w-2xl rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
