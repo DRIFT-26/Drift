@@ -64,12 +64,16 @@ function safeDateLabel(v: any) {
   });
 }
 
-function mriLabel(score: number | null) {
+function mriLabel(score: number | null, status: DriftStatus) {
   if (typeof score !== "number") return "—";
-  if (score <= 30) return "At Risk";
-  if (score <= 60) return "Watch";
-  if (score <= 85) return "Healthy";
-  return "Stable";
+
+  // Status overrides interpretation
+  if (status === "attention") return "At Risk";
+  if (status === "softening") return "Unstable";
+  if (status === "watch") return "Developing";
+  if (status === "stable") return "Stable";
+
+  return "—";
 }
 
 export default async function AlertsIndexPage() {
@@ -128,7 +132,7 @@ export default async function AlertsIndexPage() {
     );
   }
 
-  const normalized = (businesses ?? []).map((b: any) => {
+    const normalized = (businesses ?? []).map((b: any) => {
     const last = b?.last_drift ?? null;
     const status = normalizeStatus(last?.status ?? "stable");
     const score =
@@ -137,6 +141,15 @@ export default async function AlertsIndexPage() {
         : null;
     const engine = String(last?.meta?.engine ?? "—");
     const updated = b?.last_drift_at ?? null;
+    const reason =
+      Array.isArray(last?.reasons) && last.reasons.length > 0
+        ? typeof last.reasons[0] === "string"
+          ? last.reasons[0]
+          : last.reasons[0]?.message ??
+            last.reasons[0]?.label ??
+            last.reasons[0]?.reason ??
+            "Signal detected"
+        : "No signal detail available";
 
     return {
       ...b,
@@ -144,6 +157,7 @@ export default async function AlertsIndexPage() {
       _score: score,
       _engine: engine,
       _updated: updated,
+      _reason: reason,
     };
   });
 
@@ -346,7 +360,7 @@ export default async function AlertsIndexPage() {
                     transition: "transform 120ms ease, box-shadow 120ms ease",
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ minWidth: 0 }}>
                     <div
                       style={{
                         fontSize: 16,
@@ -358,6 +372,21 @@ export default async function AlertsIndexPage() {
                       }}
                     >
                       {b?.name ?? "Business"}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 13,
+                        color: "#344054",
+                        fontWeight: 700,
+                        lineHeight: 1.4,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {b._reason}
                     </div>
 
                     <div
@@ -423,7 +452,7 @@ export default async function AlertsIndexPage() {
                       title="Momentum Risk Index (MRI): measures how stable or at-risk revenue is relative to baseline"
                     >
                       MRI: {typeof score === "number" ? score : "—"}
-                      {typeof score === "number" ? ` · ${mriLabel(score)}` : ""}
+                      {typeof score === "number" ? ` · ${mriLabel(score, b._status)}` : ""}
                     </div>
                   </div>
                 </Link>
