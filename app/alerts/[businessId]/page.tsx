@@ -244,11 +244,18 @@ const textMuted = "#6B7280";
 
 export default async function BusinessAlertsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ businessId?: string }> | { businessId?: string };
+  searchParams?: Promise<{ eventId?: string }> | { eventId?: string };
 }) {
   const resolved = (await Promise.resolve(params)) as { businessId?: string };
   const businessId = resolved?.businessId;
+  const resolvedSearch = searchParams
+  ? ((await Promise.resolve(searchParams)) as { eventId?: string })
+  : {};
+
+const eventId = resolvedSearch?.eventId ?? "";
 
   if (!businessId || businessId === "undefined" || !isUuidLike(businessId)) {
     return (
@@ -815,67 +822,114 @@ export default async function BusinessAlertsPage({
             </div>
 
             {timeline && timeline.length > 0 ? (
-              <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
-                {timeline.map((item) => {
-                  const itemStatus = timelineStatusFromEmailType(item.email_type);
-                  const itemTone = statusTone(itemStatus);
+  <div
+    style={{
+      marginTop: 16,
+      position: "relative",
+      paddingLeft: 20,
+      display: "grid",
+      gap: 14,
+    }}
+  >
+    <div
+      style={{
+        position: "absolute",
+        left: 7,
+        top: 4,
+        bottom: 4,
+        width: 2,
+        background: "rgba(255,255,255,0.08)",
+      }}
+    />
 
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 12,
-                        padding: 14,
-                        borderRadius: 14,
-                        background: subCardBg,
-                        border,
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 800,
-                            color: textPrimary,
-                          }}
-                        >
-                          {timelineHeadline(item.subject)}
-                        </div>
-                        <div style={{ marginTop: 4, fontSize: 12, color: textSecondary }}>
-                          {safeDateTimeLabel(item.created_at)}
-                          {item.email_type ? (
-                            <>
-                              {" · "}
-                              <span style={{ fontWeight: 700 }}>
-                                {item.email_type}
-                              </span>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
+    {timeline.map((item) => {
+      const itemStatus = timelineStatusFromEmailType(item.email_type);
+      const itemTone = statusTone(itemStatus);
 
-                      <div
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          background: itemTone.bg,
-                          color: itemTone.fg,
-                          border: `1px solid ${itemTone.border}`,
-                          fontWeight: 800,
-                          fontSize: 12,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {statusLabel(itemStatus)}
-                      </div>
-                    </div>
-                  );
-                })}
+      return (
+        <div
+          key={item.id}
+          id={item.id}
+          style={{
+  position: "relative",
+  display: "grid",
+  gap: 6,
+  background:
+    eventId === item.id ? "rgba(255,255,255,0.04)" : "transparent",
+  borderRadius: 12,
+  padding:
+    eventId === item.id ? "10px 10px 10px 18px" : "0 0 0 18px",
+}}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: -1,
+              top: 6,
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              background: itemTone.fg,
+              boxShadow: `0 0 0 4px ${itemTone.bg}`,
+            }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 800,
+                  color: textPrimary,
+                }}
+              >
+                {timelineHeadline(item.subject)}
               </div>
-            ) : (
+
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: textSecondary,
+                }}
+              >
+                {safeDateTimeLabel(item.created_at)}
+                {item.email_type ? (
+                  <>
+                    {" · "}
+                    <span style={{ fontWeight: 700 }}>{item.email_type}</span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                background: itemTone.bg,
+                color: itemTone.fg,
+                border: `1px solid ${itemTone.border}`,
+                fontWeight: 800,
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {statusLabel(itemStatus)}
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+) : (
               <div style={{ marginTop: 14, color: textSecondary, fontSize: 13 }}>
                 No prior signal history is available yet for this business.
               </div>
