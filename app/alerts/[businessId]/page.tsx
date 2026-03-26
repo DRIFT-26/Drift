@@ -53,6 +53,14 @@ type BusinessRow = {
   created_at: string | null;
 };
 
+type EmailLogRow = {
+  id: string;
+  business_id: string | null;
+  email_type: string | null;
+  created_at: string | null;
+  subject: string | null;
+};
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -155,9 +163,8 @@ function safeDateTimeLabel(v: unknown) {
   });
 }
 
-function recommendedAction(status: DriftStatus, reasons: any[]) {
+function recommendedAction(status: DriftStatus, reasons: DriftReason[]) {
   const primary = reasons?.[0];
-
   const code = String(primary?.code ?? "").toUpperCase();
 
   if (code === "REV_FREQ_DROP_30") {
@@ -176,7 +183,6 @@ function recommendedAction(status: DriftStatus, reasons: any[]) {
     return "Allow more data to accumulate before making operational changes.";
   }
 
-  // fallback by status
   if (status === "attention") {
     return "Investigate immediately and prioritize corrective action within 24–48 hours.";
   }
@@ -190,6 +196,26 @@ function recommendedAction(status: DriftStatus, reasons: any[]) {
   }
 
   return "Maintain current performance and monitor for changes.";
+}
+
+function timelineStatusFromEmailType(emailType: string | null | undefined): DriftStatus {
+  const value = String(emailType ?? "").toLowerCase();
+  if (value === "daily_alert") return "attention";
+  if (value === "daily_monitor") return "watch";
+  return "stable";
+}
+
+function timelineHeadline(subject: string | null | undefined): string {
+  const text = String(subject ?? "").trim();
+  if (!text) return "Signal event recorded";
+
+  const cleaned = text
+    .replace(/^DRIFT\s*(Daily Monitor|Weekly Pulse|Trial Status|Monitoring Started)\s*—\s*/i, "")
+    .replace(/^DRIFT\s*—\s*/i, "")
+    .replace(/\s*\([^)]*\)\s*$/g, "")
+    .trim();
+
+  return cleaned || text;
 }
 
 export default async function BusinessAlertsPage({
@@ -232,6 +258,15 @@ export default async function BusinessAlertsPage({
     )
     .eq("id", businessId)
     .single<BusinessRow>();
+
+  const { data: timeline } = await supabase
+    .from("email_logs")
+    .select("id,business_id,email_type,created_at,subject")
+    .eq("business_id", businessId)
+    .in("email_type", ["daily_alert", "daily_monitor", "weekly_pulse"])
+    .order("created_at", { ascending: false })
+    .limit(10)
+    .returns<EmailLogRow[]>();
 
   if (error || !business) {
     return (
@@ -369,18 +404,18 @@ export default async function BusinessAlertsPage({
             </div>
 
             <div
-  style={{
-    marginTop: 6,
-    fontSize: 13,
-    color: "#667085",
-    lineHeight: 1.5,
-  }}
->
-  <span style={{ color: "#101828", fontWeight: 800 }}>
-    Recommended Action:
-  </span>{" "}
-  {recommendedAction(driftStatus, driftReasons)}
-</div>
+              style={{
+                marginTop: 6,
+                fontSize: 13,
+                color: "#667085",
+                lineHeight: 1.5,
+              }}
+            >
+              <span style={{ color: "#101828", fontWeight: 800 }}>
+                Recommended Action:
+              </span>{" "}
+              {recommendedAction(driftStatus, driftReasons)}
+            </div>
 
             <div style={{ marginTop: 8, fontSize: 13, color: "#667085" }}>
               Source:{" "}
@@ -566,39 +601,39 @@ export default async function BusinessAlertsPage({
               WHY THIS STATUS
             </div>
             <div
-  style={{
-    marginTop: 8,
-    fontSize: 15,
-    fontWeight: 900,
-    color: "#101828",
-  }}
->
-  {driftReasons.length
-    ? "What DRIFT is seeing right now"
-    : "No material negative signals detected"}
-</div>
+              style={{
+                marginTop: 8,
+                fontSize: 15,
+                fontWeight: 900,
+                color: "#101828",
+              }}
+            >
+              {driftReasons.length
+                ? "What DRIFT is seeing right now"
+                : "No material negative signals detected"}
+            </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-  These are the signal conditions currently shaping this status.
-</div>
+              These are the signal conditions currently shaping this status.
+            </div>
 
             {driftReasons.length ? (
-  <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
-    {driftReasons.map((r, i) => (
-      <li key={i} style={{ marginBottom: 12, lineHeight: 1.5 }}>
-        <div style={{ fontWeight: 900 }}>
-          {String(r?.code ?? "") === "BASELINE_WARMUP"
-            ? "Baseline Building"
-            : formatReason(r)}
-        </div>
-        {r?.detail ? (
-          <div style={{ marginTop: 2, color: "#667085", fontSize: 13 }}>
-            {String(r.detail)}
-          </div>
-        ) : null}
-      </li>
-    ))}
-  </ul>
-) : (
+              <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
+                {driftReasons.map((r, i) => (
+                  <li key={i} style={{ marginBottom: 12, lineHeight: 1.5 }}>
+                    <div style={{ fontWeight: 900 }}>
+                      {String(r?.code ?? "") === "BASELINE_WARMUP"
+                        ? "Baseline Building"
+                        : formatReason(r)}
+                    </div>
+                    {r?.detail ? (
+                      <div style={{ marginTop: 2, color: "#667085", fontSize: 13 }}>
+                        {String(r.detail)}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
               <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
                 DRIFT currently reads as stable. When signals appear, you’ll see
                 them here.
@@ -617,61 +652,160 @@ export default async function BusinessAlertsPage({
             }}
           >
             <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
-  BUSINESS CONTEXT
-</div>
+              BUSINESS CONTEXT
+            </div>
 
-<div
-  style={{
-    marginTop: 10,
-    fontSize: 13,
-    color: "#101828",
-    fontWeight: 800,
-  }}
->
-  Monthly Revenue
-</div>
-<div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
-  {formatMoney(monthlyRevenueCents)}
-</div>
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 13,
+                color: "#101828",
+                fontWeight: 800,
+              }}
+            >
+              Monthly Revenue
+            </div>
+            <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+              {formatMoney(monthlyRevenueCents)}
+            </div>
 
-<div
-  style={{
-    marginTop: 12,
-    fontSize: 13,
-    color: "#101828",
-    fontWeight: 800,
-  }}
->
-  Risk Projection
-</div>
-<div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
-  Current status indicates <span style={{ color: "#101828", fontWeight: 800 }}>{riskLabel}</span> near-term risk.
-</div>
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: 13,
+                color: "#101828",
+                fontWeight: 800,
+              }}
+            >
+              Risk Projection
+            </div>
+            <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+              Current status indicates{" "}
+              <span style={{ color: "#101828", fontWeight: 800 }}>
+                {riskLabel}
+              </span>{" "}
+              near-term risk.
+            </div>
 
-<div
-  style={{
-    marginTop: 12,
-    fontSize: 13,
-    color: "#101828",
-    fontWeight: 800,
-  }}
->
-  Signal ID
-</div>
-<div
-  style={{
-    marginTop: 4,
-    fontSize: 12,
-    color: "#667085",
-    wordBreak: "break-all",
-  }}
->
-  <code>{businessId}</code>
-</div>
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: 13,
+                color: "#101828",
+                fontWeight: 800,
+              }}
+            >
+              Signal ID
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 12,
+                color: "#667085",
+                wordBreak: "break-all",
+              }}
+            >
+              <code>{businessId}</code>
+            </div>
 
-<div style={{ marginTop: 12, fontSize: 12, color: "#667085" }}>
-  This context helps frame the likely business impact of the current signal.
-</div>
+            <div style={{ marginTop: 12, fontSize: 12, color: "#667085" }}>
+              This context helps frame the likely business impact of the current signal.
+            </div>
+          </div>
+
+          <div
+            style={{
+              gridColumn: "span 12",
+              background: "#FFFFFF",
+              border: "1px solid #EAECF0",
+              borderRadius: 18,
+              padding: 18,
+              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+              SIGNAL TIMELINE
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 15,
+                fontWeight: 900,
+                color: "#101828",
+              }}
+            >
+              Recent DRIFT signal history for this business
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+              A chronological view of recent signal events and alerts delivered.
+            </div>
+
+            {timeline && timeline.length > 0 ? (
+              <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+                {timeline.map((item) => {
+                  const itemStatus = timelineStatusFromEmailType(item.email_type);
+                  const itemTone = statusTone(itemStatus);
+
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: 14,
+                        borderRadius: 14,
+                        background: "#F9FAFB",
+                        border: "1px solid #EAECF0",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 800,
+                            color: "#101828",
+                          }}
+                        >
+                          {timelineHeadline(item.subject)}
+                        </div>
+                        <div style={{ marginTop: 4, fontSize: 12, color: "#667085" }}>
+                          {safeDateTimeLabel(item.created_at)}
+                          {item.email_type ? (
+                            <>
+                              {" · "}
+                              <span style={{ fontWeight: 700 }}>
+                                {item.email_type}
+                              </span>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          background: itemTone.bg,
+                          color: itemTone.fg,
+                          border: `1px solid ${itemTone.border}`,
+                          fontWeight: 800,
+                          fontSize: 12,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {statusLabel(itemStatus)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
+                No prior signal history is available yet for this business.
+              </div>
+            )}
           </div>
         </div>
       </div>
