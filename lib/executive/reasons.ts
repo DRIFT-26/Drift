@@ -3,13 +3,13 @@ export function formatReason(r: any): string {
 
   switch (code) {
     case "REV_FREQ_DROP_30":
-      return "Review frequency down 30%+";
+  return "Review activity is materially below baseline";
 
-    case "ENG_DROP_30":
-      return "Engagement down 30%+";
+case "ENG_DROP_30":
+  return "Engagement is trending below expected range";
 
-    case "SENTIMENT_DROP_50":
-      return "Customer sentiment declining";
+case "SENTIMENT_DROP_50":
+  return "Customer sentiment is deteriorating";
 
     default:
       // fallback to best available human-readable value
