@@ -508,40 +508,39 @@ export default async function BusinessAlertsPage({
               WHY THIS STATUS
             </div>
             <div
-              style={{
-                marginTop: 8,
-                fontSize: 15,
-                fontWeight: 900,
-                color: "#101828",
-              }}
-            >
-              {driftReasons.length
-                ? "Signals driving this status"
-                : "No negative signals detected"}
-            </div>
+  style={{
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: 900,
+    color: "#101828",
+  }}
+>
+  {driftReasons.length
+    ? "What DRIFT is seeing right now"
+    : "No material negative signals detected"}
+</div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-              Short, specific, and built for operator review.
-            </div>
+  These are the signal conditions currently shaping this status.
+</div>
 
             {driftReasons.length ? (
-              <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
-                {driftReasons.map((r, i) => (
-                  <li key={i} style={{ marginBottom: 10, lineHeight: 1.45 }}>
-                    <span style={{ fontWeight: 900 }}>
-                      {String(r?.code ?? "") === "BASELINE_WARMUP"
-                        ? "Baseline Building"
-                        : formatReason(r)}
-                    </span>
-                    {r?.detail ? (
-                      <>
-                        <span style={{ color: "#667085" }}> — </span>
-                        <span style={{ color: "#667085" }}>{String(r.detail)}</span>
-                      </>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
+  <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
+    {driftReasons.map((r, i) => (
+      <li key={i} style={{ marginBottom: 12, lineHeight: 1.5 }}>
+        <div style={{ fontWeight: 900 }}>
+          {String(r?.code ?? "") === "BASELINE_WARMUP"
+            ? "Baseline Building"
+            : formatReason(r)}
+        </div>
+        {r?.detail ? (
+          <div style={{ marginTop: 2, color: "#667085", fontSize: 13 }}>
+            {String(r.detail)}
+          </div>
+        ) : null}
+      </li>
+    ))}
+  </ul>
+) : (
               <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
                 DRIFT currently reads as stable. When signals appear, you’ll see
                 them here.
