@@ -661,10 +661,28 @@ export default async function BusinessAlertsPage({
                 {driftReasons.map((r, i) => (
                   <li key={i} style={{ marginBottom: 16, lineHeight: 1.6 }}>
                     <div style={{ fontWeight: 900 }}>
-                      {String(r?.code ?? "") === "BASELINE_WARMUP"
-                        ? "Baseline Building"
-                        : formatReason(r)}
-                    </div>
+  {String(r?.code ?? "") === "BASELINE_WARMUP"
+    ? "Baseline Building"
+    : formatReason(r)}
+</div>
+
+{r?.code === "REV_FREQ_DROP_30" && (
+  <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
+    Check customer return frequency and recent transaction patterns.
+  </div>
+)}
+
+{r?.code === "ENG_DROP_30" && (
+  <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
+    Review campaign performance and recent engagement drop-offs.
+  </div>
+)}
+
+{r?.code === "SENTIMENT_DROP_50" && (
+  <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
+    Audit customer feedback and recent experience signals.
+  </div>
+)}
                     {r?.detail ? (
                       <div style={{ marginTop: 2, color: textSecondary, fontSize: 13 }}>
                         {String(r.detail)}
