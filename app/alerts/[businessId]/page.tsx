@@ -87,14 +87,30 @@ function formatPct(value: number | null | undefined) {
 function statusTone(status: DriftStatus) {
   switch (status) {
     case "attention":
-      return { bg: "#FEF3F2", fg: "#B42318", border: "#FECDCA" };
+      return {
+        bg: "rgba(255, 107, 107, 0.12)",
+        fg: "#FF8A8A",
+        border: "rgba(255, 107, 107, 0.24)",
+      };
     case "softening":
-      return { bg: "#FFFAEB", fg: "#B54708", border: "#FEDF89" };
+      return {
+        bg: "rgba(255, 176, 32, 0.12)",
+        fg: "#FFC266",
+        border: "rgba(255, 176, 32, 0.24)",
+      };
     case "watch":
-      return { bg: "#F0F9FF", fg: "#026AA2", border: "#B9E6FE" };
+      return {
+        bg: "rgba(90, 169, 255, 0.12)",
+        fg: "#8BC1FF",
+        border: "rgba(90, 169, 255, 0.24)",
+      };
     case "stable":
     default:
-      return { bg: "#ECFDF3", fg: "#027A48", border: "#ABEFC6" };
+      return {
+        bg: "rgba(74, 222, 128, 0.12)",
+        fg: "#86EFAC",
+        border: "rgba(74, 222, 128, 0.24)",
+      };
   }
 }
 
@@ -218,6 +234,14 @@ function timelineHeadline(subject: string | null | undefined): string {
   return cleaned || text;
 }
 
+const pageBg = "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14";
+const cardBg = "#11161C";
+const subCardBg = "#0F141A";
+const border = "1px solid rgba(255,255,255,0.06)";
+const textPrimary = "#E6EAF0";
+const textSecondary = "#9AA4B2";
+const textMuted = "#6B7280";
+
 export default async function BusinessAlertsPage({
   params,
 }: {
@@ -233,16 +257,16 @@ export default async function BusinessAlertsPage({
           padding: 24,
           fontFamily:
             'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-          background: "#F2F4F7",
+          background: pageBg,
           minHeight: "100vh",
-          color: "#101828",
+          color: textPrimary,
         }}
       >
         <h1 style={{ fontSize: 22, fontWeight: 900 }}>Executive Signal</h1>
-        <div style={{ marginTop: 10, color: "#B42318" }}>
+        <div style={{ marginTop: 10, color: "#FF8A8A" }}>
           Missing business ID in route params.
         </div>
-        <div style={{ marginTop: 10, color: "#667085" }}>
+        <div style={{ marginTop: 10, color: textSecondary }}>
           Try: <code>/alerts/&lt;uuid&gt;</code>
         </div>
       </div>
@@ -275,17 +299,17 @@ export default async function BusinessAlertsPage({
           padding: 24,
           fontFamily:
             'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-          background: "#F2F4F7",
+          background: pageBg,
           minHeight: "100vh",
-          color: "#101828",
+          color: textPrimary,
         }}
       >
         <h1 style={{ fontSize: 22, fontWeight: 900 }}>Executive Signal</h1>
-        <div style={{ marginTop: 10, color: "#B42318" }}>
+        <div style={{ marginTop: 10, color: "#FF8A8A" }}>
           Failed to load business: {error?.message ?? "not_found"}
         </div>
         <div style={{ marginTop: 10 }}>
-          <Link href="/alerts" style={{ color: "#175CD3" }}>
+          <Link href="/alerts" style={{ color: "#8BC1FF" }}>
             ← Back to Alerts
           </Link>
         </div>
@@ -360,10 +384,9 @@ export default async function BusinessAlertsPage({
         padding: 24,
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        background:
-          "radial-gradient(circle at top, rgba(10,42,102,0.06), transparent 30%), #F2F4F7",
+        background: pageBg,
         minHeight: "100vh",
-        color: "#101828",
+        color: textPrimary,
       }}
     >
       <div style={{ maxWidth: 1160, margin: "0 auto" }}>
@@ -376,7 +399,7 @@ export default async function BusinessAlertsPage({
           }}
         >
           <div>
-            <div style={{ fontSize: 12, color: "#667085", letterSpacing: 0.5 }}>
+            <div style={{ fontSize: 12, color: textSecondary, letterSpacing: 0.5 }}>
               DRIFT / EXECUTIVE SIGNAL
             </div>
             <h1
@@ -385,7 +408,7 @@ export default async function BusinessAlertsPage({
                 fontSize: 30,
                 lineHeight: 1.1,
                 fontWeight: 950,
-                color: "#101828",
+                color: textPrimary,
               }}
             >
               {business.name ?? "Business"}
@@ -396,7 +419,7 @@ export default async function BusinessAlertsPage({
                 marginTop: 10,
                 fontSize: 16,
                 fontWeight: 800,
-                color: "#344054",
+                color: "#D0D5DD",
                 lineHeight: 1.35,
               }}
             >
@@ -407,31 +430,31 @@ export default async function BusinessAlertsPage({
               style={{
                 marginTop: 6,
                 fontSize: 13,
-                color: "#667085",
+                color: textSecondary,
                 lineHeight: 1.5,
               }}
             >
-              <span style={{ color: "#101828", fontWeight: 800 }}>
+              <span style={{ color: textPrimary, fontWeight: 800 }}>
                 Recommended Action:
               </span>{" "}
               {recommendedAction(driftStatus, driftReasons)}
             </div>
 
-            <div style={{ marginTop: 8, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 8, fontSize: 13, color: textSecondary }}>
               Source:{" "}
-              <span style={{ color: "#101828", fontWeight: 700 }}>
+              <span style={{ color: textPrimary, fontWeight: 700 }}>
                 {sourceLabel(engine)}
               </span>
               {" · "}
               Updated:{" "}
-              <span style={{ color: "#101828", fontWeight: 700 }}>
+              <span style={{ color: textPrimary, fontWeight: 700 }}>
                 {safeDateTimeLabel(business.last_drift_at)}
               </span>
               {direction ? (
                 <>
                   {" · "}
                   Momentum:{" "}
-                  <span style={{ color: "#101828", fontWeight: 700 }}>
+                  <span style={{ color: textPrimary, fontWeight: 700 }}>
                     {direction === "up"
                       ? "Rising"
                       : direction === "down"
@@ -463,11 +486,10 @@ export default async function BusinessAlertsPage({
               style={{
                 padding: "8px 12px",
                 borderRadius: 12,
-                background: "#FFFFFF",
-                border: "1px solid #EAECF0",
-                boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+                background: subCardBg,
+                border,
                 fontSize: 12,
-                color: "#344054",
+                color: "#D0D5DD",
                 fontWeight: 700,
               }}
               title="Risk projection label"
@@ -477,7 +499,7 @@ export default async function BusinessAlertsPage({
 
             <Link
               href="/alerts"
-              style={{ color: "#175CD3", fontWeight: 700, fontSize: 13 }}
+              style={{ color: "#8BC1FF", fontWeight: 700, fontSize: 13 }}
             >
               Back
             </Link>
@@ -495,14 +517,13 @@ export default async function BusinessAlertsPage({
           <div
             style={{
               gridColumn: "span 4",
-              background: "#FFFFFF",
-              border: "1px solid #EAECF0",
+              background: cardBg,
+              border,
               borderRadius: 18,
               padding: 16,
-              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
             }}
           >
-            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               MRI SCORE
             </div>
             <div
@@ -510,14 +531,14 @@ export default async function BusinessAlertsPage({
                 marginTop: 8,
                 fontSize: 34,
                 fontWeight: 950,
-                color: "#101828",
+                color: textPrimary,
               }}
             >
               {typeof mriScore === "number" ? mriScore : "—"}
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
               Momentum Risk Index ·{" "}
-              <span style={{ color: "#101828", fontWeight: 800 }}>
+              <span style={{ color: textPrimary, fontWeight: 800 }}>
                 {mriLabel(mriScore, driftStatus)}
               </span>
             </div>
@@ -526,14 +547,13 @@ export default async function BusinessAlertsPage({
           <div
             style={{
               gridColumn: "span 4",
-              background: "#FFFFFF",
-              border: "1px solid #EAECF0",
+              background: cardBg,
+              border,
               borderRadius: 18,
               padding: 16,
-              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
             }}
           >
-            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               NET REVENUE (14D)
             </div>
             <div
@@ -541,17 +561,17 @@ export default async function BusinessAlertsPage({
                 marginTop: 8,
                 fontSize: 28,
                 fontWeight: 950,
-                color: "#101828",
+                color: textPrimary,
               }}
             >
               {formatMoney(currentNet14d)}
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
               Baseline: {formatMoney(baselineNet14d)}
               {typeof deltaPct === "number" ? (
                 <>
                   {" · "}
-                  <span style={{ color: "#101828", fontWeight: 800 }}>
+                  <span style={{ color: textPrimary, fontWeight: 800 }}>
                     Δ {(deltaPct * 100).toFixed(0)}%
                   </span>
                 </>
@@ -562,14 +582,13 @@ export default async function BusinessAlertsPage({
           <div
             style={{
               gridColumn: "span 4",
-              background: "#FFFFFF",
-              border: "1px solid #EAECF0",
+              background: cardBg,
+              border,
               borderRadius: 18,
               padding: 16,
-              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
             }}
           >
-            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               REFUND RATE (14D)
             </div>
             <div
@@ -577,12 +596,12 @@ export default async function BusinessAlertsPage({
                 marginTop: 8,
                 fontSize: 28,
                 fontWeight: 950,
-                color: "#101828",
+                color: textPrimary,
               }}
             >
               {formatPct(refundRateCurrent)}
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
               Baseline: {formatPct(refundRateBaseline)}
             </div>
           </div>
@@ -590,14 +609,13 @@ export default async function BusinessAlertsPage({
           <div
             style={{
               gridColumn: "span 8",
-              background: "#FFFFFF",
-              border: "1px solid #EAECF0",
+              background: cardBg,
+              border,
               borderRadius: 18,
               padding: 18,
-              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
             }}
           >
-            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               WHY THIS STATUS
             </div>
             <div
@@ -605,19 +623,19 @@ export default async function BusinessAlertsPage({
                 marginTop: 8,
                 fontSize: 15,
                 fontWeight: 900,
-                color: "#101828",
+                color: textPrimary,
               }}
             >
               {driftReasons.length
                 ? "What DRIFT is seeing right now"
                 : "No material negative signals detected"}
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
               These are the signal conditions currently shaping this status.
             </div>
 
             {driftReasons.length ? (
-              <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
+              <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: textPrimary }}>
                 {driftReasons.map((r, i) => (
                   <li key={i} style={{ marginBottom: 12, lineHeight: 1.5 }}>
                     <div style={{ fontWeight: 900 }}>
@@ -626,7 +644,7 @@ export default async function BusinessAlertsPage({
                         : formatReason(r)}
                     </div>
                     {r?.detail ? (
-                      <div style={{ marginTop: 2, color: "#667085", fontSize: 13 }}>
+                      <div style={{ marginTop: 2, color: textSecondary, fontSize: 13 }}>
                         {String(r.detail)}
                       </div>
                     ) : null}
@@ -634,7 +652,7 @@ export default async function BusinessAlertsPage({
                 ))}
               </ul>
             ) : (
-              <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
+              <div style={{ marginTop: 14, color: textSecondary, fontSize: 13 }}>
                 DRIFT currently reads as stable. When signals appear, you’ll see
                 them here.
               </div>
@@ -644,14 +662,13 @@ export default async function BusinessAlertsPage({
           <div
             style={{
               gridColumn: "span 4",
-              background: "#FFFFFF",
-              border: "1px solid #EAECF0",
+              background: cardBg,
+              border,
               borderRadius: 18,
               padding: 18,
-              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
             }}
           >
-            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               BUSINESS CONTEXT
             </div>
 
@@ -659,13 +676,13 @@ export default async function BusinessAlertsPage({
               style={{
                 marginTop: 10,
                 fontSize: 13,
-                color: "#101828",
+                color: textPrimary,
                 fontWeight: 800,
               }}
             >
               Monthly Revenue
             </div>
-            <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 4, fontSize: 13, color: textSecondary }}>
               {formatMoney(monthlyRevenueCents)}
             </div>
 
@@ -673,15 +690,15 @@ export default async function BusinessAlertsPage({
               style={{
                 marginTop: 12,
                 fontSize: 13,
-                color: "#101828",
+                color: textPrimary,
                 fontWeight: 800,
               }}
             >
               Risk Projection
             </div>
-            <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 4, fontSize: 13, color: textSecondary }}>
               Current status indicates{" "}
-              <span style={{ color: "#101828", fontWeight: 800 }}>
+              <span style={{ color: textPrimary, fontWeight: 800 }}>
                 {riskLabel}
               </span>{" "}
               near-term risk.
@@ -691,7 +708,7 @@ export default async function BusinessAlertsPage({
               style={{
                 marginTop: 12,
                 fontSize: 13,
-                color: "#101828",
+                color: textPrimary,
                 fontWeight: 800,
               }}
             >
@@ -701,14 +718,14 @@ export default async function BusinessAlertsPage({
               style={{
                 marginTop: 4,
                 fontSize: 12,
-                color: "#667085",
+                color: textSecondary,
                 wordBreak: "break-all",
               }}
             >
               <code>{businessId}</code>
             </div>
 
-            <div style={{ marginTop: 12, fontSize: 12, color: "#667085" }}>
+            <div style={{ marginTop: 12, fontSize: 12, color: textSecondary }}>
               This context helps frame the likely business impact of the current signal.
             </div>
           </div>
@@ -716,14 +733,13 @@ export default async function BusinessAlertsPage({
           <div
             style={{
               gridColumn: "span 12",
-              background: "#FFFFFF",
-              border: "1px solid #EAECF0",
+              background: cardBg,
+              border,
               borderRadius: 18,
               padding: 18,
-              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
             }}
           >
-            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               SIGNAL TIMELINE
             </div>
             <div
@@ -731,12 +747,12 @@ export default async function BusinessAlertsPage({
                 marginTop: 8,
                 fontSize: 15,
                 fontWeight: 900,
-                color: "#101828",
+                color: textPrimary,
               }}
             >
               Recent DRIFT signal history for this business
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
               A chronological view of recent signal events and alerts delivered.
             </div>
 
@@ -756,8 +772,8 @@ export default async function BusinessAlertsPage({
                         gap: 12,
                         padding: 14,
                         borderRadius: 14,
-                        background: "#F9FAFB",
-                        border: "1px solid #EAECF0",
+                        background: subCardBg,
+                        border,
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
@@ -765,12 +781,12 @@ export default async function BusinessAlertsPage({
                           style={{
                             fontSize: 14,
                             fontWeight: 800,
-                            color: "#101828",
+                            color: textPrimary,
                           }}
                         >
                           {timelineHeadline(item.subject)}
                         </div>
-                        <div style={{ marginTop: 4, fontSize: 12, color: "#667085" }}>
+                        <div style={{ marginTop: 4, fontSize: 12, color: textSecondary }}>
                           {safeDateTimeLabel(item.created_at)}
                           {item.email_type ? (
                             <>
@@ -802,7 +818,7 @@ export default async function BusinessAlertsPage({
                 })}
               </div>
             ) : (
-              <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
+              <div style={{ marginTop: 14, color: textSecondary, fontSize: 13 }}>
                 No prior signal history is available yet for this business.
               </div>
             )}
