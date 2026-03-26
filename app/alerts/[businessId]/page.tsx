@@ -5,12 +5,59 @@ import { formatReason } from "@/lib/executive/reasons";
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 type RiskLabel = "Low" | "Moderate" | "High";
+type Direction = "up" | "down" | "flat" | null;
+
+type DriftReason = {
+  code?: string | null;
+  detail?: string | null;
+  label?: string | null;
+  message?: string | null;
+  reason?: string | null;
+};
+
+type RevenueMeta = {
+  baselineNetRevenueCents14d?: number | string | null;
+  baselineNetRevenueCentsPer14d?: number | string | null;
+  currentNetRevenueCents14d?: number | string | null;
+  currentNetRevenueCentsPer14d?: number | string | null;
+  deltaPct?: number | null;
+};
+
+type RefundsMeta = {
+  currentRefundRate?: number | null;
+  refund_rate?: number | null;
+  baselineRefundRate?: number | null;
+};
+
+type DriftMeta = {
+  engine?: string | null;
+  direction?: string | null;
+  mriScore?: number | null;
+  revenue?: RevenueMeta | null;
+  refunds?: RefundsMeta | null;
+};
+
+type LastDrift = {
+  status?: string | null;
+  meta?: DriftMeta | null;
+  reasons?: DriftReason[] | null;
+};
+
+type BusinessRow = {
+  id: string;
+  name: string;
+  last_drift: LastDrift | null;
+  last_drift_at: string | null;
+  monthly_revenue: number | null;
+  monthly_revenue_cents: number | null;
+  created_at: string | null;
+};
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function toNum(v: any, fallback: number | null = 0) {
+function toNum(v: unknown, fallback: number | null = 0) {
   const n = typeof v === "string" ? Number(v) : v;
   return Number.isFinite(n) ? (n as number) : fallback;
 }
@@ -43,7 +90,7 @@ function statusTone(status: DriftStatus) {
   }
 }
 
-function normalizeStatus(raw: any): DriftStatus {
+function normalizeStatus(raw: unknown): DriftStatus {
   const s = String(raw ?? "").toLowerCase();
   if (s === "attention") return "attention";
   if (s === "softening") return "softening";
@@ -51,7 +98,7 @@ function normalizeStatus(raw: any): DriftStatus {
   return "stable";
 }
 
-function normalizeDirection(raw: any): "up" | "down" | "flat" | null {
+function normalizeDirection(raw: unknown): Direction {
   const s = String(raw ?? "").toLowerCase();
   if (s === "up") return "up";
   if (s === "down") return "down";
@@ -88,9 +135,9 @@ function sourceLabel(engine: string) {
   return "Revenue Source";
 }
 
-function safeDateTimeLabel(v: any) {
+function safeDateTimeLabel(v: unknown) {
   if (!v) return "—";
-  const d = new Date(v);
+  const d = new Date(String(v));
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString(undefined, {
     year: "numeric",
@@ -140,7 +187,7 @@ export default async function BusinessAlertsPage({
       "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
     )
     .eq("id", businessId)
-    .single();
+    .single<BusinessRow>();
 
   if (error || !business) {
     return (
@@ -167,56 +214,58 @@ export default async function BusinessAlertsPage({
     );
   }
 
-  const lastDrift = business?.last_drift ?? null;
-  const driftMeta = (lastDrift?.meta ?? {}) as any;
+  const lastDrift = business.last_drift ?? null;
+  const driftMeta: DriftMeta = lastDrift?.meta ?? {};
   const driftStatus = normalizeStatus(lastDrift?.status ?? "stable");
-  const driftReasons = Array.isArray(lastDrift?.reasons) ? lastDrift.reasons : [];
+  const driftReasons: DriftReason[] = Array.isArray(lastDrift?.reasons)
+    ? lastDrift.reasons
+    : [];
 
-  const engine = String(driftMeta?.engine ?? "—");
-  const direction = normalizeDirection(driftMeta?.direction);
+  const engine = String(driftMeta.engine ?? "—");
+  const direction = normalizeDirection(driftMeta.direction);
   const mriScore =
-    typeof driftMeta?.mriScore === "number"
+    typeof driftMeta.mriScore === "number"
       ? clamp(driftMeta.mriScore, 0, 100)
       : null;
 
-  const revenueMeta = driftMeta?.revenue ?? {};
-  const refundsMeta = driftMeta?.refunds ?? {};
+  const revenueMeta: RevenueMeta = driftMeta.revenue ?? {};
+  const refundsMeta: RefundsMeta = driftMeta.refunds ?? {};
 
   const baselineNet14dRaw =
-    revenueMeta?.baselineNetRevenueCents14d ??
-    revenueMeta?.baselineNetRevenueCentsPer14d;
+    revenueMeta.baselineNetRevenueCents14d ??
+    revenueMeta.baselineNetRevenueCentsPer14d;
   const baselineNet14d =
     typeof baselineNet14dRaw === "number"
       ? baselineNet14dRaw
       : toNum(baselineNet14dRaw, null);
 
   const currentNet14dRaw =
-    revenueMeta?.currentNetRevenueCents14d ??
-    revenueMeta?.currentNetRevenueCentsPer14d;
+    revenueMeta.currentNetRevenueCents14d ??
+    revenueMeta.currentNetRevenueCentsPer14d;
   const currentNet14d =
     typeof currentNet14dRaw === "number"
       ? currentNet14dRaw
       : toNum(currentNet14dRaw, null);
 
   const deltaPct =
-    typeof revenueMeta?.deltaPct === "number" ? revenueMeta.deltaPct : null;
+    typeof revenueMeta.deltaPct === "number" ? revenueMeta.deltaPct : null;
 
   const refundRateCurrent =
-    typeof refundsMeta?.currentRefundRate === "number"
+    typeof refundsMeta.currentRefundRate === "number"
       ? refundsMeta.currentRefundRate
-      : typeof refundsMeta?.refund_rate === "number"
+      : typeof refundsMeta.refund_rate === "number"
       ? refundsMeta.refund_rate
       : null;
 
   const refundRateBaseline =
-    typeof refundsMeta?.baselineRefundRate === "number"
+    typeof refundsMeta.baselineRefundRate === "number"
       ? refundsMeta.baselineRefundRate
       : null;
 
   const monthlyRevenueCents =
-    typeof business?.monthly_revenue_cents === "number"
+    typeof business.monthly_revenue_cents === "number"
       ? business.monthly_revenue_cents
-      : typeof business?.monthly_revenue === "number"
+      : typeof business.monthly_revenue === "number"
       ? Math.round(business.monthly_revenue * 100)
       : null;
 
@@ -225,21 +274,7 @@ export default async function BusinessAlertsPage({
 
   const headlineReason =
     driftReasons.length > 0 ? formatReason(driftReasons[0]) : "Signal detected";
-  function operatorPrompt(status: DriftStatus) {
-  if (status === "attention") {
-    return "What do we change in the next 24–48 hours?";
-  }
 
-  if (status === "softening") {
-    return "What’s the fastest intervention to stop the slide?";
-  }
-
-  if (status === "watch") {
-    return "What early movement is worth validating now?";
-  }
-
-  return "What’s worth a closer look to stay sharp?";
-}
   return (
     <div
       style={{
@@ -274,7 +309,7 @@ export default async function BusinessAlertsPage({
                 color: "#101828",
               }}
             >
-              {business?.name ?? "Business"}
+              {business.name ?? "Business"}
             </h1>
 
             <div
@@ -297,7 +332,7 @@ export default async function BusinessAlertsPage({
               {" · "}
               Updated:{" "}
               <span style={{ color: "#101828", fontWeight: 700 }}>
-                {safeDateTimeLabel(business?.last_drift_at)}
+                {safeDateTimeLabel(business.last_drift_at)}
               </span>
               {direction ? (
                 <>
@@ -347,7 +382,10 @@ export default async function BusinessAlertsPage({
               Risk: {riskLabel}
             </div>
 
-            <Link href="/alerts" style={{ color: "#175CD3", fontWeight: 700, fontSize: 13 }}>
+            <Link
+              href="/alerts"
+              style={{ color: "#175CD3", fontWeight: 700, fontSize: 13 }}
+            >
               Back
             </Link>
           </div>
@@ -374,7 +412,14 @@ export default async function BusinessAlertsPage({
             <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
               MRI SCORE
             </div>
-            <div style={{ marginTop: 8, fontSize: 34, fontWeight: 950, color: "#101828" }}>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 34,
+                fontWeight: 950,
+                color: "#101828",
+              }}
+            >
               {typeof mriScore === "number" ? mriScore : "—"}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
@@ -398,7 +443,14 @@ export default async function BusinessAlertsPage({
             <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
               NET REVENUE (14D)
             </div>
-            <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950, color: "#101828" }}>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 28,
+                fontWeight: 950,
+                color: "#101828",
+              }}
+            >
               {formatMoney(currentNet14d)}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
@@ -427,7 +479,14 @@ export default async function BusinessAlertsPage({
             <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
               REFUND RATE (14D)
             </div>
-            <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950, color: "#101828" }}>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 28,
+                fontWeight: 950,
+                color: "#101828",
+              }}
+            >
               {formatPct(refundRateCurrent)}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
@@ -456,7 +515,9 @@ export default async function BusinessAlertsPage({
                 color: "#101828",
               }}
             >
-              {driftReasons.length ? "Signals driving this status" : "No negative signals detected"}
+              {driftReasons.length
+                ? "Signals driving this status"
+                : "No negative signals detected"}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
               Short, specific, and built for operator review.
@@ -464,7 +525,7 @@ export default async function BusinessAlertsPage({
 
             {driftReasons.length ? (
               <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
-                {driftReasons.map((r: any, i: number) => (
+                {driftReasons.map((r, i) => (
                   <li key={i} style={{ marginBottom: 10, lineHeight: 1.45 }}>
                     <span style={{ fontWeight: 900 }}>
                       {String(r?.code ?? "") === "BASELINE_WARMUP"
@@ -482,7 +543,8 @@ export default async function BusinessAlertsPage({
               </ul>
             ) : (
               <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
-                DRIFT currently reads as stable. When signals appear, you’ll see them here.
+                DRIFT currently reads as stable. When signals appear, you’ll see
+                them here.
               </div>
             )}
           </div>
@@ -501,14 +563,28 @@ export default async function BusinessAlertsPage({
               CONTEXT
             </div>
 
-            <div style={{ marginTop: 10, fontSize: 13, color: "#101828", fontWeight: 800 }}>
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 13,
+                color: "#101828",
+                fontWeight: 800,
+              }}
+            >
               Monthly Revenue
             </div>
             <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
               {formatMoney(monthlyRevenueCents)}
             </div>
 
-            <div style={{ marginTop: 12, fontSize: 13, color: "#101828", fontWeight: 800 }}>
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: 13,
+                color: "#101828",
+                fontWeight: 800,
+              }}
+            >
               Business ID
             </div>
             <div
