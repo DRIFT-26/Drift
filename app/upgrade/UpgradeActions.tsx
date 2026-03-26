@@ -50,7 +50,7 @@ export default function UpgradeActions({
       {foundingCohort && (
         <div className="mx-auto mb-6 max-w-3xl text-center">
           <div className="text-xs font-mono tracking-wide text-white/45">
-            FOUNDING COHORT PRICING
+            FOUNDING COHORT ACCESS
           </div>
           <p className="mt-2 text-sm text-white/65">
             These pricing options are limited to selected founding operators and
@@ -62,19 +62,19 @@ export default function UpgradeActions({
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/20 bg-white/10 p-6 ring-2 ring-white/20">
           <div className="text-xs font-mono tracking-wide text-white/45">
-            STANDARD
+            FULL MONITORING
           </div>
-          <div className="mb-3 inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-black">
-  Recommended
-</div>
-          <div className="mt-2 text-2xl font-black">$499</div>
+          <div className="mt-3 inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-black">
+            Recommended
+          </div>
+          <div className="mt-4 text-2xl font-black">$499</div>
           <div className="mt-1 text-sm text-white/60">per month</div>
           <div className="mt-4 text-xs text-white/50">
-  Cancel anytime · No long-term commitment
-</div>
+            Cancel anytime · No long-term commitment
+          </div>
           <p className="mt-4 text-sm leading-relaxed text-white/65">
-            Full DRIFT monitoring for operators joining after the founding
-            cohort closes.
+            Continuous DRIFT monitoring with uninterrupted alert coverage when
+            revenue movement becomes actionable.
           </p>
           <button
             type="button"
@@ -84,25 +84,28 @@ export default function UpgradeActions({
           >
             {loadingPlan === "standard"
               ? "Redirecting..."
-              : "Choose Standard"}
+              : "Keep DRIFT Active"}
           </button>
+          <div className="mt-2 text-xs text-white/50">
+            Full DRIFT monitoring. No interruptions.
+          </div>
         </div>
 
         {foundingCohort && (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6 ring-1 ring-white/10">
             <div className="text-xs font-mono tracking-wide text-white/45">
-              FOUNDING COHORT
+              FOUNDING ACCESS
             </div>
-            <div className="mt-2 text-2xl font-black">$299</div>
+            <div className="mt-4 text-2xl font-black">$299</div>
             <div className="mt-1 text-sm text-white/60">
-              per month · first 12 months
+              Per Month · First 12 months
             </div>
             <div className="mt-4 text-xs text-white/50">
-  Cancel anytime · No long-term commitment
-</div>
+              Cancel anytime · No long-term commitment
+            </div>
             <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Early operator pricing for teams joining DRIFT during the founding
-              cohort window.
+              Early operator pricing for teams entering DRIFT during the Founding
+              Cohort window.
             </p>
             <button
               type="button"
@@ -112,8 +115,11 @@ export default function UpgradeActions({
             >
               {loadingPlan === "founder_299"
                 ? "Redirecting..."
-                : "Choose $299 Founder"}
+                : "Continue Monitoring at $299"}
             </button>
+            <div className="mt-2 text-xs text-white/50">
+              Early access pricing · Limited to Founding Cohort.
+            </div>
           </div>
         )}
 
@@ -122,16 +128,16 @@ export default function UpgradeActions({
             <div className="text-xs font-mono tracking-wide text-white/45">
               FOUNDER LIFETIME
             </div>
-            <div className="mt-2 text-2xl font-black">$399</div>
+            <div className="mt-4 text-2xl font-black">$399</div>
             <div className="mt-1 text-sm text-white/60">
-              Per Month · Lifetime Locked-in Founder Pricing
+              Per Month · Locked-in Founder pricing
             </div>
             <div className="mt-4 text-xs text-white/50">
-  Cancel anytime · No long-term commitment
-</div>
+              Cancel anytime · No long-term commitment
+            </div>
             <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Lock in founder pricing permanently and continue monitoring with
-              DRIFT long-term.
+              Lock in founder pricing permanently and keep DRIFT monitoring long
+              term.
             </p>
             <button
               type="button"
@@ -141,8 +147,11 @@ export default function UpgradeActions({
             >
               {loadingPlan === "founder_399"
                 ? "Redirecting..."
-                : "Choose $399 Founder"}
+                : "Lock In $399 Founder Pricing"}
             </button>
+            <div className="mt-2 text-xs text-white/50">
+              Permanent Founder Pricing · Limited to Founding Cohort.
+            </div>
           </div>
         )}
       </div>
