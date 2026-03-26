@@ -697,6 +697,24 @@ export default async function BusinessAlertsPage({
                 them here.
               </div>
             )}
+
+            <div
+  style={{
+    marginTop: 16,
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 1.5,
+  }}
+>
+  {driftStatus === "attention" &&
+    "These signals indicate active performance risk. Immediate attention is recommended."}
+
+  {driftStatus === "softening" &&
+    "These signals suggest early decline. Addressing now may prevent deeper impact."}
+
+  {driftStatus === "watch" &&
+    "These signals are developing. Early validation can prevent escalation."}
+</div>
           </div>
 
           <div
