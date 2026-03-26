@@ -155,6 +155,43 @@ function safeDateTimeLabel(v: unknown) {
   });
 }
 
+function recommendedAction(status: DriftStatus, reasons: any[]) {
+  const primary = reasons?.[0];
+
+  const code = String(primary?.code ?? "").toUpperCase();
+
+  if (code === "REV_FREQ_DROP_30") {
+    return "Increase customer touchpoints and prompt recent customers for feedback.";
+  }
+
+  if (code === "ENG_DROP_30") {
+    return "Review recent campaign performance and identify engagement drop-off points.";
+  }
+
+  if (code === "SENTIMENT_DROP_50") {
+    return "Audit recent customer feedback and address negative experience drivers.";
+  }
+
+  if (code === "BASELINE_WARMUP") {
+    return "Allow more data to accumulate before making operational changes.";
+  }
+
+  // fallback by status
+  if (status === "attention") {
+    return "Investigate immediately and prioritize corrective action within 24–48 hours.";
+  }
+
+  if (status === "softening") {
+    return "Identify early drivers and intervene before further decline.";
+  }
+
+  if (status === "watch") {
+    return "Monitor closely and validate whether this trend continues.";
+  }
+
+  return "Maintain current performance and monitor for changes.";
+}
+
 export default async function BusinessAlertsPage({
   params,
 }: {
@@ -330,6 +367,20 @@ export default async function BusinessAlertsPage({
             >
               {headlineReason}
             </div>
+
+            <div
+  style={{
+    marginTop: 6,
+    fontSize: 13,
+    color: "#667085",
+    lineHeight: 1.5,
+  }}
+>
+  <span style={{ color: "#101828", fontWeight: 800 }}>
+    Recommended Action:
+  </span>{" "}
+  {recommendedAction(driftStatus, driftReasons)}
+</div>
 
             <div style={{ marginTop: 8, fontSize: 13, color: "#667085" }}>
               Source:{" "}
