@@ -53,7 +53,7 @@ export default function UpgradeActions({
             FOUNDING COHORT ACCESS
           </div>
           <p className="mt-2 text-sm text-white/65">
-            These pricing options are reserved for selected founding operators
+            These pricing options are reserved for selected Founding Operators
             and will not remain available after the cohort closes.
           </p>
         </div>
