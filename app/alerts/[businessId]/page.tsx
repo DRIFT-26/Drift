@@ -384,7 +384,14 @@ export default async function BusinessAlertsPage({
         padding: 24,
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        background: pageBg,
+        background:
+  driftStatus === "attention"
+    ? "radial-gradient(circle at top, rgba(255,107,107,0.14), transparent 22%), #0B0F14"
+    : driftStatus === "softening"
+    ? "radial-gradient(circle at top, rgba(255,176,32,0.12), transparent 22%), #0B0F14"
+    : driftStatus === "watch"
+    ? "radial-gradient(circle at top, rgba(90,169,255,0.12), transparent 22%), #0B0F14"
+    : "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14",
         minHeight: "100vh",
         color: textPrimary,
       }}
@@ -398,7 +405,12 @@ export default async function BusinessAlertsPage({
             gap: 16,
           }}
         >
-          <div>
+          <div
+  style={{
+    borderLeft: `3px solid ${tone.fg}`,
+    paddingLeft: 14,
+  }}
+>
             <div style={{ fontSize: 12, color: textSecondary, letterSpacing: 0.5 }}>
               DRIFT / EXECUTIVE SIGNAL
             </div>
@@ -439,6 +451,16 @@ export default async function BusinessAlertsPage({
               </span>{" "}
               {recommendedAction(driftStatus, driftReasons)}
             </div>
+            
+
+            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary, lineHeight: 1.5,}}>
+  {driftStatus === "attention" &&
+    "If unaddressed, this may begin impacting revenue performance within days."}
+  {driftStatus === "softening" &&
+    "Left unchecked, this trend may develop into a larger performance issue."}
+  {driftStatus === "watch" &&
+    "Early signal detected — validating now can prevent larger disruption."}
+</div>
 
             <div style={{ marginTop: 8, fontSize: 13, color: textSecondary }}>
               Source:{" "}
