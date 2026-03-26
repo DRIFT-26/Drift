@@ -1,8 +1,7 @@
 // app/alerts/[businessId]/page.tsx
 import Link from "next/link";
-import { headers } from "next/headers";
-
-const adminMode = process.env.ADMIN_MODE === "true";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { formatReason } from "@/lib/executive/reasons";
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 type RiskLabel = "Low" | "Moderate" | "High";
@@ -19,7 +18,10 @@ function toNum(v: any, fallback: number | null = 0) {
 function formatMoney(cents: number | null | undefined) {
   if (typeof cents !== "number") return "—";
   const dollars = cents / 100;
-  return dollars.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  return dollars.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+  });
 }
 
 function formatPct(value: number | null | undefined) {
@@ -68,26 +70,40 @@ function isUuidLike(v: string) {
   return /^[0-9a-fA-F-]{32,36}$/.test(v);
 }
 
-// Builds an absolute base URL that works in Vercel + local.
-// IMPORTANT: headers() can be async in Next 16, so we await it.
-async function requestBaseUrl() {
-  const h = await headers();
+function mriLabel(score: number | null, status: DriftStatus) {
+  if (typeof score !== "number") return "—";
+  if (status === "attention") return "At Risk";
+  if (status === "softening") return "Unstable";
+  if (status === "watch") return "Developing";
+  return "Stable";
+}
 
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host =
-    h.get("x-forwarded-host") ??
-    h.get("host") ??
-    process.env.VERCEL_URL ??
-    "drift-app-indol.vercel.app";
+function sourceLabel(engine: string) {
+  const value = engine.toLowerCase();
+  if (value === "stripe_revenue" || value === "stripe") return "Stripe";
+  if (value === "google_sheets_revenue" || value === "google_sheets") {
+    return "Google Sheets";
+  }
+  if (value === "csv_revenue" || value === "csv") return "CSV Upload";
+  return "Revenue Source";
+}
 
-  const origin = host.startsWith("http") ? host : `${proto}://${host}`;
-  return origin.replace(/\/$/, "");
+function safeDateTimeLabel(v: any) {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export default async function BusinessAlertsPage({
   params,
 }: {
-  // Compatible with Next 16 variations
   params: Promise<{ businessId?: string }> | { businessId?: string };
 }) {
   const resolved = (await Promise.resolve(params)) as { businessId?: string };
@@ -95,10 +111,19 @@ export default async function BusinessAlertsPage({
 
   if (!businessId || businessId === "undefined" || !isUuidLike(businessId)) {
     return (
-      <div style={{ padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alerts</h1>
+      <div
+        style={{
+          padding: 24,
+          fontFamily:
+            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          background: "#F2F4F7",
+          minHeight: "100vh",
+          color: "#101828",
+        }}
+      >
+        <h1 style={{ fontSize: 22, fontWeight: 900 }}>Executive Signal</h1>
         <div style={{ marginTop: 10, color: "#B42318" }}>
-          Missing businessId in route params.
+          Missing business ID in route params.
         </div>
         <div style={{ marginTop: 10, color: "#667085" }}>
           Try: <code>/alerts/&lt;uuid&gt;</code>
@@ -107,48 +132,31 @@ export default async function BusinessAlertsPage({
     );
   }
 
-  // Use an absolute URL so server-side fetch never tries to parse a relative URL.
-  const apiUrl = `${await requestBaseUrl()}/api/alerts?business_id=${encodeURIComponent(
-    businessId
-  )}`;
+  const supabase = supabaseAdmin();
 
-  let payload: any = null;
-  let httpStatus: number | null = null;
+  const { data: business, error } = await supabase
+    .from("businesses")
+    .select(
+      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+    )
+    .eq("id", businessId)
+    .single();
 
-  try {
-    const res = await fetch(apiUrl, { cache: "no-store" });
-    httpStatus = res.status;
-
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.includes("application/json")) {
-      const t = await res.text();
-      payload = {
-        ok: false,
-        error: `API did not return JSON (status ${res.status}). First bytes: ${t.slice(
-          0,
-          120
-        )}`,
-      };
-    } else {
-      payload = await res.json();
-    }
-  } catch (e: any) {
-    payload = { ok: false, error: e?.message ?? String(e) };
-  }
-
-  if (!payload?.ok) {
+  if (error || !business) {
     return (
-      <div style={{ padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alerts</h1>
+      <div
+        style={{
+          padding: 24,
+          fontFamily:
+            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          background: "#F2F4F7",
+          minHeight: "100vh",
+          color: "#101828",
+        }}
+      >
+        <h1 style={{ fontSize: 22, fontWeight: 900 }}>Executive Signal</h1>
         <div style={{ marginTop: 10, color: "#B42318" }}>
-          Failed to load business: {payload?.error ?? "unknown_error"}
-        </div>
-        <div style={{ marginTop: 10, color: "#667085", fontSize: 12 }}>
-          {httpStatus != null ? (
-            <>
-              HTTP status: <code>{httpStatus}</code>
-            </>
-          ) : null}
+          Failed to load business: {error?.message ?? "not_found"}
         </div>
         <div style={{ marginTop: 10 }}>
           <Link href="/alerts" style={{ color: "#175CD3" }}>
@@ -159,38 +167,39 @@ export default async function BusinessAlertsPage({
     );
   }
 
-  const business = payload.business;
-  const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
-
-  // ---- Hybrid drift fallback chain (newest first) ----
   const lastDrift = business?.last_drift ?? null;
-  const latestAlert = alerts?.[0] ?? null;
+  const driftMeta = (lastDrift?.meta ?? {}) as any;
+  const driftStatus = normalizeStatus(lastDrift?.status ?? "stable");
+  const driftReasons = Array.isArray(lastDrift?.reasons) ? lastDrift.reasons : [];
 
-  const driftMeta = (lastDrift?.meta ?? latestAlert?.meta ?? {}) as any;
-  const driftStatus = normalizeStatus(lastDrift?.status ?? latestAlert?.status ?? "stable");
-  const driftReasons = (lastDrift?.reasons ?? latestAlert?.reasons ?? []) as any[];
-
-  // engine + direction
-  const engine = String(driftMeta?.engine ?? "Model");
+  const engine = String(driftMeta?.engine ?? "—");
   const direction = normalizeDirection(driftMeta?.direction);
-
-  const mriScore = typeof driftMeta?.mriScore === "number" ? driftMeta.mriScore : null;
+  const mriScore =
+    typeof driftMeta?.mriScore === "number"
+      ? clamp(driftMeta.mriScore, 0, 100)
+      : null;
 
   const revenueMeta = driftMeta?.revenue ?? {};
   const refundsMeta = driftMeta?.refunds ?? {};
 
-  // Prefer revenue_v1 fields, fallback to tolerated legacy names
   const baselineNet14dRaw =
-    revenueMeta?.baselineNetRevenueCents14d ?? revenueMeta?.baselineNetRevenueCentsPer14d;
+    revenueMeta?.baselineNetRevenueCents14d ??
+    revenueMeta?.baselineNetRevenueCentsPer14d;
   const baselineNet14d =
-    typeof baselineNet14dRaw === "number" ? baselineNet14dRaw : toNum(baselineNet14dRaw, null);
+    typeof baselineNet14dRaw === "number"
+      ? baselineNet14dRaw
+      : toNum(baselineNet14dRaw, null);
 
   const currentNet14dRaw =
-    revenueMeta?.currentNetRevenueCents14d ?? revenueMeta?.currentNetRevenueCentsPer14d;
+    revenueMeta?.currentNetRevenueCents14d ??
+    revenueMeta?.currentNetRevenueCentsPer14d;
   const currentNet14d =
-    typeof currentNet14dRaw === "number" ? currentNet14dRaw : toNum(currentNet14dRaw, null);
+    typeof currentNet14dRaw === "number"
+      ? currentNet14dRaw
+      : toNum(currentNet14dRaw, null);
 
-  const deltaPct = typeof revenueMeta?.deltaPct === "number" ? revenueMeta.deltaPct : null;
+  const deltaPct =
+    typeof revenueMeta?.deltaPct === "number" ? revenueMeta.deltaPct : null;
 
   const refundRateCurrent =
     typeof refundsMeta?.currentRefundRate === "number"
@@ -200,9 +209,10 @@ export default async function BusinessAlertsPage({
       : null;
 
   const refundRateBaseline =
-    typeof refundsMeta?.baselineRefundRate === "number" ? refundsMeta.baselineRefundRate : null;
+    typeof refundsMeta?.baselineRefundRate === "number"
+      ? refundsMeta.baselineRefundRate
+      : null;
 
-  // Monthly revenue (API sometimes returns monthly_revenue dollars OR monthly_revenue_cents)
   const monthlyRevenueCents =
     typeof business?.monthly_revenue_cents === "number"
       ? business.monthly_revenue_cents
@@ -213,208 +223,307 @@ export default async function BusinessAlertsPage({
   const tone = statusTone(driftStatus);
   const riskLabel = projectRiskLabel(driftStatus, mriScore);
 
+  const headlineReason =
+    driftReasons.length > 0 ? formatReason(driftReasons[0]) : "Signal detected";
+  function operatorPrompt(status: DriftStatus) {
+  if (status === "attention") {
+    return "What do we change in the next 24–48 hours?";
+  }
+
+  if (status === "softening") {
+    return "What’s the fastest intervention to stop the slide?";
+  }
+
+  if (status === "watch") {
+    return "What early movement is worth validating now?";
+  }
+
+  return "What’s worth a closer look to stay sharp?";
+}
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", background: "#F8FAFC", minHeight: "100vh" }}>
-      {/* Top bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: 12, color: "#667085", letterSpacing: 0.4 }}>
-            DRIFT / EXECUTIVE SIGNAL
-          </div>
-          <h1 style={{ margin: "6px 0 0", fontSize: 26, fontWeight: 900, color: "#101828" }}>
-            {business?.name ?? "Business"}
-          </h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-            Source: <span style={{ color: "#101828", fontWeight: 700 }}>{engine == "stripe_reveune" ? "Stripe" : "CSV Upload"}</span>{"   "}
-            {direction ? (
-              <>
-            
-            Momentum:{" "}
-<span style={{ color: "#101828", fontWeight: 700 }}>
-  {direction === "up"
-    ? "Rising"
-    : direction === "down"
-    ? "Slowing"
-    : "Stable"}
-</span>    
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <div
-            style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              background: tone.bg,
-              color: tone.fg,
-              border: `1px solid ${tone.border}`,
-              fontWeight: 800,
-              fontSize: 13,
-              letterSpacing: 0.2,
-            }}
-          >
-            {driftStatus.toUpperCase()}
-          </div>
-
-          <div
-            style={{
-              padding: "8px 12px",
-              borderRadius: 12,
-              background: "#FFFFFF",
-              border: "1px solid #EAECF0",
-              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
-              fontSize: 13,
-              color: "#101828",
-              fontWeight: 800,
-            }}
-            title="Risk projection label"
-          >
-            Risk: {riskLabel}
-          </div>
-
-          <Link href="/alerts" style={{ color: "#175CD3", fontWeight: 700, fontSize: 13 }}>
-            Back
-          </Link>
-        </div>
-      </div>
-
-      {/* KPI grid */}
-      <div
-        style={{
-          marginTop: 18,
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          gap: 12,
-        }}
-      >
+    <div
+      style={{
+        padding: 24,
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        background:
+          "radial-gradient(circle at top, rgba(10,42,102,0.06), transparent 30%), #F2F4F7",
+        minHeight: "100vh",
+        color: "#101828",
+      }}
+    >
+      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
         <div
           style={{
-            gridColumn: "span 4",
-            background: "#fff",
-            border: "1px solid #EAECF0",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 16,
           }}
         >
-          <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>MRI SCORE</div>
-          <div style={{ marginTop: 8, fontSize: 34, fontWeight: 950, color: "#101828" }}>
-            {typeof mriScore === "number" ? clamp(mriScore, 0, 100) : "—"}
-          </div>
-          <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-            Executive stability index (0–100)
-          </div>
-        </div>
+          <div>
+            <div style={{ fontSize: 12, color: "#667085", letterSpacing: 0.5 }}>
+              DRIFT / EXECUTIVE SIGNAL
+            </div>
+            <h1
+              style={{
+                margin: "6px 0 0",
+                fontSize: 30,
+                lineHeight: 1.1,
+                fontWeight: 950,
+                color: "#101828",
+              }}
+            >
+              {business?.name ?? "Business"}
+            </h1>
 
-        <div
-          style={{
-            gridColumn: "span 4",
-            background: "#fff",
-            border: "1px solid #EAECF0",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>NET REVENUE (14D)</div>
-          <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950, color: "#101828" }}>
-            {formatMoney(currentNet14d)}
-          </div>
-          <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-            Baseline: {formatMoney(baselineNet14d)}{" "}
-            {typeof deltaPct === "number" ? (
-              <>
-                {" · "}Δ {(deltaPct * 100).toFixed(0)}%
-              </>
-            ) : null}
-          </div>
-        </div>
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 16,
+                fontWeight: 800,
+                color: "#344054",
+                lineHeight: 1.35,
+              }}
+            >
+              {headlineReason}
+            </div>
 
-        <div
-          style={{
-            gridColumn: "span 4",
-            background: "#fff",
-            border: "1px solid #EAECF0",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>REFUND RATE (14D)</div>
-          <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950, color: "#101828" }}>
-            {formatPct(refundRateCurrent)}
+            <div style={{ marginTop: 8, fontSize: 13, color: "#667085" }}>
+              Source:{" "}
+              <span style={{ color: "#101828", fontWeight: 700 }}>
+                {sourceLabel(engine)}
+              </span>
+              {" · "}
+              Updated:{" "}
+              <span style={{ color: "#101828", fontWeight: 700 }}>
+                {safeDateTimeLabel(business?.last_drift_at)}
+              </span>
+              {direction ? (
+                <>
+                  {" · "}
+                  Momentum:{" "}
+                  <span style={{ color: "#101828", fontWeight: 700 }}>
+                    {direction === "up"
+                      ? "Rising"
+                      : direction === "down"
+                      ? "Slowing"
+                      : "Stable"}
+                  </span>
+                </>
+              ) : null}
+            </div>
           </div>
-          <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-            Baseline: {formatPct(refundRateBaseline)}
-          </div>
-        </div>
 
-        <div
-          style={{
-            gridColumn: "span 12",
-            background: "#fff",
-            border: "1px solid #EAECF0",
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>WHY THIS STATUS</div>
-              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 900, color: "#101828" }}>
-                {driftReasons?.length ? "Key signals detected" : "No negative signals detected"}
-              </div>
-              <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
-                CEO readable — short, specific, actionable.
-              </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <div
+              style={{
+                padding: "8px 12px",
+                borderRadius: 999,
+                background: tone.bg,
+                color: tone.fg,
+                border: `1px solid ${tone.border}`,
+                fontWeight: 800,
+                fontSize: 13,
+                letterSpacing: 0.2,
+              }}
+            >
+              {driftStatus.toUpperCase()}
             </div>
 
             <div
               style={{
-                minWidth: 260,
-                background: "#F9FAFB",
-                border: "1px solid #EAECF0",
+                padding: "8px 12px",
                 borderRadius: 12,
-                padding: 12,
+                background: "#FFFFFF",
+                border: "1px solid #EAECF0",
+                boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+                fontSize: 13,
+                color: "#101828",
+                fontWeight: 800,
               }}
+              title="Risk projection label"
             >
-              <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>CONTEXT</div>
-              <div style={{ marginTop: 8, fontSize: 13, color: "#101828", fontWeight: 800 }}>
-                Monthly Revenue (manual)
-              </div>
-              <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
-                {formatMoney(monthlyRevenueCents)}
-              </div>
-              <div style={{ marginTop: 10, fontSize: 12, color: "#667085" }}>
-                Used for impact estimates later (optional).
-              </div>
+              Risk: {riskLabel}
+            </div>
+
+            <Link href="/alerts" style={{ color: "#175CD3", fontWeight: 700, fontSize: 13 }}>
+              Back
+            </Link>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 18,
+            display: "grid",
+            gridTemplateColumns: "repeat(12, 1fr)",
+            gap: 12,
+          }}
+        >
+          <div
+            style={{
+              gridColumn: "span 4",
+              background: "#FFFFFF",
+              border: "1px solid #EAECF0",
+              borderRadius: 18,
+              padding: 16,
+              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+              MRI SCORE
+            </div>
+            <div style={{ marginTop: 8, fontSize: 34, fontWeight: 950, color: "#101828" }}>
+              {typeof mriScore === "number" ? mriScore : "—"}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+              Momentum Risk Index ·{" "}
+              <span style={{ color: "#101828", fontWeight: 800 }}>
+                {mriLabel(mriScore, driftStatus)}
+              </span>
             </div>
           </div>
 
-          {driftReasons?.length ? (
-            <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
-              {driftReasons.map((r: any, i: number) => (
-                <li key={i} style={{ marginBottom: 8 }}>
-                  <span style={{ fontWeight: 900 }}>
-  {String(r?.code ?? "SIGNAL") === "BASELINE_WARMUP" ? "Baseline Building" : String(r?.code ?? "SIGNAL")}
-</span>
-                  <span style={{ color: "#667085" }}> — </span>
-                  <span>{String(r?.detail ?? "—")}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
-              Drift currently reads as stable. When signals appear, you’ll see them here.
+          <div
+            style={{
+              gridColumn: "span 4",
+              background: "#FFFFFF",
+              border: "1px solid #EAECF0",
+              borderRadius: 18,
+              padding: 16,
+              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+              NET REVENUE (14D)
             </div>
-          )}
+            <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950, color: "#101828" }}>
+              {formatMoney(currentNet14d)}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+              Baseline: {formatMoney(baselineNet14d)}
+              {typeof deltaPct === "number" ? (
+                <>
+                  {" · "}
+                  <span style={{ color: "#101828", fontWeight: 800 }}>
+                    Δ {(deltaPct * 100).toFixed(0)}%
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
 
-          <div style={{ marginTop: 14, borderTop: "1px solid #EAECF0", paddingTop: 12 }}>
-            <div style={{ fontSize: 12, color: "#667085" }}>
-              Business ID: <code>{businessId}</code>
+          <div
+            style={{
+              gridColumn: "span 4",
+              background: "#FFFFFF",
+              border: "1px solid #EAECF0",
+              borderRadius: 18,
+              padding: 16,
+              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+              REFUND RATE (14D)
+            </div>
+            <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950, color: "#101828" }}>
+              {formatPct(refundRateCurrent)}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+              Baseline: {formatPct(refundRateBaseline)}
+            </div>
+          </div>
+
+          <div
+            style={{
+              gridColumn: "span 8",
+              background: "#FFFFFF",
+              border: "1px solid #EAECF0",
+              borderRadius: 18,
+              padding: 18,
+              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+              WHY THIS STATUS
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 15,
+                fontWeight: 900,
+                color: "#101828",
+              }}
+            >
+              {driftReasons.length ? "Signals driving this status" : "No negative signals detected"}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#667085" }}>
+              Short, specific, and built for operator review.
+            </div>
+
+            {driftReasons.length ? (
+              <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: "#101828" }}>
+                {driftReasons.map((r: any, i: number) => (
+                  <li key={i} style={{ marginBottom: 10, lineHeight: 1.45 }}>
+                    <span style={{ fontWeight: 900 }}>
+                      {String(r?.code ?? "") === "BASELINE_WARMUP"
+                        ? "Baseline Building"
+                        : formatReason(r)}
+                    </span>
+                    {r?.detail ? (
+                      <>
+                        <span style={{ color: "#667085" }}> — </span>
+                        <span style={{ color: "#667085" }}>{String(r.detail)}</span>
+                      </>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ marginTop: 14, color: "#667085", fontSize: 13 }}>
+                DRIFT currently reads as stable. When signals appear, you’ll see them here.
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              gridColumn: "span 4",
+              background: "#FFFFFF",
+              border: "1px solid #EAECF0",
+              borderRadius: 18,
+              padding: 18,
+              boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
+              CONTEXT
+            </div>
+
+            <div style={{ marginTop: 10, fontSize: 13, color: "#101828", fontWeight: 800 }}>
+              Monthly Revenue
+            </div>
+            <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+              {formatMoney(monthlyRevenueCents)}
+            </div>
+
+            <div style={{ marginTop: 12, fontSize: 13, color: "#101828", fontWeight: 800 }}>
+              Business ID
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 12,
+                color: "#667085",
+                wordBreak: "break-all",
+              }}
+            >
+              <code>{businessId}</code>
+            </div>
+
+            <div style={{ marginTop: 12, fontSize: 12, color: "#667085" }}>
+              Used for context and impact estimates.
             </div>
           </div>
         </div>
