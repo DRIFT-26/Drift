@@ -360,11 +360,11 @@ export async function POST(req: Request) {
     const limitedReasons = capReasons(reasons, 3);
     const detailsUrl = `${baseUrl}${exec.detailsPath}`;
 
-    let subject = "";
+        let subject = "";
     let finalText = "";
     let emailType = "daily_monitor";
 
-    // Daily monitor for quiet states
+    // First pass: determine subject + email type only
     if (
       status === "stable" ||
       status === "watch" ||
@@ -380,7 +380,6 @@ export async function POST(req: Request) {
       emailType = "daily_monitor";
     }
 
-    // Stronger alert-style daily email for louder states
     if (status === "softening" || status === "attention") {
       const alert = renderStatusEmail({
         businessName: biz.name,
@@ -388,7 +387,6 @@ export async function POST(req: Request) {
         reasons: limitedReasons,
         windowStart: windowStartStr,
         windowEnd: windowEndStr,
-        shareUrl: detailsUrl,
       });
 
       subject = alert.subject;
@@ -408,6 +406,7 @@ export async function POST(req: Request) {
     }
 
     if (dryRun) {
+      const dryRunDetailsUrl = `${baseUrl}/alerts/${biz.id}`;
       results.push({
         business_id: biz.id,
         name: biz.name,
@@ -416,12 +415,92 @@ export async function POST(req: Request) {
         status,
         subject,
         email_type: emailType,
-        detailsUrl,
+        detailsUrl: dryRunDetailsUrl,
       });
       continue;
     }
 
     try {
+      // Create the log row first so we can deep-link to the exact timeline event
+      const { data: insertedLog, error: insertErr } = await supabase
+        .from("email_logs")
+        .insert({
+          business_id: biz.id,
+          email_type: emailType,
+          to_email: biz.alert_email,
+          subject,
+          status: "queued",
+          provider: "resend",
+          provider_message_id: null,
+          error: null,
+          meta: {
+            kind: "daily_exec",
+            window_start: windowStartStr,
+            window_end: windowEndStr,
+            exec: {
+              status: exec.status,
+              confidence: exec.confidence,
+              headline: exec.headline,
+              impact: exec.impact,
+              drivers: exec.drivers?.slice(0, 2),
+            },
+            dedupe: {
+              prev_status: prevStatus,
+              status_changed: statusChanged,
+              prev_reason_codes: prevCodes,
+              current_reason_codes: currentCodes,
+              reasons_changed: reasonsChanged,
+              force_email: forceEmail,
+            },
+          },
+        })
+        .select("id")
+        .single();
+
+      if (insertErr || !insertedLog?.id) {
+        results.push({
+          business_id: biz.id,
+          name: biz.name,
+          emailed: false,
+          error: insertErr?.message ?? "email_log_insert_failed",
+        });
+        continue;
+      }
+
+      const detailsUrl = `${baseUrl}/alerts/${biz.id}?eventId=${encodeURIComponent(
+        insertedLog.id
+      )}`;
+
+      // Second pass: rebuild final email text with the exact deep link
+      if (
+        status === "stable" ||
+        status === "watch" ||
+        status === "movement"
+      ) {
+        const daily = renderDailyMonitorEmail({
+          businessName: biz.name,
+          status,
+          shareUrl: detailsUrl,
+        });
+
+        subject = daily.subject;
+        finalText = daily.text;
+      }
+
+      if (status === "softening" || status === "attention") {
+        const alert = renderStatusEmail({
+          businessName: biz.name,
+          status: statusForEmail(status),
+          reasons: limitedReasons,
+          windowStart: windowStartStr,
+          windowEnd: windowEndStr,
+          shareUrl: detailsUrl,
+        });
+
+        subject = alert.subject;
+        finalText = alert.text;
+      }
+
       const sendResult = await sendDriftEmail({
         to: biz.alert_email,
         subject,
@@ -432,36 +511,37 @@ export async function POST(req: Request) {
         (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
       const sendErr = (sendResult as any)?.error ?? null;
 
-      await supabase.from("email_logs").insert({
-        business_id: biz.id,
-        email_type: emailType,
-        to_email: biz.alert_email,
-        subject,
-        status: sendErr ? "error" : "sent",
-        provider: "resend",
-        provider_message_id: emailId,
-        error: sendErr ? JSON.stringify(sendErr) : null,
-        meta: {
-          kind: "daily_exec",
-          window_start: windowStartStr,
-          window_end: windowEndStr,
-          exec: {
-            status: exec.status,
-            confidence: exec.confidence,
-            headline: exec.headline,
-            impact: exec.impact,
-            drivers: exec.drivers?.slice(0, 2),
+      await supabase
+        .from("email_logs")
+        .update({
+          subject,
+          status: sendErr ? "error" : "sent",
+          provider: "resend",
+          provider_message_id: emailId,
+          error: sendErr ? JSON.stringify(sendErr) : null,
+          meta: {
+            kind: "daily_exec",
+            window_start: windowStartStr,
+            window_end: windowEndStr,
+            deep_link_url: detailsUrl,
+            exec: {
+              status: exec.status,
+              confidence: exec.confidence,
+              headline: exec.headline,
+              impact: exec.impact,
+              drivers: exec.drivers?.slice(0, 2),
+            },
+            dedupe: {
+              prev_status: prevStatus,
+              status_changed: statusChanged,
+              prev_reason_codes: prevCodes,
+              current_reason_codes: currentCodes,
+              reasons_changed: reasonsChanged,
+              force_email: forceEmail,
+            },
           },
-          dedupe: {
-            prev_status: prevStatus,
-            status_changed: statusChanged,
-            prev_reason_codes: prevCodes,
-            current_reason_codes: currentCodes,
-            reasons_changed: reasonsChanged,
-            force_email: forceEmail,
-          },
-        },
-      });
+        })
+        .eq("id", insertedLog.id);
 
       await supabase
         .from("businesses")

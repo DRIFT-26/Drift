@@ -234,10 +234,21 @@ Revenue control for operators
 export function renderDailyMonitorEmail({
   businessName,
   status,
+  shareUrl,
 }: {
   businessName: string;
   status: "stable" | "watch" | "movement";
+  shareUrl?: string;
 }) {
+  const shareBlock = shareUrl
+    ? `
+
+View this signal:
+${shareUrl}
+
+Forwardable by design.`
+    : "";
+
   if (status === "watch") {
     return {
       subject: `DRIFT Daily Monitor — Movement Detected 🟡 (${businessName})`,
@@ -249,7 +260,7 @@ Status: MOVEMENT DETECTED 🟡
 
 Early movement has been detected relative to baseline.
 
-No intervention is recommended yet, but DRIFT is watching closely.
+No intervention is recommended yet, but DRIFT is watching closely.${shareBlock}
 
 — DRIFT
 Revenue control for operators`,
@@ -267,7 +278,7 @@ Status: MOMENTUM DETECTED 🔵
 
 Revenue is trending above the expected baseline.
 
-DRIFT is monitoring for persistence.
+DRIFT is monitoring for persistence.${shareBlock}
 
 — DRIFT
 Revenue control for operators`,
@@ -284,7 +295,7 @@ Status: STABLE ✅
 
 Revenue is tracking within the expected baseline range.
 
-DRIFT continues monitoring performance.
+DRIFT continues monitoring performance.${shareBlock}
 
 — DRIFT
 Revenue control for operators`,
