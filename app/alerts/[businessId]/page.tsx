@@ -234,6 +234,18 @@ function timelineHeadline(subject: string | null | undefined): string {
   return cleaned || text;
 }
 
+function formatEventType(type?: string | null) {
+  if (!type) return "Signal";
+
+  if (type === "daily_alert") return "Action Needed";
+  if (type === "daily_monitor") return "Monitoring";
+  if (type === "weekly_pulse") return "Weekly Pulse";
+
+  return type
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const pageBg = "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14";
 const cardBg = "#11161C";
 const subCardBg = "#0F141A";
@@ -919,7 +931,9 @@ const eventId = resolvedSearch?.eventId ?? "";
                 {item.email_type ? (
                   <>
                     {" · "}
-                    <span style={{ fontWeight: 700 }}>{item.email_type}</span>
+                    <span style={{ fontWeight: 700 }}>
+  {formatEventType(item.email_type)}
+</span>
                   </>
                 ) : null}
               </div>
