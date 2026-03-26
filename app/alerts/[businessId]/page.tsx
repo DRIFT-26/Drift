@@ -559,47 +559,61 @@ export default async function BusinessAlertsPage({
             }}
           >
             <div style={{ fontSize: 12, color: "#667085", fontWeight: 700 }}>
-              CONTEXT
-            </div>
+  BUSINESS CONTEXT
+</div>
 
-            <div
-              style={{
-                marginTop: 10,
-                fontSize: 13,
-                color: "#101828",
-                fontWeight: 800,
-              }}
-            >
-              Monthly Revenue
-            </div>
-            <div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
-              {formatMoney(monthlyRevenueCents)}
-            </div>
+<div
+  style={{
+    marginTop: 10,
+    fontSize: 13,
+    color: "#101828",
+    fontWeight: 800,
+  }}
+>
+  Monthly Revenue
+</div>
+<div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+  {formatMoney(monthlyRevenueCents)}
+</div>
 
-            <div
-              style={{
-                marginTop: 12,
-                fontSize: 13,
-                color: "#101828",
-                fontWeight: 800,
-              }}
-            >
-              Business ID
-            </div>
-            <div
-              style={{
-                marginTop: 4,
-                fontSize: 12,
-                color: "#667085",
-                wordBreak: "break-all",
-              }}
-            >
-              <code>{businessId}</code>
-            </div>
+<div
+  style={{
+    marginTop: 12,
+    fontSize: 13,
+    color: "#101828",
+    fontWeight: 800,
+  }}
+>
+  Risk Projection
+</div>
+<div style={{ marginTop: 4, fontSize: 13, color: "#667085" }}>
+  Current status indicates <span style={{ color: "#101828", fontWeight: 800 }}>{riskLabel}</span> near-term risk.
+</div>
 
-            <div style={{ marginTop: 12, fontSize: 12, color: "#667085" }}>
-              Used for context and impact estimates.
-            </div>
+<div
+  style={{
+    marginTop: 12,
+    fontSize: 13,
+    color: "#101828",
+    fontWeight: 800,
+  }}
+>
+  Signal ID
+</div>
+<div
+  style={{
+    marginTop: 4,
+    fontSize: 12,
+    color: "#667085",
+    wordBreak: "break-all",
+  }}
+>
+  <code>{businessId}</code>
+</div>
+
+<div style={{ marginTop: 12, fontSize: 12, color: "#667085" }}>
+  This context helps frame the likely business impact of the current signal.
+</div>
           </div>
         </div>
       </div>
