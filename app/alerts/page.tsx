@@ -5,7 +5,7 @@ import { formatReason } from "@/lib/executive/reasons";
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 
-function normalizeStatus(raw: any): DriftStatus {
+function normalizeStatus(raw: unknown): DriftStatus {
   const s = String(raw ?? "").toLowerCase();
   if (s === "attention") return "attention";
   if (s === "softening") return "softening";
@@ -16,14 +16,30 @@ function normalizeStatus(raw: any): DriftStatus {
 function statusTone(status: DriftStatus) {
   switch (status) {
     case "attention":
-      return { bg: "#FEF3F2", fg: "#B42318", border: "#FECDCA" };
+      return {
+        bg: "rgba(255, 107, 107, 0.12)",
+        fg: "#FF8A8A",
+        border: "rgba(255, 107, 107, 0.24)",
+      };
     case "softening":
-      return { bg: "#FFFAEB", fg: "#B54708", border: "#FEDF89" };
+      return {
+        bg: "rgba(255, 176, 32, 0.12)",
+        fg: "#FFC266",
+        border: "rgba(255, 176, 32, 0.24)",
+      };
     case "watch":
-      return { bg: "#F0F9FF", fg: "#026AA2", border: "#B9E6FE" };
+      return {
+        bg: "rgba(90, 169, 255, 0.12)",
+        fg: "#8BC1FF",
+        border: "rgba(90, 169, 255, 0.24)",
+      };
     case "stable":
     default:
-      return { bg: "#ECFDF3", fg: "#027A48", border: "#ABEFC6" };
+      return {
+        bg: "rgba(74, 222, 128, 0.12)",
+        fg: "#86EFAC",
+        border: "rgba(74, 222, 128, 0.24)",
+      };
   }
 }
 
@@ -38,7 +54,10 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function formatMoneyFromBusiness(b: any) {
+function formatMoneyFromBusiness(b: {
+  monthly_revenue_cents?: number | null;
+  monthly_revenue?: number | null;
+}) {
   const cents =
     typeof b?.monthly_revenue_cents === "number"
       ? b.monthly_revenue_cents
@@ -54,9 +73,9 @@ function formatMoneyFromBusiness(b: any) {
   });
 }
 
-function safeDateLabel(v: any) {
+function safeDateLabel(v: unknown) {
   if (!v) return "—";
-  const d = new Date(v);
+  const d = new Date(String(v));
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString(undefined, {
     year: "numeric",
@@ -67,15 +86,43 @@ function safeDateLabel(v: any) {
 
 function mriLabel(score: number | null, status: DriftStatus) {
   if (typeof score !== "number") return "—";
-
-  // Status overrides interpretation
   if (status === "attention") return "At Risk";
   if (status === "softening") return "Unstable";
   if (status === "watch") return "Developing";
-  if (status === "stable") return "Stable";
-
-  return "—";
+  return "Stable";
 }
+
+function statusLabel(status: DriftStatus) {
+  if (status === "attention") return "Immediate Attention";
+  if (status === "softening") return "Unstable";
+  if (status === "watch") return "Developing";
+  return "Stable";
+}
+
+type DriftReason = {
+  code?: string | null;
+  detail?: string | null;
+  label?: string | null;
+  message?: string | null;
+  reason?: string | null;
+};
+
+type BusinessRow = {
+  id: string;
+  name: string;
+  last_drift: {
+    status?: string | null;
+    reasons?: DriftReason[] | null;
+    meta?: {
+      mriScore?: number | null;
+      engine?: string | null;
+    } | null;
+  } | null;
+  last_drift_at: string | null;
+  monthly_revenue: number | null;
+  monthly_revenue_cents: number | null;
+  created_at: string | null;
+};
 
 export default async function AlertsIndexPage() {
   const supabase = supabaseAdmin();
@@ -85,47 +132,48 @@ export default async function AlertsIndexPage() {
     .select(
       "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
     )
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .returns<BusinessRow[]>();
 
   if (error) {
     return (
       <div
         style={{
           padding: 24,
-          fontFamily: "system-ui",
-          background: "#F2F4F7",
+          fontFamily:
+            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          background: "#0B0F14",
           minHeight: "100vh",
-          color: "#101828",
+          color: "#E6EAF0",
         }}
       >
-        <div style={{ fontSize: 12, color: "#667085", letterSpacing: 0.5 }}>
-          DRIFT / EXECUTION
+        <div style={{ fontSize: 12, color: "#9AA4B2", letterSpacing: 0.5 }}>
+          DRIFT / COMMAND CENTER
         </div>
         <h1
           style={{
             margin: "6px 0 0",
-            fontSize: 28,
+            fontSize: 30,
             fontWeight: 950,
-            color: "#101828",
+            color: "#E6EAF0",
           }}
         >
-          Executive Alerts
+          Executive Signal Feed
         </h1>
 
         <div
           style={{
             marginTop: 16,
-            padding: 16,
-            background: "#FFFFFF",
-            border: "1px solid #EAECF0",
+            padding: 18,
+            background: "#11161C",
+            border: "1px solid rgba(255,255,255,0.06)",
             borderRadius: 18,
-            boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
           }}
         >
-          <div style={{ color: "#B42318", fontWeight: 800 }}>
+          <div style={{ color: "#FF8A8A", fontWeight: 800 }}>
             Failed to load portfolio
           </div>
-          <div style={{ marginTop: 6, color: "#667085", fontSize: 13 }}>
+          <div style={{ marginTop: 6, color: "#9AA4B2", fontSize: 13 }}>
             {error.message}
           </div>
         </div>
@@ -133,7 +181,7 @@ export default async function AlertsIndexPage() {
     );
   }
 
-    const normalized = (businesses ?? []).map((b: any) => {
+  const normalized = (businesses ?? []).map((b) => {
     const last = b?.last_drift ?? null;
     const status = normalizeStatus(last?.status ?? "stable");
     const score =
@@ -143,9 +191,9 @@ export default async function AlertsIndexPage() {
     const engine = String(last?.meta?.engine ?? "—");
     const updated = b?.last_drift_at ?? null;
     const reason =
-  Array.isArray(last?.reasons) && last.reasons.length > 0
-    ? formatReason(last.reasons[0])
-    : "Signal detected - Review Recommended";
+      Array.isArray(last?.reasons) && last.reasons.length > 0
+        ? formatReason(last.reasons[0])
+        : "Signal detected";
 
     return {
       ...b,
@@ -174,10 +222,11 @@ export default async function AlertsIndexPage() {
       acc[b._status] += 1;
       return acc;
     },
-    { total: 0, stable: 0, watch: 0, softening: 0, attention: 0 } as any
+    { total: 0, stable: 0, watch: 0, softening: 0, attention: 0 } as Record<
+      DriftStatus | "total",
+      number
+    >
   );
-
-  const filtered = sorted;
 
   return (
     <div
@@ -186,17 +235,12 @@ export default async function AlertsIndexPage() {
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         background:
-          "radial-gradient(circle at top, rgba(10,42,102,0.06), transparent 30%), #F2F4F7",
+          "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14",
         minHeight: "100vh",
-        color: "#101828",
+        color: "#E6EAF0",
       }}
     >
-      <div
-        style={{
-          maxWidth: 1160,
-          margin: "0 auto",
-        }}
-      >
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
         <div
           style={{
             display: "flex",
@@ -206,21 +250,21 @@ export default async function AlertsIndexPage() {
           }}
         >
           <div>
-            <div style={{ fontSize: 12, color: "#667085", letterSpacing: 0.5 }}>
-              DRIFT / EXECUTION
+            <div style={{ fontSize: 12, color: "#9AA4B2", letterSpacing: 0.5 }}>
+              DRIFT / COMMAND CENTER
             </div>
             <h1
               style={{
                 margin: "6px 0 0",
-                fontSize: 30,
-                lineHeight: 1.1,
+                fontSize: 32,
+                lineHeight: 1.05,
                 fontWeight: 950,
-                color: "#101828",
+                color: "#E6EAF0",
               }}
             >
-              Executive Alerts
+              Executive Signal Feed
             </h1>
-            <div style={{ marginTop: 8, fontSize: 14, color: "#667085" }}>
+            <div style={{ marginTop: 8, fontSize: 14, color: "#9AA4B2" }}>
               Prioritized by severity. Review what matters first.
             </div>
           </div>
@@ -229,14 +273,14 @@ export default async function AlertsIndexPage() {
             <Link
               href="/onboard"
               style={{
-                padding: "9px 13px",
+                padding: "10px 14px",
                 borderRadius: 12,
                 background: "#0A2A66",
                 color: "#FFFFFF",
                 textDecoration: "none",
                 fontWeight: 800,
                 fontSize: 13,
-                boxShadow: "0 1px 2px rgba(16,24,40,0.08)",
+                border: "1px solid rgba(255,255,255,0.06)",
               }}
             >
               + Add Business
@@ -255,7 +299,7 @@ export default async function AlertsIndexPage() {
           {(["attention", "softening", "watch", "stable"] as DriftStatus[]).map(
             (s) => {
               const tone = statusTone(s);
-              const label = s.toUpperCase();
+              const label = statusLabel(s);
               const value = counts[s] ?? 0;
 
               return (
@@ -263,11 +307,10 @@ export default async function AlertsIndexPage() {
                   key={s}
                   style={{
                     gridColumn: "span 3",
-                    background: "#FFFFFF",
-                    border: "1px solid #EAECF0",
+                    background: "#11161C",
+                    border: "1px solid rgba(255,255,255,0.06)",
                     borderRadius: 18,
                     padding: 16,
-                    boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
                   }}
                 >
                   <div
@@ -280,12 +323,12 @@ export default async function AlertsIndexPage() {
                     <div
                       style={{
                         fontSize: 12,
-                        color: "#667085",
+                        color: "#9AA4B2",
                         fontWeight: 800,
                         letterSpacing: 0.3,
                       }}
                     >
-                      {label}
+                      {label.toUpperCase()}
                     </div>
                     <div
                       style={{
@@ -301,9 +344,9 @@ export default async function AlertsIndexPage() {
                       {value}
                     </div>
                   </div>
-                  <div style={{ marginTop: 12, fontSize: 12, color: "#667085" }}>
+                  <div style={{ marginTop: 12, fontSize: 12, color: "#9AA4B2" }}>
                     Portfolio total:{" "}
-                    <span style={{ color: "#101828", fontWeight: 900 }}>
+                    <span style={{ color: "#E6EAF0", fontWeight: 900 }}>
                       {counts.total}
                     </span>
                   </div>
@@ -314,10 +357,10 @@ export default async function AlertsIndexPage() {
         </div>
 
         <div style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 13, color: "#667085" }}>
+          <div style={{ fontSize: 13, color: "#9AA4B2" }}>
             Showing{" "}
-            <span style={{ color: "#101828", fontWeight: 900 }}>
-              {filtered.length}
+            <span style={{ color: "#E6EAF0", fontWeight: 900 }}>
+              {sorted.length}
             </span>{" "}
             businesses
           </div>
@@ -330,10 +373,9 @@ export default async function AlertsIndexPage() {
               gap: 12,
             }}
           >
-            {filtered.map((b: any) => {
+            {sorted.map((b) => {
               const tone = statusTone(b._status);
               const score = b._score;
-              const engine = b._engine;
               const updated = safeDateLabel(b._updated);
 
               return (
@@ -342,26 +384,24 @@ export default async function AlertsIndexPage() {
                   href={`/alerts/${b.id}`}
                   style={{
                     gridColumn: "span 12",
-                    background: "#FFFFFF",
-                    border: "1px solid #EAECF0",
+                    background: "#11161C",
+                    border: "1px solid rgba(255,255,255,0.06)",
                     borderRadius: 18,
                     padding: 18,
                     textDecoration: "none",
-                    color: "#101828",
-                    boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
+                    color: "#E6EAF0",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
                     gap: 16,
-                    transition: "transform 120ms ease, box-shadow 120ms ease",
                   }}
                 >
-                                    <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0 }}>
                     <div
                       style={{
                         fontSize: 16,
                         fontWeight: 900,
-                        color: "#101828",
+                        color: "#E6EAF0",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -374,7 +414,7 @@ export default async function AlertsIndexPage() {
                       style={{
                         marginTop: 6,
                         fontSize: 13,
-                        color: "#344054",
+                        color: "#D0D5DD",
                         fontWeight: 700,
                         lineHeight: 1.4,
                         overflow: "hidden",
@@ -389,22 +429,17 @@ export default async function AlertsIndexPage() {
                       style={{
                         marginTop: 7,
                         fontSize: 12,
-                        color: "#667085",
+                        color: "#9AA4B2",
                         lineHeight: 1.5,
                       }}
                     >
-                      Engine:{" "}
-                      <span style={{ color: "#101828", fontWeight: 800 }}>
-                        {engine}
-                      </span>
-                      {" · "}
                       Updated:{" "}
-                      <span style={{ color: "#101828", fontWeight: 800 }}>
+                      <span style={{ color: "#E6EAF0", fontWeight: 800 }}>
                         {updated}
                       </span>
                       {" · "}
                       Monthly:{" "}
-                      <span style={{ color: "#101828", fontWeight: 800 }}>
+                      <span style={{ color: "#E6EAF0", fontWeight: 800 }}>
                         {formatMoneyFromBusiness(b)}
                       </span>
                     </div>
@@ -430,25 +465,27 @@ export default async function AlertsIndexPage() {
                         letterSpacing: 0.2,
                       }}
                     >
-                      {String(b._status).toUpperCase()}
+                      {statusLabel(b._status)}
                     </div>
 
                     <div
                       style={{
                         padding: "6px 10px",
                         borderRadius: 12,
-                        background: "#F9FAFB",
-                        border: "1px solid #EAECF0",
+                        background: "#0F141A",
+                        border: "1px solid rgba(255,255,255,0.06)",
                         fontWeight: 900,
                         fontSize: 12,
-                        color: "#101828",
-                        minWidth: 118,
+                        color: "#E6EAF0",
+                        minWidth: 128,
                         textAlign: "center",
                       }}
                       title="Momentum Risk Index (MRI): measures how stable or at-risk revenue is relative to baseline"
                     >
                       MRI: {typeof score === "number" ? score : "—"}
-                      {typeof score === "number" ? ` · ${mriLabel(score, b._status)}` : ""}
+                      {typeof score === "number"
+                        ? ` · ${mriLabel(score, b._status)}`
+                        : ""}
                     </div>
                   </div>
                 </Link>
