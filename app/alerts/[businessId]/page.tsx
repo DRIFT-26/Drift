@@ -135,6 +135,13 @@ function sourceLabel(engine: string) {
   return "Revenue Source";
 }
 
+function statusLabel(status: DriftStatus) {
+  if (status === "attention") return "Immediate Attention";
+  if (status === "softening") return "Unstable";
+  if (status === "watch") return "Developing";
+  return "Stable";
+}
+
 function safeDateTimeLabel(v: unknown) {
   if (!v) return "—";
   const d = new Date(String(v));
@@ -363,7 +370,7 @@ export default async function BusinessAlertsPage({
                 letterSpacing: 0.2,
               }}
             >
-              {driftStatus.toUpperCase()}
+              {statusLabel(driftStatus)}
             </div>
 
             <div
@@ -373,13 +380,13 @@ export default async function BusinessAlertsPage({
                 background: "#FFFFFF",
                 border: "1px solid #EAECF0",
                 boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
-                fontSize: 13,
-                color: "#101828",
-                fontWeight: 800,
+                fontSize: 12,
+                color: "#344054",
+                fontWeight: 700,
               }}
               title="Risk projection label"
             >
-              Risk: {riskLabel}
+              Next 7–14 days: {riskLabel} risk
             </div>
 
             <Link
