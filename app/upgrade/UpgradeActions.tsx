@@ -53,8 +53,8 @@ export default function UpgradeActions({
             FOUNDING COHORT ACCESS
           </div>
           <p className="mt-2 text-sm text-white/65">
-            These pricing options are limited to selected founding operators and
-            will not be offered again once the cohort closes.
+            These pricing options are reserved for selected founding operators
+            and will not remain available after the cohort closes.
           </p>
         </div>
       )}
@@ -64,18 +64,23 @@ export default function UpgradeActions({
           <div className="text-xs font-mono tracking-wide text-white/45">
             FULL MONITORING
           </div>
+
           <div className="mt-3 inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-black">
             Recommended
           </div>
+
           <div className="mt-4 text-2xl font-black">$499</div>
           <div className="mt-1 text-sm text-white/60">per month</div>
+
           <div className="mt-4 text-xs text-white/50">
-            Cancel anytime · No long-term commitment
+            Cancel Anytime · No long-term commitment
           </div>
+
           <p className="mt-4 text-sm leading-relaxed text-white/65">
-            Continuous DRIFT monitoring with uninterrupted alert coverage when
-            revenue movement becomes actionable.
+            Keep DRIFT continuously monitoring revenue behavior and delivering
+            alerts when movement becomes actionable.
           </p>
+
           <button
             type="button"
             onClick={() => startCheckout("standard")}
@@ -86,8 +91,9 @@ export default function UpgradeActions({
               ? "Redirecting..."
               : "Keep DRIFT Active"}
           </button>
+
           <div className="mt-2 text-xs text-white/50">
-            Full DRIFT monitoring. No interruptions.
+            Full monitoring coverage. No interruptions.
           </div>
         </div>
 
@@ -96,17 +102,21 @@ export default function UpgradeActions({
             <div className="text-xs font-mono tracking-wide text-white/45">
               FOUNDING ACCESS
             </div>
+
             <div className="mt-4 text-2xl font-black">$299</div>
             <div className="mt-1 text-sm text-white/60">
               Per Month · First 12 months
             </div>
+
             <div className="mt-4 text-xs text-white/50">
               Cancel anytime · No long-term commitment
             </div>
+
             <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Early operator pricing for teams entering DRIFT during the Founding
+              Early operator pricing for teams joining DRIFT during the Founding
               Cohort window.
             </p>
+
             <button
               type="button"
               onClick={() => startCheckout("founder_299")}
@@ -117,6 +127,7 @@ export default function UpgradeActions({
                 ? "Redirecting..."
                 : "Continue Monitoring at $299"}
             </button>
+
             <div className="mt-2 text-xs text-white/50">
               Early access pricing · Limited to Founding Cohort.
             </div>
@@ -128,17 +139,21 @@ export default function UpgradeActions({
             <div className="text-xs font-mono tracking-wide text-white/45">
               FOUNDER LIFETIME
             </div>
+
             <div className="mt-4 text-2xl font-black">$399</div>
             <div className="mt-1 text-sm text-white/60">
-              Per Month · Locked-in Founder pricing
+              Per Month · Locked-in founder pricing
             </div>
+
             <div className="mt-4 text-xs text-white/50">
-              Cancel anytime · No long-term commitment
+              Cancel Anytime · No long-term commitment
             </div>
+
             <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Lock in founder pricing permanently and keep DRIFT monitoring long
+              Lock in Founder pricing permanently and keep DRIFT active long
               term.
             </p>
+
             <button
               type="button"
               onClick={() => startCheckout("founder_399")}
@@ -149,8 +164,9 @@ export default function UpgradeActions({
                 ? "Redirecting..."
                 : "Lock In $399 Founder Pricing"}
             </button>
+
             <div className="mt-2 text-xs text-white/50">
-              Permanent Founder Pricing · Limited to Founding Cohort.
+              Permanent Founder pricing · Limited to Founding Cohort.
             </div>
           </div>
         )}

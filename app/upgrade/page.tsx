@@ -41,13 +41,13 @@ export default async function UpgradePage({
           </div>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-            Don’t lose visibility when it matters most.
+            Keep DRIFT active before visibility disappears.
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-white/65">
-            DRIFT has already started identifying patterns in your revenue.
-            Upgrade to keep continuous monitoring active and maintain alert
-            coverage when something materially changes.
+            DRIFT is already identifying changes in your revenue behavior.
+            Upgrade now to keep continuous monitoring and alert coverage active
+            when something materially shifts.
           </p>
 
           <div className="mt-6 text-center text-xs text-white/40">
@@ -57,7 +57,8 @@ export default async function UpgradePage({
 
         {canceled && (
           <div className="mx-auto mt-6 max-w-2xl rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
-            Your upgrade wasn’t completed. You can resume anytime below.
+            Your upgrade wasn’t completed. You can resume monitoring below at
+            any time.
           </div>
         )}
 
@@ -67,23 +68,23 @@ export default async function UpgradePage({
           </div>
 
           <div className="mt-3 space-y-2 text-sm text-white/80">
-            <div>• Revenue drops can go undetected until it’s too late</div>
-            <div>• Early momentum signals are missed entirely</div>
-            <div>• No alerts, no visibility, no intervention window</div>
+            <div>• Revenue declines can go undetected until they become obvious</div>
+            <div>• Early momentum changes can be missed completely</div>
+            <div>• Alerts stop, visibility drops, and intervention gets delayed</div>
           </div>
 
           <div className="mt-4 text-sm text-white/60">
-            DRIFT doesn’t generate reports. It tells you when something is
-            changing.
+            DRIFT does not give you another dashboard to babysit. It tells you
+            when something is changing.
           </div>
         </div>
 
         <div className="mx-auto mt-8 max-w-2xl text-center">
           <div className="text-sm text-white/70">
-            You don’t need another dashboard.
+            You do not need more reporting.
           </div>
           <div className="mt-2 text-sm font-semibold text-white">
-            You need to know when something changes — before it costs you.
+            You need to know when revenue behavior changes before it costs you.
           </div>
         </div>
 
