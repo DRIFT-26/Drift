@@ -893,6 +893,21 @@ const eventId = resolvedSearch?.eventId ?? "";
                 {timelineHeadline(item.subject)}
               </div>
 
+              {eventId === item.id ? (
+  <div
+    style={{
+      marginTop: 4,
+      fontSize: 11,
+      fontWeight: 800,
+      letterSpacing: 0.3,
+      color: "#8BC1FF",
+      textTransform: "uppercase",
+    }}
+  >
+    Selected Event
+  </div>
+) : null}
+
               <div
                 style={{
                   marginTop: 4,
