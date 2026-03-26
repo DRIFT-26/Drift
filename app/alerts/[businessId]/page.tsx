@@ -659,7 +659,7 @@ export default async function BusinessAlertsPage({
             {driftReasons.length ? (
               <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: textPrimary }}>
                 {driftReasons.map((r, i) => (
-                  <li key={i} style={{ marginBottom: 12, lineHeight: 1.5 }}>
+                  <li key={i} style={{ marginBottom: 16, lineHeight: 1.6 }}>
                     <div style={{ fontWeight: 900 }}>
                       {String(r?.code ?? "") === "BASELINE_WARMUP"
                         ? "Baseline Building"
