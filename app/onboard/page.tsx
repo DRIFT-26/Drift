@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+
 const TIMEZONE_OPTIONS = [
   { value: "America/New_York", label: "Eastern (ET) — America/New_York" },
   { value: "America/Chicago", label: "Central (CT) — America/Chicago" },
@@ -25,10 +26,14 @@ export default function OnboardPage() {
   const [source, setSource] = useState("stripe");
   const [revenueFormat, setRevenueFormat] = useState<"single" | "multi">("single");
   const [submitting, setSubmitting] = useState(false);
+  const [isAddBusiness, setIsAddBusiness] = useState(false);
 
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (tz) setTimezone(tz);
+
+    const params = new URLSearchParams(window.location.search);
+    setIsAddBusiness(params.get("mode") === "add_business");
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -120,13 +125,14 @@ export default function OnboardPage() {
             </div>
 
             <h1 className="mt-5 text-3xl md:text-4xl font-semibold tracking-tight">
-              Join the Founding Cohort
-            </h1>
+  {isAddBusiness ? "Add another business to DRIFT" : "Join the Founding Cohort"}
+</h1>
 
             <p className="mt-4 text-white/70 leading-relaxed">
-              DRIFT delivers executive output—quietly. Connect your primary revenue system and
-              receive signal-level alerts when revenue deviates materially.
-            </p>
+  {isAddBusiness
+    ? "Add another business to your DRIFT portfolio. Monitoring begins as soon as your revenue source is connected."
+    : "DRIFT delivers executive output—quietly. Connect your primary revenue system and receive signal-level alerts when revenue deviates materially."}
+</p>
 
             <div className="mt-6 space-y-3 text-sm text-white/70">
               <div className="flex gap-3">

@@ -41,42 +41,33 @@ export async function POST(req: Request) {
     }
 
     const { data: existingTrial, error: trialCheckError } = await supabase
-      .from("trial_claims")
-      .select("id, email, business_id, claimed_at")
-      .eq("email", email)
-      .maybeSingle();
+  .from("trial_claims")
+  .select("id, email, business_id, claimed_at")
+  .eq("email", email)
+  .maybeSingle();
 
-    if (trialCheckError) {
-      return NextResponse.json(
-        { ok: false, error: trialCheckError.message },
-        { status: 500 }
-      );
-    }
+if (trialCheckError) {
+  return NextResponse.json(
+    { ok: false, error: trialCheckError.message },
+    { status: 500 }
+  );
+}
 
-    if (existingTrial) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "A free trial has already been used with this email address.",
-          code: "TRIAL_ALREADY_USED",
-        },
-        { status: 403 }
-      );
-    }
+const hasUsedTrial = Boolean(existingTrial);
 
-    const trialStartedAt = new Date();
-    const trialEndsAt = new Date(
-      trialStartedAt.getTime() + 30 * 24 * 60 * 60 * 1000
-    );
+const trialStartedAt = hasUsedTrial ? null : new Date();
+const trialEndsAt = hasUsedTrial
+  ? null
+  : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     const insertPayload: Record<string, unknown> = {
-      name: businessName,
-      alert_email: email,
-      timezone,
-      trial_started_at: trialStartedAt.toISOString(),
-      trial_ends_at: trialEndsAt.toISOString(),
-      billing_status: "trialing",
-    };
+  name: businessName,
+  alert_email: email,
+  timezone,
+  billing_status: hasUsedTrial ? "inactive" : "trialing",
+  trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
+  trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
+};
 
     if (ownerId) {
       insertPayload.owner_id = ownerId;
@@ -117,29 +108,32 @@ export async function POST(req: Request) {
       );
     }
 
-    const { error: claimError } = await supabase
-      .from("trial_claims")
-      .insert({
-        email,
-        business_id: business.id,
-      });
+    if (!hasUsedTrial) {
+  const { error: claimError } = await supabase
+    .from("trial_claims")
+    .insert({
+      email,
+      business_id: business.id,
+    });
 
-    if (claimError) {
-      return NextResponse.json(
-        { ok: false, error: claimError.message },
-        { status: 500 }
-      );
-    }
+  if (claimError) {
+    return NextResponse.json(
+      { ok: false, error: claimError.message },
+      { status: 500 }
+    );
+  }
+}
 
     return NextResponse.json({
-      ok: true,
-      business_id: business.id,
-      source_id: createdSource?.id ?? null,
-      source_type: normalizedSource,
-      billing_status: "trialing",
-      trial_started_at: trialStartedAt.toISOString(),
-      trial_ends_at: trialEndsAt.toISOString(),
-    });
+  ok: true,
+  business_id: business.id,
+  source_id: createdSource?.id ?? null,
+  source_type: normalizedSource,
+  billing_status: hasUsedTrial ? "inactive" : "trialing",
+  trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
+  trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
+  reused_email_without_trial: hasUsedTrial,
+});
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected server error";
