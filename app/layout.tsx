@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   title: "DRIFT",
   description: "Revenue monitoring for operators",
   icons: {
-    icon: "/favicon.ico?v=2",
-    shortcut: "/favicon.ico?v=2",
-    apple: "/favicon.ico?v=2",
+    icon: "/drift.ico",
+    shortcut: "/drift.ico",
+    apple: "/drift.ico",
   },
 };
 
