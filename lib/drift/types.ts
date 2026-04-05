@@ -1,6 +1,11 @@
 // lib/drift/types.ts
 
-export type DriftStatus = "stable" | "softening" | "attention" | "watch";
+export type DriftStatus =
+  | "stable"
+  | "watch"
+  | "softening"
+  | "attention"
+  | "movement";
 export type DriftDirection = "up" | "flat" | "down";
 
 export type DriftReason = {
