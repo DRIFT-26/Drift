@@ -21,7 +21,8 @@ function normalizeHeader(header: string) {
 }
 
 function splitCsvLine(line: string) {
-  return line.split(",").map((part) => part.trim());
+  const delimiter = line.includes("\t") ? "\t" : ",";
+  return line.split(delimiter).map((part) => part.trim());
 }
 
 function displayLocationName(value: string) {
