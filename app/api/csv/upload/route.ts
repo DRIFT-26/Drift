@@ -18,6 +18,14 @@ function normalizeLocation(value: string | undefined | null) {
     .toLowerCase();
 }
 
+function normalizeHeader(header: string) {
+  return header.trim().toLowerCase();
+}
+
+function splitCsvLine(line: string) {
+  return line.split(",").map((part) => part.trim());
+}
+
 function displayLocationName(value: string) {
   if (value === "default") return value;
 
@@ -68,16 +76,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const header = rows[0].toLowerCase();
-    const isSingleLocation = header === "date,revenue";
-    const isMultiLocation = header === "location,date,revenue";
+    const normalizedHeader = splitCsvLine(rows[0]).map(normalizeHeader);
+    const isSingleLocation =
+      normalizedHeader.length === 2 &&
+      normalizedHeader[0] === "date" &&
+      normalizedHeader[1] === "revenue";
+    const isMultiLocation =
+      normalizedHeader.length === 3 &&
+      normalizedHeader[0] === "location" &&
+      normalizedHeader[1] === "date" &&
+      normalizedHeader[2] === "revenue";
 
     if (!isSingleLocation && !isMultiLocation) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "Accepted CSV format: date,revenue or location,date,revenue",
+            "Accepted CSV format: Date,Revenue or Location,Date,Revenue (case-insensitive)",
         },
         { status: 400 }
       );
@@ -91,17 +106,14 @@ export async function POST(req: Request) {
     const uniqueLocationDateKeys = new Set<string>();
 
     for (const row of rows.slice(1)) {
-      const parts = row.split(",");
+      const parts = splitCsvLine(row);
 
       const rawLocation = isMultiLocation ? parts[0] : "default";
       const location = normalizeLocation(rawLocation);
 
-      const snapshotDate = isMultiLocation
-        ? parts[1]?.trim()
-        : parts[0]?.trim();
-
+      const snapshotDate = isMultiLocation ? parts[1] : parts[0];
       const revenueRaw = isMultiLocation ? parts[2] : parts[1];
-      const revenue = Number(revenueRaw?.trim());
+      const revenue = Number(revenueRaw);
 
       if (!snapshotDate || !isIsoDate(snapshotDate) || Number.isNaN(revenue)) {
         continue;
