@@ -17,7 +17,7 @@ function normalizeLocation(value: string | undefined | null) {
 }
 
 function normalizeHeader(header: string) {
-  return header.trim().toLowerCase();
+  return header.replace(/^\uFEFF/, "").trim().toLowerCase();
 }
 
 function splitCsvLine(line: string) {
@@ -57,7 +57,7 @@ export async function GET() {
       const csvRes = await fetch(csvUrl, { cache: "no-store" });
       if (!csvRes.ok) continue;
 
-      const text = await csvRes.text();
+      const text = (await csvRes.text()).replace(/^\uFEFF/, "");
       const rows = text
         .split(/\r?\n/)
         .map((row) => row.trim())
