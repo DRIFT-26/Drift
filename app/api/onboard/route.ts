@@ -64,7 +64,7 @@ const trialEndsAt = hasUsedTrial
   name: businessName,
   alert_email: email,
   timezone,
-  billing_status: hasUsedTrial ? "inactive" : "trialing",
+  billing_status: hasUsedTrial ? "expired" : "trialing",
   trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
   trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
 };
@@ -129,7 +129,7 @@ const trialEndsAt = hasUsedTrial
   business_id: business.id,
   source_id: createdSource?.id ?? null,
   source_type: normalizedSource,
-  billing_status: hasUsedTrial ? "inactive" : "trialing",
+  billing_status: hasUsedTrial ? "expired" : "trialing",
   trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
   trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
   reused_email_without_trial: hasUsedTrial,
