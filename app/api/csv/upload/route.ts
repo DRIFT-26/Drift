@@ -21,7 +21,7 @@ function normalizeLocation(value: string | undefined | null) {
 function normalizeHeader(header: string) {
   return header
     .replace(/^\uFEFF/, "")
-    .replace(/^["']|["']$/g, "")
+    .replace(/"/g, "")
     .trim()
     .toLowerCase();
 }
@@ -29,8 +29,9 @@ function normalizeHeader(header: string) {
 function splitCsvLine(line: string) {
   return line
     .replace(/^\uFEFF/, "")
+    .replace(/"/g, "")
     .split(/[,\t]/)
-    .map((part) => part.replace(/^["']|["']$/g, "").trim());
+    .map((part) => part.trim());
 }
 
 function displayLocationName(value: string) {
@@ -71,40 +72,56 @@ export async function POST(req: Request) {
     }
 
     const text = (await file.text()).replace(/^\uFEFF/, "");
-    const rows = text
-      .split(/\r?\n/)
-      .map((r) => r.trim())
-      .filter(Boolean);
+const rows = text
+  .split(/\r?\n/)
+  .map((r) => r.replace(/^\uFEFF/, "").trim())
+  .filter(Boolean);
 
-    if (rows.length < 2) {
-      return NextResponse.json(
-        { ok: false, error: "CSV must contain header + data rows" },
-        { status: 400 }
-      );
-    }
+if (rows.length < 2) {
+  return NextResponse.json(
+    { ok: false, error: "CSV must contain header + data rows" },
+    { status: 400 }
+  );
+}
 
-    const normalizedHeader = splitCsvLine(rows[0]).map(normalizeHeader);
-    const isSingleLocation =
-      normalizedHeader.length === 2 &&
-      normalizedHeader[0] === "date" &&
-      normalizedHeader[1] === "revenue";
-    const isMultiLocation =
-      normalizedHeader.length === 3 &&
-      normalizedHeader[0] === "location" &&
-      normalizedHeader[1] === "date" &&
-      normalizedHeader[2] === "revenue";
-    
-      console.log("DRIFT CSV HEADER DEBUG:", normalizedHeader);
-    if (!isSingleLocation && !isMultiLocation) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Accepted CSV format: Date,Revenue or Location,Date,Revenue (case-insensitive)",
-        },
-        { status: 400 }
-      );
-    }
+const rawHeader = rows[0]
+  .replace(/^\uFEFF/, "")
+  .replace(/"/g, "")
+  .trim();
+
+const headerParts = rawHeader
+  .split(/[,\t]/)
+  .map((part) => part.replace(/^\uFEFF/, "").replace(/"/g, "").trim().toLowerCase())
+  .filter(Boolean);
+
+const isSingleLocation =
+  headerParts.length === 2 &&
+  headerParts[0] === "date" &&
+  headerParts[1] === "revenue";
+
+const isMultiLocation =
+  headerParts.length === 3 &&
+  headerParts[0] === "location" &&
+  headerParts[1] === "date" &&
+  headerParts[2] === "revenue";
+
+console.log("DRIFT CSV HEADER DEBUG:", {
+  rawHeader,
+  headerParts,
+  isSingleLocation,
+  isMultiLocation,
+});
+
+if (!isSingleLocation && !isMultiLocation) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error:
+        "Accepted CSV format: Date,Revenue or Location,Date,Revenue (case-insensitive; commas or tabs accepted)",
+    },
+    { status: 400 }
+  );
+}
 
     const grouped: Record<
       string,
