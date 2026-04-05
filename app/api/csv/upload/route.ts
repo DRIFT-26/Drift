@@ -19,12 +19,18 @@ function normalizeLocation(value: string | undefined | null) {
 }
 
 function normalizeHeader(header: string) {
-  return header.replace(/^\uFEFF/, "").trim().toLowerCase();
+  return header
+    .replace(/^\uFEFF/, "")
+    .replace(/^["']|["']$/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 function splitCsvLine(line: string) {
-  const delimiter = line.includes("\t") ? "\t" : ",";
-  return line.split(delimiter).map((part) => part.trim());
+  return line
+    .replace(/^\uFEFF/, "")
+    .split(/[,\t]/)
+    .map((part) => part.replace(/^["']|["']$/g, "").trim());
 }
 
 function displayLocationName(value: string) {
@@ -87,7 +93,8 @@ export async function POST(req: Request) {
       normalizedHeader[0] === "location" &&
       normalizedHeader[1] === "date" &&
       normalizedHeader[2] === "revenue";
-
+    
+      console.log("DRIFT CSV HEADER DEBUG:", normalizedHeader);
     if (!isSingleLocation && !isMultiLocation) {
       return NextResponse.json(
         {
