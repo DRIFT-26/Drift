@@ -86,15 +86,17 @@ export function computeRevenueV1(input: RevenueComputeInput): DriftResult {
 
   let status: DriftStatus = "stable";
 
-  if (deltaPct <= -0.25 || refundDelta >= 0.05) {
-    status = "attention";
-  } else if (deltaPct <= -0.1 || refundDelta >= 0.02) {
-    status = "softening";
-  } else if (deltaPct <= -0.05) {
-    status = "watch";
-  } else if (deltaPct >= 0.12 && refundDelta < 0.02) {
-    status = "movement";
-  }
+if (deltaPct <= -0.25 || refundDelta >= 0.05) {
+  status = "attention";
+} else if (deltaPct <= -0.1 || refundDelta >= 0.02) {
+  status = "softening";
+} else if (deltaPct <= -0.05) {
+  status = "watch";
+} else if (deltaPct >= 0.12 && refundDelta < 0.02) {
+  status = "movement";
+} else {
+  status = "stable";
+}
 
   // MRI score (0..100) — higher is healthier
   const revenuePenalty =
