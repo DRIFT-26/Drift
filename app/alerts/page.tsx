@@ -134,6 +134,14 @@ export default async function AlertsIndexPage() {
     )
     .order("created_at", { ascending: true })
     .returns<BusinessRow[]>();
+    
+  const statusPriority: Record<string, number> = {
+    attention: 1,
+    softening: 2,
+    watch: 3,
+    stable: 4,
+    movement: 5,
+  };
 
   if (error) {
     return (
@@ -206,15 +214,18 @@ export default async function AlertsIndexPage() {
   });
 
   const sorted = normalized.slice().sort((a, b) => {
-    const r = severityRank(a._status) - severityRank(b._status);
-    if (r !== 0) return r;
+  const aStatus = a._status ?? "stable";
+  const bStatus = b._status ?? "stable";
 
-    const as = typeof a._score === "number" ? a._score : 999;
-    const bs = typeof b._score === "number" ? b._score : 999;
-    if (as !== bs) return as - bs;
+  const statusDiff = statusPriority[aStatus] - statusPriority[bStatus];
+  if (statusDiff !== 0) return statusDiff;
 
-    return String(a?.name ?? "").localeCompare(String(b?.name ?? ""));
-  });
+  const as = typeof a._score === "number" ? a._score : 999;
+  const bs = typeof b._score === "number" ? b._score : 999;
+  if (as !== bs) return as - bs;
+
+  return String(a?.name ?? "").localeCompare(String(b?.name ?? ""));
+});
 
   const counts = sorted.reduce(
     (acc, b) => {
@@ -271,7 +282,7 @@ export default async function AlertsIndexPage() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Link
-              href="/onboard"
+              href="/onboard?mode=add_business"
               style={{
                 padding: "10px 14px",
                 borderRadius: 12,
@@ -407,7 +418,16 @@ export default async function AlertsIndexPage() {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {b?.name ?? "Business"}
+                      {String(b?.name ?? "").includes("—") ? (
+  <div>
+    <div>{String(b?.name ?? "").split("—")[0].trim()}</div>
+    <div style={{ fontSize: 12, color: "#9AA4B2", marginTop: 2 }}>
+      {String(b?.name ?? "").split("—")[1].trim()}
+    </div>
+  </div>
+) : (
+  <div>{b?.name ?? "Business"}</div>
+)}
                     </div>
 
                     <div
