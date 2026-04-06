@@ -93,34 +93,39 @@ function statusTone(status: DriftStatus) {
   switch (status) {
     case "attention":
       return {
-        bg: "rgba(255, 107, 107, 0.12)",
-        fg: "#FF8A8A",
-        border: "rgba(255, 107, 107, 0.24)",
+        bg: "rgba(255, 80, 80, 0.18)",
+        fg: "#FF6B6B",
+        border: "rgba(255, 80, 80, 0.35)",
+        glow: "0 0 40px rgba(255, 80, 80, 0.25)",
       };
     case "softening":
       return {
-        bg: "rgba(255, 176, 32, 0.12)",
+        bg: "rgba(255, 176, 32, 0.18)",
         fg: "#FFC266",
-        border: "rgba(255, 176, 32, 0.24)",
+        border: "rgba(255, 176, 32, 0.35)",
+        glow: "0 0 35px rgba(255, 176, 32, 0.22)",
       };
     case "watch":
       return {
-        bg: "rgba(90, 169, 255, 0.12)",
+        bg: "rgba(90, 169, 255, 0.18)",
         fg: "#8BC1FF",
-        border: "rgba(90, 169, 255, 0.24)",
+        border: "rgba(90, 169, 255, 0.35)",
+        glow: "0 0 35px rgba(90, 169, 255, 0.22)",
       };
     case "movement":
       return {
-        bg: "rgba(56, 189, 248, 0.14)",
+        bg: "rgba(56, 189, 248, 0.22)",
         fg: "#7DD3FC",
-        border: "rgba(56, 189, 248, 0.26)",
+        border: "rgba(56, 189, 248, 0.45)",
+        glow: "0 0 50px rgba(56, 189, 248, 0.35)",
       };
     case "stable":
     default:
       return {
-        bg: "rgba(74, 222, 128, 0.12)",
+        bg: "rgba(74, 222, 128, 0.18)",
         fg: "#86EFAC",
-        border: "rgba(74, 222, 128, 0.24)",
+        border: "rgba(74, 222, 128, 0.35)",
+        glow: "0 0 35px rgba(74, 222, 128, 0.22)",
       };
   }
 }
@@ -525,9 +530,12 @@ const eventId = resolvedSearch?.eventId ?? "";
               style={{
                 padding: "8px 12px",
                 borderRadius: 999,
-                background: tone.bg,
-                color: tone.fg,
+                background: `linear-gradient(180deg, ${tone.bg}, rgba(0,0,0,0.45))`,
                 border: `1px solid ${tone.border}`,
+                boxShadow: tone.glow,
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                color: tone.fg,
                 fontWeight: 800,
                 fontSize: 13,
                 letterSpacing: 0.2,
@@ -894,8 +902,10 @@ const eventId = resolvedSearch?.eventId ?? "";
               width: 10,
               height: 10,
               borderRadius: 999,
-              background: itemTone.fg,
-              boxShadow: `0 0 0 4px ${itemTone.bg}`,
+              background: `linear-gradient(180deg, ${itemTone.bg}, rgba(0,0,0,0.45))`,
+              border: `1px solid ${itemTone.border}`,
+              boxShadow: itemTone.glow,
+              backdropFilter: "blur(10px)",
             }}
           />
 
@@ -956,9 +966,11 @@ const eventId = resolvedSearch?.eventId ?? "";
               style={{
                 padding: "6px 10px",
                 borderRadius: 999,
-                background: itemTone.bg,
-                color: itemTone.fg,
-                border: `1px solid ${itemTone.border}`,
+                background: `linear-gradient(180deg, ${tone.bg}, rgba(0,0,0,0.45))`,
+                border: `1px solid ${tone.border}`,
+                boxShadow: tone.glow,
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
                 fontWeight: 800,
                 fontSize: 12,
                 whiteSpace: "nowrap",
