@@ -3,7 +3,12 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { formatReason } from "@/lib/executive/reasons";
 
-type DriftStatus = "stable" | "watch" | "softening" | "attention";
+type DriftStatus =
+  | "stable"
+  | "watch"
+  | "softening"
+  | "attention"
+  | "movement";
 type RiskLabel = "Low" | "Moderate" | "High";
 type Direction = "up" | "down" | "flat" | null;
 
@@ -104,6 +109,12 @@ function statusTone(status: DriftStatus) {
         fg: "#8BC1FF",
         border: "rgba(90, 169, 255, 0.24)",
       };
+    case "movement":
+      return {
+        bg: "rgba(56, 189, 248, 0.14)",
+        fg: "#7DD3FC",
+        border: "rgba(56, 189, 248, 0.26)",
+      };
     case "stable":
     default:
       return {
@@ -119,6 +130,7 @@ function normalizeStatus(raw: unknown): DriftStatus {
   if (s === "attention") return "attention";
   if (s === "softening") return "softening";
   if (s === "watch") return "watch";
+  if (s === "movement") return "movement";
   return "stable";
 }
 
@@ -163,6 +175,7 @@ function statusLabel(status: DriftStatus) {
   if (status === "attention") return "Immediate Attention";
   if (status === "softening") return "Unstable";
   if (status === "watch") return "Developing";
+  if (status === "movement") return "Momentum Detected";
   return "Stable";
 }
 
@@ -431,7 +444,7 @@ const eventId = resolvedSearch?.eventId ?? "";
   }}
 >
             <div style={{ fontSize: 12, color: textSecondary, letterSpacing: 0.5 }}>
-              DRIFT / EXECUTIVE SIGNAL
+              DRIFT / EXECUTIVE BRIEF
             </div>
             <h1
               style={{
