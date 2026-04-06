@@ -149,6 +149,15 @@ function dedupeReasons(reasons: string[]) {
   return [...new Set(reasons.filter(Boolean))];
 }
 
+function estimateMriScore(deltaPct: number, status: string) {
+  if (status === "attention") return 55;
+  if (status === "softening") return 72;
+  if (status === "watch") return 84;
+  if (status === "movement") return 96;
+  if (deltaPct >= 0.12) return 96;
+  return 90;
+}
+
 function consecutiveDaysBelowBaseline(
   rows: Array<{ snapshot_date: string; metrics: any }>,
   baselineDailyAverage: number
@@ -387,13 +396,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await supabase
-      .from("businesses")
-      .update({
-        needs_compute: false,
-        last_computed_at: new Date().toISOString(),
-      })
-      .eq("id", businessId);
+      
+
+    const estimatedMriScore = estimateMriScore(drift.deltaPct, drift.status);
+
+await supabase
+  .from("businesses")
+  .update({
+    last_drift: {
+      status: drift.status,
+      reasons: Array.isArray(reasons)
+        ? reasons.map((reason: string) => ({
+            code: null,
+            detail: reason,
+          }))
+        : [],
+      meta: {
+        engine: "revenue_v1",
+        direction:
+          drift.deltaPct > 0.05
+            ? "up"
+            : drift.deltaPct < -0.05
+            ? "down"
+            : "flat",
+        mriScore: estimatedMriScore,
+        revenue: {
+          baselineNetRevenueCents14d: Math.round(baselineRevenue14d * 100),
+          currentNetRevenueCents14d: Math.round(currentRevenue14d * 100),
+          deltaPct: drift.deltaPct,
+        },
+        confidence: drift.confidence,
+      },
+    },
+    last_drift_at: new Date().toISOString(),
+    needs_compute: false,
+    last_computed_at: new Date().toISOString(),
+  })
+  .eq("id", businessId);
+    
+    
 
     return NextResponse.json({
       ok: true,
@@ -421,6 +462,7 @@ export async function POST(req: NextRequest) {
     const message =
       error instanceof Error ? error.message : "Unexpected server error";
 
+    
     return NextResponse.json(
       { ok: false, error: message },
       { status: 500 }
