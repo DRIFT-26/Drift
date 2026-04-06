@@ -285,16 +285,23 @@ if (!isSingleLocation && !isMultiLocation) {
         continue;
       }
 
-      await fetch(`${appUrl}/api/internal/compute-first`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          business_id: locationBusinessId,
-          force_email: true,
-        }),
-      });
+      const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    business_id: locationBusinessId,
+    force_email: true,
+  }),
+});
+
+if (!computeRes.ok) {
+  console.error(
+    `compute-first failed for business ${locationBusinessId}:`,
+    await computeRes.text()
+  );
+}
     }
 
     if (parentBusiness.alert_email) {
