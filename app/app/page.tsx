@@ -300,27 +300,27 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
       {/* Hero Section */}
-      <section className="mx-auto max-w-5xl px-6 pb-18 pt-28 text-center">
+      <section className="mx-auto max-w-4xl px-6 pb-16 pt-20 text-center">
         <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-          Your revenue should never surprise you.
+          Know what changed before you feel it.
         </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-white/80">
-          DRIFT is a revenue control layer that detects material deviation
-          before it becomes visible in your dashboards or on your&nbsp;P&amp;L.
+          DRIFT surfaces meaningful revenue movement across your business before it
+          turns into a bigger problem — or a missed opportunity.
         </p>
 
         <p className="mx-auto mt-4 max-w-2xl text-sm text-white/65">
-          DRIFT continuously monitors your revenue infrastructure and alerts you
-          the moment momentum shifts.
+          No dashboards to interpret. No noise to sort through. Just clear signals when
+          revenue actually moves.
         </p>
 
-        <div className="mx-auto mt-8 max-w-xl rounded-lg border border-white/10 bg-white/5 p-4 text-left">
+        <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-white/10 bg-white/5 p-5 text-left shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div className="font-mono text-xs text-white/45">DRIFT SIGNAL</div>
 
             <div className="rounded-full bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
-              Trending Down
+              Softening
             </div>
           </div>
 
@@ -329,7 +329,7 @@ export default function Home() {
           </div>
 
           <div className="mt-1 text-xs text-white/60">
-            Below baseline for 4 consecutive days.
+            Below expected range for 4 consecutive days.
           </div>
         </div>
 
@@ -339,26 +339,24 @@ export default function Home() {
             href="#demo"
             className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(10,42,102,0.35)] transition hover:bg-[#09306F]"
           >
-            See DRIFT in Action
+            See Live Signals
           </a>
         </div>
 
         {/* Founding Cohort Line */}
         <p className="mx-auto mt-3 max-w-2xl text-xs text-white/45">
-          Built for operators who run the business by the numbers. Signals
-          currently generated from Stripe + Operational data.
+          Built for operators who need to know what changed before the numbers tell the
+          full story.
         </p>
       </section>
 
       <ControlLayerSection />
 
-      <HowOperatorsUseDrift />
-
       {/* Demo Section */}
       <section id="demo" className="mx-auto max-w-4xl px-6 pt-12 pb-16">
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-white/65">
+        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-white/60">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
-          <span>Live Operator Signal Preview</span>
+          <span className="text-white/78">Live Revenue Signal Preview</span>
 
           <span className="text-white/35">·</span>
           <JobTicker />
@@ -374,14 +372,16 @@ export default function Home() {
         </div>
       </section>
 
+      <HowOperatorsUseDrift />
+
       <section className="mx-auto mt-2 max-w-5xl px-6">
-        <div className="mb-8 text-center flex flex-col items-center">
-  <div className="text-xs font-mono tracking-wide text-white/45 text-center">
+        <div className="mb-8 flex flex-col items-center text-center">
+  <div className="text-xs font-mono tracking-wide text-white/45">
     OPERATOR FIT
   </div>
 
-  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white text-center">
-    Built for operators, not analysts.
+  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+    Built for operators who need signal, not noise.
   </h2>
 </div>
 

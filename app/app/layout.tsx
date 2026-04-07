@@ -7,19 +7,24 @@ export default function AppLayout({
 }) {
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-        <Link href="/app" className="text-sm font-semibold tracking-wide">
-          DRIFT
-        </Link>
+      <header className="border-b border-white/10 px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <Link
+            href="/app"
+            className="text-sm font-semibold tracking-[0.18em] text-white"
+          >
+            DRIFT
+          </Link>
 
-        <nav className="flex items-center gap-6 text-sm text-white/60">
-          <Link href="/app" className="hover:text-white">
-            Command Center
-          </Link>
-          <Link href="/app/alerts" className="hover:text-white">
-            Alerts
-          </Link>
-        </nav>
+          <nav className="flex items-center gap-6 text-sm text-white/60">
+            <Link href="/app" className="transition hover:text-white">
+              Command Center
+            </Link>
+            <Link href="/app/alerts" className="transition hover:text-white">
+              Alerts
+            </Link>
+          </nav>
+        </div>
       </header>
 
       <main>{children}</main>
