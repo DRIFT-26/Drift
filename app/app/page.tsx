@@ -353,7 +353,7 @@ export default function Home() {
       <ControlLayerSection />
 
       {/* Demo Section */}
-      <section id="demo" className="mx-auto max-w-4xl px-6 pt-12 pb-16">
+      <section id="demo" className="mx-auto max-w-4xl px-12 pt-12 pb-16">
         <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-white/60">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
           <span className="text-white/78">Live Revenue Signal Preview</span>
