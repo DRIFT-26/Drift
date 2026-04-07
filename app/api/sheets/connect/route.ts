@@ -119,7 +119,6 @@ export async function POST(req: Request) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
-    const cronSecret = (process.env.CRON_SECRET || "").trim();
 
     const syncRes = await fetch(`${appUrl}/api/jobs/sheets-sync`, {
       method: "GET",
@@ -133,22 +132,37 @@ export async function POST(req: Request) {
       );
     }
 
-    const computeRes = await fetch(`${appUrl}/api/jobs/compute`, {
-      method: "GET",
-      headers: cronSecret
-        ? {
-            Authorization: `Bearer ${cronSecret}`,
-            "x-cron-secret": cronSecret,
-          }
-        : {},
-      cache: "no-store",
-    });
+    const { data: pendingBusinesses, error: pendingErr } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("needs_compute", true)
+      .limit(100);
 
-    if (!computeRes.ok) {
+    if (pendingErr) {
       console.error(
-        `compute job failed after sheets connect for business ${business_id}:`,
-        await computeRes.text()
+        `failed to read businesses needing compute after sheets connect for business ${business_id}:`,
+        pendingErr.message
       );
+    } else {
+      for (const biz of pendingBusinesses ?? []) {
+        const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            business_id: biz.id,
+            force_email: true,
+          }),
+        });
+
+        if (!computeRes.ok) {
+          console.error(
+            `compute-first failed after sheets connect for business ${biz.id}:`,
+            await computeRes.text()
+          );
+        }
+      }
     }
 
     return NextResponse.json({
