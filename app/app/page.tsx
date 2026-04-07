@@ -222,7 +222,7 @@ function ControlLayerSection() {
 
 function MaterialDeviationSection() {
   return (
-    <section className="mx-auto max-w-5xl px-6 pb-24">
+    <section className="mx-auto max-w-5xl px-6 pb-10">
       <div className="rounded-xl border border-white/10 bg-white/5 p-6 md:p-8">
         <div className="font-mono text-xs tracking-wide text-white/45">
           MATERIAL DEVIATION
