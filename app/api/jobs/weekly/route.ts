@@ -126,7 +126,7 @@ Status mix: ${counts.attention} Attention · ${counts.softening} Softening · ${
 
 ${topItems.length ? `Top items:\n${topItems.join("\n")}` : "Top items: None this week."}
 
-Open DRIFT: ${baseUrl()}/alerts
+Open DRIFT: ${baseUrl()}/app/alerts
 
 —
 Short. Specific. Actionable.
