@@ -119,38 +119,34 @@ export async function POST(req: Request) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
+    const cronSecret = (process.env.CRON_SECRET || "").trim();
 
     const syncRes = await fetch(`${appUrl}/api/jobs/sheets-sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        business_id,
-      }),
+      method: "GET",
+      cache: "no-store",
     });
 
     if (!syncRes.ok) {
       console.error(
-        `sheets-sync failed for business ${business_id}:`,
+        `sheets-sync failed after connect for business ${business_id}:`,
         await syncRes.text()
       );
     }
 
-    const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        business_id,
-        force_email: true,
-      }),
+    const computeRes = await fetch(`${appUrl}/api/jobs/compute`, {
+      method: "GET",
+      headers: cronSecret
+        ? {
+            Authorization: `Bearer ${cronSecret}`,
+            "x-cron-secret": cronSecret,
+          }
+        : {},
+      cache: "no-store",
     });
 
     if (!computeRes.ok) {
       console.error(
-        `compute-first failed for business ${business_id}:`,
+        `compute job failed after sheets connect for business ${business_id}:`,
         await computeRes.text()
       );
     }
