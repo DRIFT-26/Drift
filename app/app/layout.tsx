@@ -16,7 +16,7 @@ export default function AppLayout({
           <Link href="/app" className="hover:text-white">
             Command Center
           </Link>
-          <Link href="/alerts" className="hover:text-white">
+          <Link href="/app/alerts" className="hover:text-white">
             Alerts
           </Link>
         </nav>

@@ -346,7 +346,7 @@ const eventId = resolvedSearch?.eventId ?? "";
           Failed to load business: {error?.message ?? "not_found"}
         </div>
         <div style={{ marginTop: 10 }}>
-          <Link href="/alerts" style={{ color: "#8BC1FF" }}>
+          <Link href="/app/alerts" style={{ color: "#8BC1FF" }}>
             ← Back to Alerts
           </Link>
         </div>
@@ -560,7 +560,7 @@ const eventId = resolvedSearch?.eventId ?? "";
             </div>
 
             <Link
-              href="/alerts"
+              href="/app/alerts"
               style={{ color: "#8BC1FF", fontWeight: 700, fontSize: 13 }}
             >
               Back
