@@ -118,6 +118,43 @@ export async function POST(req: Request) {
       });
     }
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
+
+    const syncRes = await fetch(`${appUrl}/api/jobs/sheets-sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        business_id,
+      }),
+    });
+
+    if (!syncRes.ok) {
+      console.error(
+        `sheets-sync failed for business ${business_id}:`,
+        await syncRes.text()
+      );
+    }
+
+    const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        business_id,
+        force_email: true,
+      }),
+    });
+
+    if (!computeRes.ok) {
+      console.error(
+        `compute-first failed for business ${business_id}:`,
+        await computeRes.text()
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       source_id: sourceId,
