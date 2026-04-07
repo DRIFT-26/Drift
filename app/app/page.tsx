@@ -373,8 +373,9 @@ export default function Home() {
       </section>
 
       <HowOperatorsUseDrift />
+        <section className="mx-auto mt-14 max-w-5xl px-6">
 
-      <section className="mx-auto mt-2 max-w-5xl px-6">
+
         <div className="mb-8 flex flex-col items-center text-center">
   <div className="text-xs font-mono tracking-wide text-white/45">
     OPERATOR FIT
