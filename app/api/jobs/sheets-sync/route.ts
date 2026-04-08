@@ -43,6 +43,7 @@ function displayLocationName(value: string) {
 export async function GET() {
   try {
     const supabase = supabaseAdmin();
+    const touchedBusinessIds = new Set<string>();
 
     const { data: sources, error: sourceErr } = await supabase
       .from("sources")
@@ -372,10 +373,15 @@ export async function GET() {
             last_ingested_at: new Date().toISOString(),
           })
           .eq("id", locationBusinessId);
+
+        touchedBusinessIds.add(locationBusinessId);
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      touched_business_ids: Array.from(touchedBusinessIds),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected server error";

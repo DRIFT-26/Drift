@@ -130,63 +130,49 @@ export async function POST(req: Request) {
       cache: "no-store",
     });
 
+    const syncJson = await syncRes.json().catch(() => null);
+
     if (!syncRes.ok) {
       console.error(
         `sheets-sync failed after connect for business ${business_id}:`,
-        await syncRes.text()
+        syncJson ?? "unknown sync error"
       );
     }
 
-        console.log("DRIFT SHEETS CONNECT: starting post-sync compute", {
+    const touchedBusinessIds: string[] = Array.isArray(syncJson?.touched_business_ids)
+      ? syncJson.touched_business_ids
+      : [];
+
+    console.log("DRIFT SHEETS CONNECT: touched businesses after sync", {
       business_id,
+      touchedBusinessIds,
     });
 
-    const { data: pendingBusinesses, error: pendingErr } = await supabase
-      .from("businesses")
-      .select("id,name,alert_email,needs_compute")
-      .eq("needs_compute", true)
-      .limit(100);
+    for (const touchedBusinessId of touchedBusinessIds) {
+      const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          business_id: touchedBusinessId,
+          force_email: true,
+        }),
+      });
 
-    console.log("DRIFT SHEETS CONNECT: pending businesses", {
-      pendingErr: pendingErr?.message ?? null,
-      count: pendingBusinesses?.length ?? 0,
-      pendingBusinesses,
-    });
+      const computeText = await computeRes.text();
 
-    if (pendingErr) {
-      console.error(
-        `failed to read businesses needing compute after sheets connect for business ${business_id}:`,
-        pendingErr.message
-      );
-    } else {
-      for (const biz of pendingBusinesses ?? []) {
-        console.log("DRIFT SHEETS CONNECT: computing business", biz);
+      console.log("DRIFT SHEETS CONNECT: compute result", {
+        business_id: touchedBusinessId,
+        ok: computeRes.ok,
+        response: computeText,
+      });
 
-        const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            business_id: biz.id,
-            force_email: true,
-          }),
-        });
-
-        const computeText = await computeRes.text();
-
-        console.log("DRIFT SHEETS CONNECT: compute result", {
-          business_id: biz.id,
-          ok: computeRes.ok,
-          response: computeText,
-        });
-
-        if (!computeRes.ok) {
-          console.error(
-            `compute-first failed after sheets connect for business ${biz.id}:`,
-            computeText
-          );
-        }
+      if (!computeRes.ok) {
+        console.error(
+          `compute-first failed after sheets connect for business ${touchedBusinessId}:`,
+          computeText
+        );
       }
     }
 
@@ -194,6 +180,7 @@ export async function POST(req: Request) {
       ok: true,
       source_id: sourceId,
       csv_url: csvUrl,
+      touched_business_ids: touchedBusinessIds,
     });
   } catch (error) {
     const message =
