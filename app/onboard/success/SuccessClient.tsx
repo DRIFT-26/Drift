@@ -129,11 +129,11 @@ export default function SuccessClient({
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/app"
-              className="inline-flex items-center justify-center rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
-            >
-              Open DRIFT
-            </Link>
+  href="/app/alerts"
+  className="inline-flex items-center justify-center rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
+>
+  Open DRIFT
+</Link>
 
             <Link
               href="/onboard"
