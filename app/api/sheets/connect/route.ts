@@ -132,11 +132,21 @@ export async function POST(req: Request) {
       );
     }
 
+        console.log("DRIFT SHEETS CONNECT: starting post-sync compute", {
+      business_id,
+    });
+
     const { data: pendingBusinesses, error: pendingErr } = await supabase
       .from("businesses")
-      .select("id")
+      .select("id,name,alert_email,needs_compute")
       .eq("needs_compute", true)
       .limit(100);
+
+    console.log("DRIFT SHEETS CONNECT: pending businesses", {
+      pendingErr: pendingErr?.message ?? null,
+      count: pendingBusinesses?.length ?? 0,
+      pendingBusinesses,
+    });
 
     if (pendingErr) {
       console.error(
@@ -145,6 +155,8 @@ export async function POST(req: Request) {
       );
     } else {
       for (const biz of pendingBusinesses ?? []) {
+        console.log("DRIFT SHEETS CONNECT: computing business", biz);
+
         const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
           method: "POST",
           headers: {
@@ -156,10 +168,18 @@ export async function POST(req: Request) {
           }),
         });
 
+        const computeText = await computeRes.text();
+
+        console.log("DRIFT SHEETS CONNECT: compute result", {
+          business_id: biz.id,
+          ok: computeRes.ok,
+          response: computeText,
+        });
+
         if (!computeRes.ok) {
           console.error(
             `compute-first failed after sheets connect for business ${biz.id}:`,
-            await computeRes.text()
+            computeText
           );
         }
       }
