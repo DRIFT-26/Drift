@@ -13,22 +13,54 @@ function sourceLabel(source: string) {
 export default function SuccessClient({
   signal,
   source,
+  businessId,
 }: {
   signal: string;
   source: string;
+  businessId: string;
 }) {
+  
   const connectedSource = sourceLabel(source);
   const [showPreview, setShowPreview] = useState(signal === "processing");
+  const [isReady, setIsReady] = useState(signal !== "processing");
+const [isChecking, setIsChecking] = useState(signal === "processing");
 
   useEffect(() => {
-    if (signal !== "processing") return;
+  if (signal !== "processing" || !businessId) return;
 
-    const timer = setTimeout(() => {
-      setShowPreview(false);
-    }, 10000);
+  let cancelled = false;
 
-    return () => clearTimeout(timer);
-  }, [signal]);
+  const timer = setTimeout(() => {
+    if (!cancelled) setShowPreview(false);
+  }, 10000);
+
+  const poll = async () => {
+    try {
+      const res = await fetch(`/api/business/status?business_id=${businessId}`, {
+        cache: "no-store",
+      });
+
+      const json = await res.json();
+
+      if (!cancelled && json?.ready === true) {
+        setIsReady(true);
+        setIsChecking(false);
+        setShowPreview(false);
+      }
+    } catch {
+      // swallow for now; keep polling
+    }
+  };
+
+  poll();
+  const interval = setInterval(poll, 2500);
+
+  return () => {
+    cancelled = true;
+    clearTimeout(timer);
+    clearInterval(interval);
+  };
+}, [signal, businessId]);
 
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
@@ -65,8 +97,7 @@ export default function SuccessClient({
 
           {signal === "processing" && (
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-              Your first DRIFT signal is being generated and will arrive in your
-              inbox shortly.
+              Your first DRIFT signal is on the way to your inbox. Hang tight—we’re getting your Command Center ready.
             </div>
           )}
 
@@ -128,12 +159,23 @@ export default function SuccessClient({
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-  href="/app/alerts"
-  className="inline-flex items-center justify-center rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
->
-  Open DRIFT
-</Link>
+            
+            {isReady ? (
+  <Link
+    href="/app/alerts"
+    className="inline-flex items-center justify-center rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
+  >
+    Open DRIFT
+  </Link>
+) : (
+  <button
+    type="button"
+    disabled
+    className="inline-flex items-center justify-center rounded-md bg-white/70 px-4 py-3 text-sm font-semibold text-black/70 cursor-not-allowed"
+  >
+    {isChecking ? "Preparing Command Center..." : "Finalizing Signals..."}
+  </button>
+)}
 
             <Link
               href="/onboard"
