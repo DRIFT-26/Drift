@@ -17,12 +17,18 @@ function normalizeLocation(value: string | undefined | null) {
 }
 
 function normalizeHeader(header: string) {
-  return header.replace(/^\uFEFF/, "").trim().toLowerCase();
+  return header
+    .replace(/^\uFEFF/, "")
+    .replace(/^["']|["']$/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 function splitCsvLine(line: string) {
-  const delimiter = line.includes("\t") ? "\t" : ",";
-  return line.split(delimiter).map((part) => part.trim());
+  return line
+    .replace(/^\uFEFF/, "")
+    .split(/[,\t]/)
+    .map((part) => part.replace(/^["']|["']$/g, "").trim());
 }
 
 function displayLocationName(value: string) {
@@ -51,20 +57,60 @@ export async function GET() {
       );
     }
 
+    console.log("SYNC: connected google sheets sources", {
+      count: sources?.length ?? 0,
+    });
+
     for (const source of sources ?? []) {
       const csvUrl = source.config?.csv_url as string | undefined;
-      if (!csvUrl) continue;
+
+      console.log("SYNC: Processing source", {
+        sourceId: source.id,
+        businessId: source.business_id,
+        csvUrl,
+      });
+
+      if (!csvUrl) {
+        console.log("SYNC: Skipping source with missing csvUrl", {
+          sourceId: source.id,
+          businessId: source.business_id,
+        });
+        continue;
+      }
 
       const csvRes = await fetch(csvUrl, { cache: "no-store" });
-      if (!csvRes.ok) continue;
 
-      const text = (await csvRes.text()).replace(/^\uFEFF/, "");
+      console.log("SYNC: Fetch status", {
+        sourceId: source.id,
+        businessId: source.business_id,
+        status: csvRes.status,
+        ok: csvRes.ok,
+      });
+
+      if (!csvRes.ok) {
+        continue;
+      }
+
+      const rawText = await csvRes.text();
+
+      console.log("SYNC RAW RESPONSE:", rawText.slice(0, 500));
+
+      const text = rawText.replace(/^\uFEFF/, "");
       const rows = text
         .split(/\r?\n/)
         .map((row) => row.trim())
         .filter(Boolean);
 
-      if (rows.length < 2) continue;
+      console.log("SYNC: First 3 rows", rows.slice(0, 3));
+
+      if (rows.length < 2) {
+        console.log("SYNC: Skipping source with fewer than 2 rows", {
+          sourceId: source.id,
+          businessId: source.business_id,
+          rowCount: rows.length,
+        });
+        continue;
+      }
 
       const normalizedHeader = splitCsvLine(rows[0]).map(normalizeHeader);
       const isSingleLocation =
@@ -77,7 +123,20 @@ export async function GET() {
         normalizedHeader[1] === "date" &&
         normalizedHeader[2] === "revenue";
 
+      console.log("SYNC: Header check", {
+        sourceId: source.id,
+        businessId: source.business_id,
+        normalizedHeader,
+        isSingleLocation,
+        isMultiLocation,
+      });
+
       if (!isSingleLocation && !isMultiLocation) {
+        console.log("SYNC: Skipping source due to invalid header", {
+          sourceId: source.id,
+          businessId: source.business_id,
+          normalizedHeader,
+        });
         continue;
       }
 
@@ -87,7 +146,14 @@ export async function GET() {
         .eq("id", source.business_id)
         .maybeSingle();
 
-      if (parentBusinessErr || !parentBusiness) continue;
+      if (parentBusinessErr || !parentBusiness) {
+        console.log("SYNC: Skipping source due to missing parent business", {
+          sourceId: source.id,
+          businessId: source.business_id,
+          error: parentBusinessErr?.message ?? null,
+        });
+        continue;
+      }
 
       const grouped: Record<
         string,
@@ -126,7 +192,19 @@ export async function GET() {
         });
       }
 
-      if (!Object.keys(grouped).length) continue;
+      console.log("SYNC: Grouped result", {
+        sourceId: source.id,
+        businessId: source.business_id,
+        locations: Object.keys(grouped),
+      });
+
+      if (!Object.keys(grouped).length) {
+        console.log("SYNC: Skipping source because grouped result is empty", {
+          sourceId: source.id,
+          businessId: source.business_id,
+        });
+        continue;
+      }
 
       for (const location of Object.keys(grouped)) {
         const locationRows = grouped[location];
@@ -151,6 +229,12 @@ export async function GET() {
               .maybeSingle();
 
           if (existingBusinessErr) {
+            console.log("SYNC: Failed looking up existing child business", {
+              sourceId: source.id,
+              businessId: source.business_id,
+              location,
+              error: existingBusinessErr.message,
+            });
             continue;
           }
 
@@ -169,6 +253,12 @@ export async function GET() {
                 .single();
 
             if (createBusinessErr || !createdBusiness?.id) {
+              console.log("SYNC: Failed creating child business", {
+                sourceId: source.id,
+                businessId: source.business_id,
+                location,
+                error: createBusinessErr?.message ?? "Unknown create business error",
+              });
               continue;
             }
 
@@ -185,6 +275,12 @@ export async function GET() {
             .maybeSingle();
 
         if (existingSourceErr) {
+          console.log("SYNC: Failed looking up existing location source", {
+            sourceId: source.id,
+            businessId: source.business_id,
+            locationBusinessId,
+            error: existingSourceErr.message,
+          });
           continue;
         }
 
@@ -212,6 +308,12 @@ export async function GET() {
             .single();
 
           if (createSourceErr || !createdSource?.id) {
+            console.log("SYNC: Failed creating location source", {
+              sourceId: source.id,
+              businessId: source.business_id,
+              locationBusinessId,
+              error: createSourceErr?.message ?? "Unknown create source error",
+            });
             continue;
           }
 
@@ -248,8 +350,20 @@ export async function GET() {
           });
 
         if (snapshotErr) {
+          console.log("SYNC: Snapshot upsert failed", {
+            sourceId: source.id,
+            businessId: source.business_id,
+            locationBusinessId,
+            error: snapshotErr.message,
+          });
           continue;
         }
+
+        console.log("SYNC: Marking business for compute", {
+          sourceId: source.id,
+          businessId: source.business_id,
+          locationBusinessId,
+        });
 
         await supabase
           .from("businesses")
