@@ -51,6 +51,7 @@ export default async function SuccessPage({
       <SuccessClient
         signal={params.signal ?? ""}
         source={params.source ?? ""}
+        businessId={params.business_id ?? ""}
       />
     </Suspense>
   );
