@@ -392,7 +392,7 @@ export default async function AlertsIndexPage() {
               return (
                 <Link
                   key={b.id}
-                  href={`app/alerts/${b.id}`}
+                  href={`/app/alerts/${b.id}`}
                   style={{
                     gridColumn: "span 12",
                     background: "#11161C",
