@@ -10,7 +10,12 @@ function toCsvExportUrl(sheetUrl: string) {
   if (!match?.[1]) return null;
 
   const sheetId = match[1];
-  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+  const url = new URL(sheetUrl);
+  const gid = url.searchParams.get("gid");
+
+  return gid
+    ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+    : `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
 }
 
 export async function POST(req: Request) {
