@@ -402,6 +402,10 @@ const eventId = resolvedSearch?.eventId ?? "";
       ? refundsMeta.baselineRefundRate
       : null;
 
+  const hasRefundData =
+    typeof refundRateCurrent === "number" ||
+    typeof refundRateBaseline === "number";
+
   const monthlyRevenueCents =
     typeof business.monthly_revenue_cents === "number"
       ? business.monthly_revenue_cents
@@ -643,29 +647,53 @@ const eventId = resolvedSearch?.eventId ?? "";
 
           <div
             style={{
-              gridColumn: "span 4",
-              background: cardBg,
-              border,
-              borderRadius: 18,
-              padding: 16,
+            gridColumn: "span 4",
+            background: hasRefundData ? cardBg : subCardBg,
+            border: hasRefundData
+            ? border
+            : "1px solid rgba(255,255,255,0.03)",
+            borderRadius: 18,
+            padding: 16,
             }}
           >
+            
             <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               REFUND RATE (14D)
             </div>
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 28,
-                fontWeight: 950,
-                color: textPrimary,
-              }}
-            >
-              {formatPct(refundRateCurrent)}
-            </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
-              Baseline: {formatPct(refundRateBaseline)}
-            </div>
+
+            {hasRefundData ? (
+              <>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 28,
+                    fontWeight: 950,
+                    color: textPrimary,
+                  }}
+                >
+                  {formatPct(refundRateCurrent)}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
+                  Baseline: {formatPct(refundRateBaseline)}
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 22,
+                    fontWeight: 900,
+                    color: textPrimary,
+                  }}
+                >
+                  Connect Stripe
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
+                  Refund signals unlock when a Stripe source is connected.
+                </div>
+              </>
+            )}
           </div>
 
           <div
