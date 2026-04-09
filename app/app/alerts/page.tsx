@@ -1,4 +1,4 @@
-// app/alerts/page.tsx
+// app/app/alerts/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
@@ -10,6 +10,8 @@ import {
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 
@@ -51,13 +53,6 @@ function statusTone(status: DriftStatus) {
   }
 }
 
-function severityRank(s: DriftStatus) {
-  if (s === "attention") return 0;
-  if (s === "softening") return 1;
-  if (s === "watch") return 2;
-  return 3;
-}
-
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -74,6 +69,7 @@ function formatMoneyFromBusiness(b: {
       : null;
 
   if (typeof cents !== "number") return "—";
+
   const dollars = cents / 100;
   return dollars.toLocaleString(undefined, {
     style: "currency",
@@ -135,30 +131,37 @@ type BusinessRow = {
 export default async function AlertsIndexPage() {
   const supabase = await createClient();
 
-const {
-  data: { user },
-} = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-const cookieStore = await cookies();
-const onboardAccess = verifyOnboardAccessToken(
-  cookieStore.get(ONBOARD_ACCESS_COOKIE)?.value
-);
+  const cookieStore = await cookies();
+  const onboardAccess = verifyOnboardAccessToken(
+    cookieStore.get(ONBOARD_ACCESS_COOKIE)?.value
+  );
 
-const email = user?.email ?? onboardAccess?.email ?? null;
+  const userId = user?.id ?? null;
+  const email = user?.email ?? onboardAccess?.email ?? null;
 
-if (!email) {
-  redirect("/login");
-}
+  if (!userId && !email) {
+    redirect("/login");
+  }
 
-    const { data: businesses, error } = await supabase
+  let query = supabase
     .from("businesses")
     .select(
       "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
     )
-    .eq("alert_email", email)
-    .order("created_at", { ascending: true })
-    .returns<BusinessRow[]>();
-    
+    .order("created_at", { ascending: true });
+
+  if (userId) {
+    query = query.eq("owner_id", userId);
+  } else if (email) {
+    query = query.eq("alert_email", email);
+  }
+
+  const { data: businesses, error } = await query.returns<BusinessRow[]>();
+
   const statusPriority: Record<string, number> = {
     attention: 1,
     softening: 2,
@@ -219,7 +222,6 @@ if (!email) {
       typeof last?.meta?.mriScore === "number"
         ? clamp(last.meta.mriScore, 0, 100)
         : null;
-    const engine = String(last?.meta?.engine ?? "—");
     const updated = b?.last_drift_at ?? null;
     const reason =
       Array.isArray(last?.reasons) && last.reasons.length > 0
@@ -230,25 +232,24 @@ if (!email) {
       ...b,
       _status: status,
       _score: score,
-      _engine: engine,
       _updated: updated,
       _reason: reason,
     };
   });
 
   const sorted = normalized.slice().sort((a, b) => {
-  const aStatus = a._status ?? "stable";
-  const bStatus = b._status ?? "stable";
+    const aStatus = a._status ?? "stable";
+    const bStatus = b._status ?? "stable";
 
-  const statusDiff = statusPriority[aStatus] - statusPriority[bStatus];
-  if (statusDiff !== 0) return statusDiff;
+    const statusDiff = statusPriority[aStatus] - statusPriority[bStatus];
+    if (statusDiff !== 0) return statusDiff;
 
-  const as = typeof a._score === "number" ? a._score : 999;
-  const bs = typeof b._score === "number" ? b._score : 999;
-  if (as !== bs) return as - bs;
+    const as = typeof a._score === "number" ? a._score : 999;
+    const bs = typeof b._score === "number" ? b._score : 999;
+    if (as !== bs) return as - bs;
 
-  return String(a?.name ?? "").localeCompare(String(b?.name ?? ""));
-});
+    return String(a?.name ?? "").localeCompare(String(b?.name ?? ""));
+  });
 
   const counts = sorted.reduce(
     (acc, b) => {
@@ -285,19 +286,20 @@ if (!email) {
         >
           <div>
             <div style={{ fontSize: 12, letterSpacing: 0.5 }}>
-  <Link
-    href="/"
-    style={{
-      color: "#E6EAF0",
-      fontWeight: 900,
-      textDecoration: "none",
-      marginRight: 6,
-    }}
-  >
-    DRIFT
-  </Link>
-  <span style={{ color: "#9AA4B2" }}>/ COMMAND CENTER</span>
-</div>
+              <Link
+                href="/"
+                style={{
+                  color: "#E6EAF0",
+                  fontWeight: 900,
+                  textDecoration: "none",
+                  marginRight: 6,
+                }}
+              >
+                DRIFT
+              </Link>
+              <span style={{ color: "#9AA4B2" }}>/ COMMAND CENTER</span>
+            </div>
+
             <h1
               style={{
                 margin: "6px 0 0",
@@ -309,6 +311,7 @@ if (!email) {
             >
               Executive Signal Feed
             </h1>
+
             <div style={{ marginTop: 8, fontSize: 14, color: "#9AA4B2" }}>
               Prioritized by severity. Review what matters first.
             </div>
@@ -375,6 +378,7 @@ if (!email) {
                     >
                       {label.toUpperCase()}
                     </div>
+
                     <div
                       style={{
                         padding: "4px 8px",
@@ -389,6 +393,7 @@ if (!email) {
                       {value}
                     </div>
                   </div>
+
                   <div style={{ marginTop: 12, fontSize: 12, color: "#9AA4B2" }}>
                     Portfolio total:{" "}
                     <span style={{ color: "#E6EAF0", fontWeight: 900 }}>
@@ -453,15 +458,21 @@ if (!email) {
                       }}
                     >
                       {String(b?.name ?? "").includes("—") ? (
-  <div>
-    <div>{String(b?.name ?? "").split("—")[0].trim()}</div>
-    <div style={{ fontSize: 12, color: "#9AA4B2", marginTop: 2 }}>
-      {String(b?.name ?? "").split("—")[1].trim()}
-    </div>
-  </div>
-) : (
-  <div>{b?.name ?? "Business"}</div>
-)}
+                        <div>
+                          <div>{String(b?.name ?? "").split("—")[0].trim()}</div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#9AA4B2",
+                              marginTop: 2,
+                            }}
+                          >
+                            {String(b?.name ?? "").split("—")[1].trim()}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>{b?.name ?? "Business"}</div>
+                      )}
                     </div>
 
                     <div
