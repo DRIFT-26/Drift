@@ -68,6 +68,9 @@ export default function OnboardPage() {
       }
 
       const businessId = String(data.business_id);
+      
+      console.log("ONBOARD API business_id:", data.business_id);
+      console.log("ONBOARD derived businessId:", businessId);
 
       if (source === "stripe") {
         router.push(`/api/stripe/connect?business_id=${encodeURIComponent(businessId)}`);
@@ -85,6 +88,7 @@ export default function OnboardPage() {
         return;
       }
 
+      console.log("ONBOARD redirecting to CSV with businessId:", businessId);
       router.push(
         `/onboard/csv?business_id=${encodeURIComponent(
           businessId

@@ -57,14 +57,16 @@ const touched = Array.isArray(data?.touched_business_ids)
   ? data.touched_business_ids.join(",")
   : "";
 
-      console.log("CSV businessId before success redirect:", businessId);
-      console.log("CSV touched ids before success redirect:", touched);
+console.log("CSV businessId before success redirect:", businessId);
+console.log("CSV touched ids before success redirect:", touched);
 
-    router.push(`/onboard/success?business_id=${businessId}&signal=processing&source=csv&touched_business_ids=${encodeURIComponent(touched)}`);
+if (!res.ok || !data?.ok) {
+  throw new Error(data?.error ?? "Upload failed.");
+}
 
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error ?? "Upload failed.");
-      }
+router.push(
+  `/onboard/success?business_id=${businessId}&signal=processing&source=csv&touched_business_ids=${encodeURIComponent(touched)}`
+);
 
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed.";
