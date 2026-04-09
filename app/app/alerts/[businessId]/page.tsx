@@ -350,7 +350,7 @@ if (userId) {
   businessQuery = businessQuery.eq("alert_email", email);
 }
 
-const { data: business, error } = await businessQuery.single<BusinessRow>();
+const { data: business, error } = await businessQuery.maybeSingle<BusinessRow>();
 
   const { data: timeline } = await supabase
     .from("email_logs")
