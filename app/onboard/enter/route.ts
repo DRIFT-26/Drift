@@ -1,4 +1,3 @@
-// app/onboard/enter/route.ts
 import { NextResponse } from "next/server";
 import {
   ONBOARD_ACCESS_COOKIE,
@@ -8,15 +7,18 @@ import {
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const token = url.searchParams.get("token");
+  const origin =
+    process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
+
+  const requestUrl = new URL(req.url);
+  const token = requestUrl.searchParams.get("token");
   const payload = verifyOnboardAccessToken(token);
 
   if (!payload || !token) {
-    return NextResponse.redirect(new URL("/login", url.origin));
+    return NextResponse.redirect(new URL("/login", origin));
   }
 
-  const res = NextResponse.redirect(new URL("/app/alerts", url.origin));
+  const res = NextResponse.redirect(new URL("/app/alerts", origin));
 
   res.cookies.set(ONBOARD_ACCESS_COOKIE, token, {
     httpOnly: true,

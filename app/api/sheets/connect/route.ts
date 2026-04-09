@@ -10,8 +10,14 @@ function toCsvExportUrl(sheetUrl: string) {
   if (!match?.[1]) return null;
 
   const sheetId = match[1];
-  const url = new URL(sheetUrl);
-  const gid = url.searchParams.get("gid");
+
+  let gid: string | null = null;
+  try {
+    const parsed = new URL(sheetUrl);
+    gid = parsed.searchParams.get("gid");
+  } catch {
+    gid = null;
+  }
 
   return gid
     ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
