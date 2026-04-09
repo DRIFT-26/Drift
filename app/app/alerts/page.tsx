@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { formatReason } from "@/lib/executive/reasons";
-import AppHeader from "@/app/_components/AppHeader";
 import { cookies } from "next/headers";
 import {
   ONBOARD_ACCESS_COOKIE,
@@ -210,7 +209,7 @@ if (userId) {
           color: "#E6EAF0",
         }}
       >
-        <AppHeader />
+        
 
         <h1
           style={{
@@ -313,7 +312,6 @@ if (userId) {
           }}
         >
           <div>
-  <AppHeader />
   <h1
     style={{
       margin: "6px 0 0",
