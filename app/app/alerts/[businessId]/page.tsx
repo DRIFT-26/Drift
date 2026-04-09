@@ -337,20 +337,48 @@ if (!userId && !email) {
   redirect("/login");
 }
 
-let businessQuery = supabase
-  .from("businesses")
-  .select(
-    "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
-  )
-  .eq("id", businessId);
+let business: BusinessRow | null = null;
+let error: { message?: string } | null = null;
 
 if (userId) {
-  businessQuery = businessQuery.eq("owner_id", userId);
-} else if (email) {
-  businessQuery = businessQuery.eq("alert_email", email);
-}
+  const ownerMatch = await supabase
+    .from("businesses")
+    .select(
+      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+    )
+    .eq("id", businessId)
+    .eq("owner_id", userId)
+    .maybeSingle<BusinessRow>();
 
-const { data: business, error } = await businessQuery.maybeSingle<BusinessRow>();
+  business = ownerMatch.data ?? null;
+  error = ownerMatch.error;
+
+  if (!business && email) {
+    const emailMatch = await supabase
+      .from("businesses")
+      .select(
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+      )
+      .eq("id", businessId)
+      .eq("alert_email", email)
+      .maybeSingle<BusinessRow>();
+
+    business = emailMatch.data ?? null;
+    error = emailMatch.error;
+  }
+} else if (email) {
+  const emailMatch = await supabase
+    .from("businesses")
+    .select(
+      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+    )
+    .eq("id", businessId)
+    .eq("alert_email", email)
+    .maybeSingle<BusinessRow>();
+
+  business = emailMatch.data ?? null;
+  error = emailMatch.error;
+}
 
   const { data: timeline } = await supabase
     .from("email_logs")
@@ -375,7 +403,7 @@ const { data: business, error } = await businessQuery.maybeSingle<BusinessRow>()
       >
         <h1 style={{ fontSize: 22, fontWeight: 900 }}>Executive Signal</h1>
         <div style={{ marginTop: 10, color: "#FF8A8A" }}>
-          Failed to load business: {error?.message ?? "not_found"}
+          Business not found or access is restricted.
         </div>
         <div style={{ marginTop: 10 }}>
           <Link href="/app/alerts" style={{ color: "#8BC1FF" }}>
