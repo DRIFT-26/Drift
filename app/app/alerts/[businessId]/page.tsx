@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { formatReason } from "@/lib/executive/reasons";
+import { redirect } from "next/navigation";
+import { createClient } from "@/utils/supabase/server";
 
 type DriftStatus =
   | "stable"
@@ -310,7 +312,14 @@ const eventId = resolvedSearch?.eventId ?? "";
     );
   }
 
-  const supabase = supabaseAdmin();
+  const supabase = await createClient();
+  const {
+  data: { user },
+} = await supabase.auth.getUser();
+
+if (!user?.email) {
+  redirect("/login");
+}
 
   const { data: business, error } = await supabase
     .from("businesses")
@@ -318,7 +327,8 @@ const eventId = resolvedSearch?.eventId ?? "";
       "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
     )
     .eq("id", businessId)
-    .single<BusinessRow>();
+.eq("alert_email", user.email)
+.single<BusinessRow>();
 
   const { data: timeline } = await supabase
     .from("email_logs")

@@ -10,7 +10,7 @@ export default function AppLayout({
       <header className="border-b border-white/10 px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link
-  href="/app/alerts"
+  href="/app/app"
   className="text-sm font-semibold tracking-[0.18em] text-white"
 >
   DRIFT
@@ -18,7 +18,7 @@ export default function AppLayout({
 
           <nav className="flex items-center gap-6 text-sm text-white/60">
             <Link href="/app/alerts" className="transition hover:text-white">
-  Command Center
+  Command Center Login
 </Link>
           </nav>
         </div>
