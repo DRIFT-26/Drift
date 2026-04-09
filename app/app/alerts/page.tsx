@@ -147,20 +147,48 @@ export default async function AlertsIndexPage() {
     redirect("/login");
   }
 
-  let query = supabase
+  let businesses: BusinessRow[] | null = null;
+let error: { message?: string } | null = null;
+
+if (userId) {
+  const ownerMatch = await supabase
     .from("businesses")
     .select(
       "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
     )
-    .order("created_at", { ascending: true });
+    .eq("owner_id", userId)
+    .order("created_at", { ascending: true })
+    .returns<BusinessRow[]>();
 
-  if (userId) {
-    query = query.eq("owner_id", userId);
-  } else if (email) {
-    query = query.eq("alert_email", email);
+  businesses = ownerMatch.data ?? null;
+  error = ownerMatch.error;
+
+  if ((!businesses || businesses.length === 0) && email) {
+    const emailMatch = await supabase
+      .from("businesses")
+      .select(
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+      )
+      .eq("alert_email", email)
+      .order("created_at", { ascending: true })
+      .returns<BusinessRow[]>();
+
+    businesses = emailMatch.data ?? null;
+    error = emailMatch.error;
   }
+} else if (email) {
+  const emailMatch = await supabase
+    .from("businesses")
+    .select(
+      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+    )
+    .eq("alert_email", email)
+    .order("created_at", { ascending: true })
+    .returns<BusinessRow[]>();
 
-  const { data: businesses, error } = await query.returns<BusinessRow[]>();
+  businesses = emailMatch.data ?? null;
+  error = emailMatch.error;
+}
 
   const statusPriority: Record<string, number> = {
     attention: 1,
@@ -285,37 +313,22 @@ export default async function AlertsIndexPage() {
           }}
         >
           <div>
-            <div style={{ fontSize: 12, letterSpacing: 0.5 }}>
-              <Link
-                href="/"
-                style={{
-                  color: "#E6EAF0",
-                  fontWeight: 900,
-                  textDecoration: "none",
-                  marginRight: 6,
-                }}
-              >
-                DRIFT
-              </Link>
-              <span style={{ color: "#9AA4B2" }}>/ COMMAND CENTER</span>
-            </div>
-
-            <h1
-              style={{
-                margin: "6px 0 0",
-                fontSize: 32,
-                lineHeight: 1.05,
-                fontWeight: 950,
-                color: "#E6EAF0",
-              }}
-            >
-              Executive Signal Feed
-            </h1>
-
-            <div style={{ marginTop: 8, fontSize: 14, color: "#9AA4B2" }}>
-              Prioritized by severity. Review what matters first.
-            </div>
-          </div>
+  <AppHeader />
+  <h1
+    style={{
+      margin: "6px 0 0",
+      fontSize: 32,
+      lineHeight: 1.05,
+      fontWeight: 950,
+      color: "#E6EAF0",
+    }}
+  >
+    Executive Signal Feed
+  </h1>
+  <div style={{ marginTop: 8, fontSize: 14, color: "#9AA4B2" }}>
+    Prioritized by severity. Review what matters first.
+  </div>
+</div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Link
