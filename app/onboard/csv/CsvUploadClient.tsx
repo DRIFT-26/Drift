@@ -65,7 +65,7 @@ if (!res.ok || !data?.ok) {
 }
 
 router.push(
-  `/onboard/success?business_id=${businessId}&signal=processing&source=csv&touched_business_ids=${encodeURIComponent(touched)}`
+  `/onboard/success?business_id=${businessId}&signal=processing&source=csv_debug&touched_business_ids=${encodeURIComponent(touched)}&debug_redirect=1`
 );
 
     } catch (err) {

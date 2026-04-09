@@ -60,7 +60,7 @@ const touched = Array.isArray(data?.touched_business_ids)
       console.log("SHEETS businessId before success redirect:", businessId);
       console.log("SHEETS touched ids before success redirect:", touched);
 
-      router.push(`/onboard/success?business_id=${businessId}&signal=processing&source=google_sheets&touched_business_ids=${encodeURIComponent(touched)}`);
+      router.push(`/onboard/success?business_id=${businessId}&signal=processing&source=google_sheets_debug&touched_business_ids=${encodeURIComponent(touched)}&debug_redirect=1`);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to connect Google Sheet.";
