@@ -2,11 +2,23 @@
 
 import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { redirect } from "next/navigation";
 
-export default function LoginPage() {
+
+export default async function LoginPage() {
+    const supabase = await createClient();
+
+const {
+  data: { user },
+} = await supabase.auth.getUser();
+
+if (user) {
+  redirect("/app/alerts");
+}
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
