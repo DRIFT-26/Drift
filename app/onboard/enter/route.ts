@@ -7,18 +7,15 @@ import {
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
-
   const requestUrl = new URL(req.url);
   const token = requestUrl.searchParams.get("token");
   const payload = verifyOnboardAccessToken(token);
 
   if (!payload || !token) {
-    return NextResponse.redirect(new URL("/login", origin));
+    return NextResponse.redirect(new URL("/login", requestUrl.origin));
   }
 
-  const res = NextResponse.redirect(new URL("/app/alerts", origin));
+  const res = NextResponse.redirect(new URL("/app/alerts", requestUrl.origin));
 
   res.cookies.set(ONBOARD_ACCESS_COOKIE, token, {
     httpOnly: true,
