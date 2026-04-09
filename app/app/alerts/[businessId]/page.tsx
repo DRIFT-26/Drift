@@ -1,10 +1,14 @@
 // app/alerts/[businessId]/page.tsx
 import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabase/server";
 import { formatReason } from "@/lib/executive/reasons";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AppHeader from "@/app/_components/AppHeader";
+import { cookies } from "next/headers";
+import {
+  ONBOARD_ACCESS_COOKIE,
+  verifyOnboardAccessToken,
+} from "@/lib/auth/onboard-access";
 
 type DriftStatus =
   | "stable"
@@ -314,11 +318,18 @@ const eventId = resolvedSearch?.eventId ?? "";
   }
 
   const supabase = await createClient();
-  const {
+const {
   data: { user },
 } = await supabase.auth.getUser();
 
-if (!user?.email) {
+const cookieStore = await cookies();
+const onboardAccess = verifyOnboardAccessToken(
+  cookieStore.get(ONBOARD_ACCESS_COOKIE)?.value
+);
+
+const email = user?.email ?? onboardAccess?.email ?? null;
+
+if (!email) {
   redirect("/login");
 }
 
@@ -328,7 +339,7 @@ if (!user?.email) {
       "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
     )
     .eq("id", businessId)
-.eq("alert_email", user.email)
+.eq("alert_email", email)
 .single<BusinessRow>();
 
   const { data: timeline } = await supabase
