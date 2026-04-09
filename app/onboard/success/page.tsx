@@ -53,12 +53,16 @@ export default async function SuccessPage({
     initialReady = (readyBusinesses ?? []).some((b) => !!b.last_drift);
   }
 
-  const accessHref =
-    business?.alert_email
-      ? `/onboard/enter?token=${encodeURIComponent(
-          createOnboardAccessToken(business.alert_email)
-        )}`
-      : "/login";
+  const targetPath = params.business_id
+  ? `/app/alerts/${params.business_id}`
+  : "/app/alerts";
+
+const accessHref =
+  business?.alert_email
+    ? `/onboard/enter?token=${encodeURIComponent(
+        createOnboardAccessToken(business.alert_email)
+      )}&next=${encodeURIComponent(targetPath)}`
+    : "/login";
 
   return (
     <Suspense fallback={null}>
