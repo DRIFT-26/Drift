@@ -10,6 +10,9 @@ import {
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type DriftStatus =
   | "stable"
   | "watch"
