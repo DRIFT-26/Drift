@@ -11,14 +11,18 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const supabase = createClient();
+  const supabase = createClient();
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        router.replace("/app/alerts");
-      }
-    });
-  }, [router]);
+  const checkSession = async () => {
+    const { data } = await supabase.auth.getSession();
+
+    if (data.session) {
+      window.location.href = "/app/alerts";
+    }
+  };
+
+  checkSession();
+}, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
