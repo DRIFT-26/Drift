@@ -4,6 +4,7 @@ import DemoCard from "@/app/_components/DemoCard";
 import OperatorFitSection from "@/app/_components/OperatorFitSection";
 import HowOperatorsUseDrift from "@/app/_components/HowOperatorsUseDrift";
 import { useEffect, useMemo, useState } from "react";
+import LandingAccountActions from "@/app/_components/LandingAccountActions";
 
 type Tick = { t: string; msg: string };
 
@@ -387,19 +388,9 @@ export default function Home() {
 
         <OperatorFitSection />
 
-        <div className="mt-10 pb-24 text-center">
-          <a
-            href="/onboard"
-            className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-8 py-3 text-sm font-semibold text-white transition hover:bg-[#09306F]"
-          >
-            Join the Founding Cohort
-          </a>
-
-          <div className="mt-3 text-sm text-white/60">Takes ~30 seconds</div>
-          <div className="mt-1 text-xs text-white/45">
-            Founding Cohort — Limited to 10 Companies
-          </div>
-        </div>
+        <div className="pb-24">
+  <LandingAccountActions />
+</div>
       </section>
     </main>
   );
