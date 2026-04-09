@@ -47,7 +47,13 @@ export default function OnboardPage() {
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/onboard", {
+      alert("Step 1: starting /api/onboard request");
+
+const onboardUrl = `${window.location.origin}/api/onboard`;
+
+alert(`Step 1A: using ${onboardUrl}`);
+
+const res = await fetch(onboardUrl, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -60,21 +66,38 @@ export default function OnboardPage() {
   }),
 });
 
-      const data = await res.json();
+alert(`Step 2: /api/onboard responded with status ${res.status}`);
 
-      if (!res.ok || !data?.ok || !data?.business_id) {
-        throw new Error(data?.error ?? "Failed to start onboarding.");
-      }
+const rawText = await res.text();
+alert(`Step 3A: raw response is ${rawText}`);
 
-      const businessId = String(data.business_id);
+const data = JSON.parse(rawText);
+
+alert(
+  `Step 3: parsed response ok=${String(data?.ok)} business_id=${String(
+    data?.business_id ?? ""
+  )}`
+);
+
+if (!res.ok || !data?.ok || !data?.business_id) {
+  throw new Error(data?.error ?? "Failed to start onboarding.");
+}
+
+const businessId = String(data.business_id);
+
+alert(`Step 4: businessId is ${businessId}`);
       
       console.log("ONBOARD API business_id:", data.business_id);
       console.log("ONBOARD derived businessId:", businessId);
 
       if (source === "stripe") {
-        router.push(`/api/stripe/connect?business_id=${encodeURIComponent(businessId)}`);
-        return;
-      }
+  router.push(
+    `/onboard/success?business_id=${encodeURIComponent(
+      businessId
+    )}&signal=processing&source=stripe_debug`
+  );
+  return;
+}
 
       if (source === "google_sheets") {
         router.push(
