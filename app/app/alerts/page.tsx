@@ -3,6 +3,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { formatReason } from "@/lib/executive/reasons";
+import AppHeader from "@/app/_components/AppHeader";
+import { cookies } from "next/headers";
+import {
+  ONBOARD_ACCESS_COOKIE,
+  verifyOnboardAccessToken,
+} from "@/lib/auth/onboard-access";
 
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
@@ -129,15 +135,20 @@ type BusinessRow = {
 export default async function AlertsIndexPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+const {
+  data: { user },
+} = await supabase.auth.getUser();
 
-  if (!user?.email) {
-    redirect("/login");
-  }
+const cookieStore = await cookies();
+const onboardAccess = verifyOnboardAccessToken(
+  cookieStore.get(ONBOARD_ACCESS_COOKIE)?.value
+);
 
-  const email = user.email;
+const email = user?.email ?? onboardAccess?.email ?? null;
+
+if (!email) {
+  redirect("/login");
+}
 
     const { data: businesses, error } = await supabase
     .from("businesses")
@@ -168,9 +179,8 @@ export default async function AlertsIndexPage() {
           color: "#E6EAF0",
         }}
       >
-        <div style={{ fontSize: 12, color: "#9AA4B2", letterSpacing: 0.5 }}>
-          DRIFT / COMMAND CENTER
-        </div>
+        <AppHeader />
+
         <h1
           style={{
             margin: "6px 0 0",

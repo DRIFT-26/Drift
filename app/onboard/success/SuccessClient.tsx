@@ -16,12 +16,14 @@ export default function SuccessClient({
   businessId,
   touchedBusinessIds,
   initialReady,
+  accessHref,
 }: {
   signal: string;
   source: string;
   businessId: string;
   touchedBusinessIds: string[];
   initialReady: boolean;
+  accessHref: string;
 }) {
   
   const connectedSource = sourceLabel(source);
@@ -189,11 +191,11 @@ export default function SuccessClient({
             
             {isReady ? (
   <Link
-    href="/app/alerts"
-    className="inline-flex items-center justify-center rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
-  >
-    Open DRIFT
-  </Link>
+  href={accessHref}
+  className="inline-flex items-center justify-center rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
+>
+  Open DRIFT
+</Link>
 ) : (
   <button
     type="button"

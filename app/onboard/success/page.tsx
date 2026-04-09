@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import SuccessClient from "./SuccessClient";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import TrialCountdownBanner from "@/app/_components/TrialCountdownBanner";
+import { createOnboardAccessToken } from "@/lib/auth/onboard-access";
 
 export default async function SuccessPage({
   searchParams,
@@ -19,17 +20,45 @@ export default async function SuccessPage({
   let business: {
     billing_status: string | null;
     trial_ends_at: string | null;
+    alert_email: string | null;
   } | null = null;
 
   if (params.business_id) {
     const { data } = await supabase
       .from("businesses")
-      .select("billing_status, trial_ends_at")
+      .select("billing_status, trial_ends_at, alert_email")
       .eq("id", params.business_id)
       .single();
 
     business = data;
   }
+
+  const touchedBusinessIds = params.touched_business_ids
+    ? params.touched_business_ids
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+    : params.business_id
+    ? [params.business_id]
+    : [];
+
+  let initialReady = false;
+
+  if (touchedBusinessIds.length > 0) {
+    const { data: readyBusinesses } = await supabase
+      .from("businesses")
+      .select("id,last_drift")
+      .in("id", touchedBusinessIds);
+
+    initialReady = (readyBusinesses ?? []).some((b) => !!b.last_drift);
+  }
+
+  const accessHref =
+    business?.alert_email
+      ? `/onboard/enter?token=${encodeURIComponent(
+          createOnboardAccessToken(business.alert_email)
+        )}`
+      : "/login";
 
   return (
     <Suspense fallback={null}>
@@ -47,14 +76,9 @@ export default async function SuccessPage({
         signal={params.signal ?? ""}
         source={params.source ?? ""}
         businessId={params.business_id ?? ""}
-        touchedBusinessIds={
-          params.touched_business_ids
-            ? params.touched_business_ids
-                .split(",")
-                .map((id) => id.trim())
-                .filter(Boolean)
-            : []
-        }
+        touchedBusinessIds={touchedBusinessIds}
+        initialReady={initialReady}
+        accessHref={accessHref}
       />
     </Suspense>
   );
