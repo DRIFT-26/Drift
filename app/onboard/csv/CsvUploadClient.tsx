@@ -48,12 +48,21 @@ export default function CsvUploadClient({
       });
 
       const data = await res.json().catch(() => null);
+      const json = (await res.json()) as {
+  touched_business_ids?: string[];
+};
+      const touched = Array.isArray(json?.touched_business_ids)
+  ? json.touched_business_ids.join(",")
+  : "";
+
+router.push(
+  `/onboard/success?signal=processing&source=csv&business_id=${businessId}&touched_business_ids=${encodeURIComponent(touched)}`
+);
 
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error ?? "Upload failed.");
       }
 
-      router.push("/onboard/success?business_id=${businessId}&signal=processing&source=csv");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed.";
       alert(message);
