@@ -1,24 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { redirect } from "next/navigation";
 
-
-export default async function LoginPage() {
-    const supabase = await createClient();
-
-const {
-  data: { user },
-} = await supabase.auth.getUser();
-
-if (user) {
-  redirect("/app/alerts");
-}
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+  const router = useRouter();
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        router.replace("/app/alerts");
+      }
+    });
+  }, [router]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +35,9 @@ if (user) {
 
     setLoading(false);
 
-    if (!error) setSent(true);
+    if (!error) {
+      setSent(true);
+    }
   }
 
   return (
