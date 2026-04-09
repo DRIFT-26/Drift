@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 function sourceLabel(source: string) {
-  if (source === "stripe") return "Stripe";
-  if (source === "google_sheets") return "Google Sheets";
-  if (source === "csv") return "CSV Upload";
+  if (source === "stripe" || source === "stripe_debug") return "Stripe";
+  if (source === "google_sheets" || source === "google_sheets_debug") {
+    return "Google Sheets";
+  }
+  if (source === "csv" || source === "csv_debug") return "CSV Upload";
   return "Revenue Source";
 }
 
@@ -27,13 +29,13 @@ export default function SuccessClient({
 }) {
   
   const connectedSource = sourceLabel(source);
-  const [showPreview, setShowPreview] = useState(signal === "processing" && !initialReady);
-  const [isReady, setIsReady] = useState(initialReady || signal !== "processing");
-  const [isChecking, setIsChecking] = useState(signal === "processing" && !initialReady);
+  const [showPreview, setShowPreview] = useState(signal === "processing");
+  const [isReady, setIsReady] = useState(signal !== "processing");
+  const [isChecking, setIsChecking] = useState(signal === "processing");
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
-  if (signal !== "processing" || initialReady) return;
+  if (signal !== "processing") return;
 
   let cancelled = false;
 
@@ -46,16 +48,37 @@ export default function SuccessClient({
 
   const previewTimer = setTimeout(() => {
     if (!cancelled) setShowPreview(false);
-  }, 10000);
+  }, 6000);
+
+  const unlockReady = () => {
+    if (cancelled) return;
+
+    // keep a short premium pause before unlocking
+    setTimeout(() => {
+      if (!cancelled) {
+        setIsReady(true);
+        setIsChecking(false);
+      }
+    }, 1800);
+  };
 
   const timeoutTimer = setTimeout(() => {
     if (!cancelled) {
       setTimedOut(true);
-      setIsChecking(false);
-      setIsReady(true);
       setShowPreview(false);
+      unlockReady();
     }
   }, 20000);
+
+  if (initialReady) {
+    unlockReady();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(previewTimer);
+      clearTimeout(timeoutTimer);
+    };
+  }
 
   const poll = async () => {
     if (!ids.length) return;
@@ -63,17 +86,13 @@ export default function SuccessClient({
     try {
       const res = await fetch(
         `/api/business/status?business_ids=${encodeURIComponent(ids.join(","))}`,
-        {
-          cache: "no-store",
-        }
+        { cache: "no-store" }
       );
 
       const json = await res.json();
 
       if (!cancelled && json?.ready === true) {
-        setIsReady(true);
-        setIsChecking(false);
-        setShowPreview(false);
+        unlockReady();
       }
     } catch {
       // keep polling until timeout
@@ -89,7 +108,7 @@ export default function SuccessClient({
     clearTimeout(timeoutTimer);
     clearInterval(interval);
   };
-}, [signal, businessId, touchedBusinessIds]);
+}, [signal, businessId, touchedBusinessIds, initialReady]);
 
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
@@ -125,10 +144,10 @@ export default function SuccessClient({
           </p>
 
           {signal === "processing" && (
-            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-              Your first DRIFT signal is on the way to your inbox. Hang tight—we’re getting your Command Center ready.
-            </div>
-          )}
+  <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+    Your first DRIFT signal is on the way to your inbox. DRIFT is now processing your revenue source and preparing your Command Center.
+  </div>
+)}
 
           {showPreview && (
             <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-4">
