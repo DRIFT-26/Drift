@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-
 const TIMEZONE_OPTIONS = [
   { value: "America/New_York", label: "Eastern (ET) — America/New_York" },
   { value: "America/Chicago", label: "Central (CT) — America/Chicago" },
@@ -14,7 +13,6 @@ const TIMEZONE_OPTIONS = [
   { value: "America/Anchorage", label: "Alaska — America/Anchorage" },
   { value: "Pacific/Honolulu", label: "Hawaii — Pacific/Honolulu" },
 ] as const;
-
 
 export default function OnboardPage() {
   const router = useRouter();
@@ -47,57 +45,35 @@ export default function OnboardPage() {
     setSubmitting(true);
 
     try {
-      alert("Step 1: starting /api/onboard request");
+      const onboardUrl = `${window.location.origin}/api/onboard`;
 
-const onboardUrl = `${window.location.origin}/api/onboard`;
+      const res = await fetch(onboardUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          company,
+          email: email.trim().toLowerCase(),
+          timezone,
+          source,
+        }),
+      });
 
-alert(`Step 1A: using ${onboardUrl}`);
+      const data = await res.json();
 
-const res = await fetch(onboardUrl, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    company,
-    email: email.trim().toLowerCase(),
-    timezone,
-    source,
-  }),
-});
+      if (!res.ok || !data?.ok || !data?.business_id) {
+        throw new Error(data?.error ?? "Failed to start onboarding.");
+      }
 
-alert(`Step 2: /api/onboard responded with status ${res.status}`);
-
-const rawText = await res.text();
-alert(`Step 3A: raw response is ${rawText}`);
-
-const data = JSON.parse(rawText);
-
-alert(
-  `Step 3: parsed response ok=${String(data?.ok)} business_id=${String(
-    data?.business_id ?? ""
-  )}`
-);
-
-if (!res.ok || !data?.ok || !data?.business_id) {
-  throw new Error(data?.error ?? "Failed to start onboarding.");
-}
-
-const businessId = String(data.business_id);
-
-alert(`Step 4: businessId is ${businessId}`);
-      
-      console.log("ONBOARD API business_id:", data.business_id);
-      console.log("ONBOARD derived businessId:", businessId);
+      const businessId = String(data.business_id);
 
       if (source === "stripe") {
-  router.push(
-    `/onboard/success?business_id=${encodeURIComponent(
-      businessId
-    )}&signal=processing&source=stripe_debug`
-  );
-  return;
-}
+        router.push(
+          `/api/stripe/connect?business_id=${encodeURIComponent(businessId)}`
+        );
+        return;
+      }
 
       if (source === "google_sheets") {
         router.push(
@@ -110,7 +86,6 @@ alert(`Step 4: businessId is ${businessId}`);
         return;
       }
 
-      console.log("ONBOARD redirecting to CSV with businessId:", businessId);
       router.push(
         `/onboard/csv?business_id=${encodeURIComponent(
           businessId
@@ -150,15 +125,15 @@ alert(`Step 4: businessId is ${businessId}`);
               Limited Founding Cohort — 10 companies
             </div>
 
-            <h1 className="mt-5 text-3xl md:text-4xl font-semibold tracking-tight">
-  {isAddBusiness ? "Add another business to DRIFT" : "Join the Founding Cohort"}
-</h1>
+            <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">
+              {isAddBusiness ? "Add another business to DRIFT" : "Join the Founding Cohort"}
+            </h1>
 
-            <p className="mt-4 text-white/70 leading-relaxed">
-  {isAddBusiness
-    ? "Add another business to your DRIFT portfolio. Monitoring begins as soon as your revenue source is connected."
-    : "DRIFT delivers executive output—quietly. Connect your primary revenue system and receive signal-level alerts when revenue deviates materially."}
-</p>
+            <p className="mt-4 leading-relaxed text-white/70">
+              {isAddBusiness
+                ? "Add another business to your DRIFT portfolio. Monitoring begins as soon as your revenue source is connected."
+                : "DRIFT delivers executive output—quietly. Connect your primary revenue system and receive signal-level alerts when revenue deviates materially."}
+            </p>
 
             <div className="mt-6 space-y-3 text-sm text-white/70">
               <div className="flex gap-3">
@@ -170,9 +145,9 @@ alert(`Step 4: businessId is ${businessId}`);
                 <span>Short, Specific, Actionable alerts — built for operators.</span>
               </div>
               <div className="flex gap-3">
-  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-  <span>Works for single-location operators and multi-location groups.</span>
-</div>
+                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+                <span>Works for single-location operators and multi-location groups.</span>
+              </div>
               <div className="flex gap-3">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
                 <span>Founding members get priority access to upcoming integrations and features.</span>
@@ -180,7 +155,7 @@ alert(`Step 4: businessId is ${businessId}`);
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
             <div className="p-6 md:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -267,83 +242,83 @@ alert(`Step 4: businessId is ${businessId}`);
                   </select>
 
                   <p className="mt-3 text-xs text-white/40">
-  Stripe and Google Sheets are available now. CSV is available as a fallback for
-  historical onboarding and testing.
-</p>
+                    Stripe and Google Sheets are available now. CSV is available as a fallback for
+                    historical onboarding and testing.
+                  </p>
 
-<p className="mt-2 text-[11px] text-white/35">
-  Accepted CSV format:
-  <br />
-  <span className="text-white/50">Date,Revenue</span>
-  <br />
-  <span className="text-white/50">Location,Date,Revenue</span>
-</p>
+                  <p className="mt-2 text-[11px] text-white/35">
+                    Accepted CSV format:
+                    <br />
+                    <span className="text-white/50">Date,Revenue</span>
+                    <br />
+                    <span className="text-white/50">Location,Date,Revenue</span>
+                  </p>
 
-<p className="mt-2 text-[11px] text-white/35">
-  For the most accurate assessment and best results, include ~60 days of baseline
-  revenue plus your most recent 14 days.
-</p>
+                  <p className="mt-2 text-[11px] text-white/35">
+                    For the most accurate assessment and best results, include ~60 days of baseline
+                    revenue plus your most recent 14 days.
+                  </p>
 
-{(source === "csv" || source === "google_sheets") && (
-  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
-    <div className="text-xs font-semibold tracking-wide text-white/55">
-      REVENUE FORMAT
-    </div>
+                  {(source === "csv" || source === "google_sheets") && (
+                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs font-semibold tracking-wide text-white/55">
+                        REVENUE FORMAT
+                      </div>
 
-    <div className="mt-3 flex gap-2">
-      <button
-        type="button"
-        onClick={() => setRevenueFormat("single")}
-        className={`rounded-md px-3 py-2 text-xs transition ${
-          revenueFormat === "single"
-            ? "bg-white text-black"
-            : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-        }`}
-      >
-        Single Location
-      </button>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRevenueFormat("single")}
+                          className={`rounded-md px-3 py-2 text-xs transition ${
+                            revenueFormat === "single"
+                              ? "bg-white text-black"
+                              : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                          }`}
+                        >
+                          Single Location
+                        </button>
 
-      <button
-        type="button"
-        onClick={() => setRevenueFormat("multi")}
-        className={`rounded-md px-3 py-2 text-xs transition ${
-          revenueFormat === "multi"
-            ? "bg-white text-black"
-            : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-        }`}
-      >
-        Multiple Locations
-      </button>
-    </div>
+                        <button
+                          type="button"
+                          onClick={() => setRevenueFormat("multi")}
+                          className={`rounded-md px-3 py-2 text-xs transition ${
+                            revenueFormat === "multi"
+                              ? "bg-white text-black"
+                              : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                          }`}
+                        >
+                          Multiple Locations
+                        </button>
+                      </div>
 
-    <div className="mt-3 text-[11px] text-white/45">
-      {revenueFormat === "single" ? (
-        <>
-          Expected Format:
-          <br />
-          <span className="text-white/60">Date,Revenue</span>
-        </>
-      ) : (
-        <>
-          Expected Format:
-          <br />
-          <span className="text-white/60">Location,Date,Revenue</span>
-        </>
-      )}
-    </div>
-  </div>
-)}
+                      <div className="mt-3 text-[11px] text-white/45">
+                        {revenueFormat === "single" ? (
+                          <>
+                            Expected Format:
+                            <br />
+                            <span className="text-white/60">Date,Revenue</span>
+                          </>
+                        ) : (
+                          <>
+                            Expected Format:
+                            <br />
+                            <span className="text-white/60">Location,Date,Revenue</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-<p className="mt-2 text-[11px] text-white/40">
-  Need a starting point?{" "}
-  <a
-    href="/drift-revenue-template.csv"
-    download
-    className="text-white/60 hover:text-white underline underline-offset-4"
-  >
-    View DRIFT revenue template
-  </a>
-</p>
+                  <p className="mt-2 text-[11px] text-white/40">
+                    Need a starting point?{" "}
+                    <a
+                      href="/drift-revenue-template.csv"
+                      download
+                      className="text-white/60 underline underline-offset-4 hover:text-white"
+                    >
+                      View DRIFT revenue template
+                    </a>
+                  </p>
 
                   {source === "google_sheets" && (
                     <p className="mt-2 text-[11px] text-white/45">
