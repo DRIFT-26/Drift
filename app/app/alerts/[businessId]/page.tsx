@@ -320,6 +320,7 @@ const eventId = resolvedSearch?.eventId ?? "";
   }
 
   const supabase = await createClient();
+
 const {
   data: { user },
 } = await supabase.auth.getUser();
@@ -329,20 +330,27 @@ const onboardAccess = verifyOnboardAccessToken(
   cookieStore.get(ONBOARD_ACCESS_COOKIE)?.value
 );
 
+const userId = user?.id ?? null;
 const email = user?.email ?? onboardAccess?.email ?? null;
 
-if (!email) {
+if (!userId && !email) {
   redirect("/login");
 }
 
-  const { data: business, error } = await supabase
-    .from("businesses")
-    .select(
-      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
-    )
-    .eq("id", businessId)
-.eq("alert_email", email)
-.single<BusinessRow>();
+let businessQuery = supabase
+  .from("businesses")
+  .select(
+    "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+  )
+  .eq("id", businessId);
+
+if (userId) {
+  businessQuery = businessQuery.eq("owner_id", userId);
+} else if (email) {
+  businessQuery = businessQuery.eq("alert_email", email);
+}
+
+const { data: business, error } = await businessQuery.single<BusinessRow>();
 
   const { data: timeline } = await supabase
     .from("email_logs")
