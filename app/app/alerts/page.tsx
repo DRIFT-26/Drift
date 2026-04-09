@@ -1,7 +1,9 @@
 // app/alerts/page.tsx
 import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { createClient } from "@/utils/supabase/server";
 import { formatReason } from "@/lib/executive/reasons";
+
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
 
@@ -125,13 +127,24 @@ type BusinessRow = {
 };
 
 export default async function AlertsIndexPage() {
-  const supabase = supabaseAdmin();
+  const supabase = await createClient();
 
-  const { data: businesses, error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    redirect("/login");
+  }
+
+  const email = user.email;
+
+    const { data: businesses, error } = await supabase
     .from("businesses")
     .select(
       "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
     )
+    .eq("alert_email", email)
     .order("created_at", { ascending: true })
     .returns<BusinessRow[]>();
     
@@ -261,9 +274,20 @@ export default async function AlertsIndexPage() {
           }}
         >
           <div>
-            <div style={{ fontSize: 12, color: "#9AA4B2", letterSpacing: 0.5 }}>
-              DRIFT / COMMAND CENTER
-            </div>
+            <div style={{ fontSize: 12, letterSpacing: 0.5 }}>
+  <Link
+    href="/"
+    style={{
+      color: "#E6EAF0",
+      fontWeight: 900,
+      textDecoration: "none",
+      marginRight: 6,
+    }}
+  >
+    DRIFT
+  </Link>
+  <span style={{ color: "#9AA4B2" }}>/ COMMAND CENTER</span>
+</div>
             <h1
               style={{
                 margin: "6px 0 0",
