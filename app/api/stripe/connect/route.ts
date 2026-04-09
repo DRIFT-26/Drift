@@ -16,15 +16,30 @@ function stripeAuthorizeUrl(args: {
   businessName: string;
   email: string;
 }) {
-  const u = new URL("https://connect.stripe.com/oauth/authorize");
-  u.searchParams.set("response_type", "code");
-  u.searchParams.set("client_id", args.clientId);
-  u.searchParams.set("scope", "read_write");
-  u.searchParams.set("redirect_uri", args.redirectUri);
-  u.searchParams.set("state", args.state);
-  u.searchParams.set("stripe_user[business_name]", args.businessName);
-  u.searchParams.set("stripe_user[email]", args.email);
-  return u.toString();
+  const base = "https://connect.stripe.com/oauth/authorize";
+
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: args.clientId,
+    scope: "read_write",
+    redirect_uri: args.redirectUri,
+    state: args.state,
+  });
+
+  // Clean inputs to avoid encoding issues
+  const cleanName = (args.businessName || "").replace(/[^\w\s-]/g, "").trim();
+  const cleanEmail = (args.email || "").trim();
+
+  // IMPORTANT: use append for bracket params (fixes your error)
+  if (cleanName) {
+    params.append("stripe_user[business_name]", cleanName);
+  }
+
+  if (cleanEmail) {
+    params.append("stripe_user[email]", cleanEmail);
+  }
+
+  return `${base}?${params.toString()}`;
 }
 
 export async function GET(req: Request) {
@@ -40,6 +55,7 @@ export async function GET(req: Request) {
     }
 
     const STRIPE_CLIENT_ID = (process.env.STRIPE_CLIENT_ID || "").trim();
+
     if (!STRIPE_CLIENT_ID) {
       return NextResponse.json(
         { ok: false, error: "STRIPE_CLIENT_ID missing (env)." },
@@ -49,6 +65,7 @@ export async function GET(req: Request) {
 
     const supabase = supabaseAdmin();
 
+    // Get business
     const { data: biz, error: bErr } = await supabase
       .from("businesses")
       .select("id,name,alert_email")
@@ -62,6 +79,7 @@ export async function GET(req: Request) {
       );
     }
 
+    // Check for existing Stripe source
     const { data: existing, error: sReadErr } = await supabase
       .from("sources")
       .select("id,config,is_connected")
@@ -79,6 +97,7 @@ export async function GET(req: Request) {
     const state = randomState();
     let sourceId = existing?.id || null;
 
+    // Create or update source
     if (!sourceId) {
       const { data: created, error: sErr } = await supabase
         .from("sources")
@@ -95,7 +114,10 @@ export async function GET(req: Request) {
 
       if (sErr || !created?.id) {
         return NextResponse.json(
-          { ok: false, error: `Create Stripe source failed: ${sErr?.message || "unknown"}` },
+          {
+            ok: false,
+            error: `Create Stripe source failed: ${sErr?.message || "unknown"}`,
+          },
           { status: 500 }
         );
       }
@@ -121,14 +143,18 @@ export async function GET(req: Request) {
       }
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
-const redirectUri = `${appUrl}/api/stripe/callback`;
+    // Build redirect URI
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
 
+    const redirectUri = `${appUrl}/api/stripe/callback`;
+
+    // Build Stripe OAuth URL (FIXED)
     const connectUrl = stripeAuthorizeUrl({
       clientId: STRIPE_CLIENT_ID,
       redirectUri,
       state,
-      businessName: biz.name,
+      businessName: biz.name || "",
       email: biz.alert_email || "",
     });
 
