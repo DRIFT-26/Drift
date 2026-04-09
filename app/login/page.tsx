@@ -35,9 +35,7 @@ export default function LoginPage() {
 
     setLoading(false);
 
-    if (!error) {
-      setSent(true);
-    }
+    if (!error) setSent(true);
   }
 
   return (
