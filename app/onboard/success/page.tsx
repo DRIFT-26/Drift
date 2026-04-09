@@ -1,19 +1,17 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import SuccessClient from "./SuccessClient";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import TrialCountdownBanner from "@/app/_components/TrialCountdownBanner";
-import { businessHasAccess } from "@/lib/billing/access";
 
 export default async function SuccessPage({
   searchParams,
 }: {
   searchParams: Promise<{
-  signal?: string;
-  source?: string;
-  business_id?: string;
-  touched_business_ids?: string;
-}>;
+    signal?: string;
+    source?: string;
+    business_id?: string;
+    touched_business_ids?: string;
+  }>;
 }) {
   const params = await searchParams;
   const supabase = supabaseAdmin();
@@ -33,10 +31,6 @@ export default async function SuccessPage({
     business = data;
   }
 
-  if (business && params.business_id && !businessHasAccess(business)) {
-    redirect(`/upgrade?business_id=${encodeURIComponent(params.business_id)}`);
-  }
-
   return (
     <Suspense fallback={null}>
       <div className="mx-auto max-w-5xl px-6 pt-6">
@@ -50,15 +44,18 @@ export default async function SuccessPage({
       </div>
 
       <SuccessClient
-  signal={params.signal ?? ""}
-  source={params.source ?? ""}
-  businessId={params.business_id ?? ""}
-  touchedBusinessIds={
-    params.touched_business_ids
-      ? params.touched_business_ids.split(",").map((id) => id.trim()).filter(Boolean)
-      : []
-  }
-/>
+        signal={params.signal ?? ""}
+        source={params.source ?? ""}
+        businessId={params.business_id ?? ""}
+        touchedBusinessIds={
+          params.touched_business_ids
+            ? params.touched_business_ids
+                .split(",")
+                .map((id) => id.trim())
+                .filter(Boolean)
+            : []
+        }
+      />
     </Suspense>
   );
 }
