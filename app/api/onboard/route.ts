@@ -14,6 +14,11 @@ function normalizeSourceType(
 export async function POST(req: Request) {
   try {
     const supabase = supabaseAdmin();
+    
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
     const body = await req.json();
 
     const businessName = String(
@@ -66,6 +71,7 @@ export async function POST(req: Request) {
       billing_status: hasUsedTrial ? "expired" : "trialing",
       trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
       trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
+      owner_id: user?.id ?? null,
     };
 
     if (ownerId) {
