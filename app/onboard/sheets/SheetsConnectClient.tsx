@@ -56,6 +56,9 @@ export default function SheetsConnectClient({
   ? json.touched_business_ids.join(",")
   : "";
 
+      console.log("SHEETS businessId before success redirect:", businessId);
+      console.log("SHEETS touched ids before success redirect:", touched);
+
       router.push(`/onboard/success?business_id=${businessId}&signal=processing&source=google_sheets&touched_business_ids=${encodeURIComponent(touched)}`);
     } catch (err) {
       const message =
