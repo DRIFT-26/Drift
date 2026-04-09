@@ -168,6 +168,7 @@ if (!isSingleLocation && !isMultiLocation) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
+    const touchedBusinessIds = new Set<string>();
 
     for (const location of Object.keys(grouped)) {
       const locationDisplayName = displayLocationName(location);
@@ -302,7 +303,10 @@ if (!computeRes.ok) {
     await computeRes.text()
   );
 }
-    }
+
+touchedBusinessIds.add(locationBusinessId);
+
+}
 
     if (parentBusiness.alert_email) {
       const { subject, text } = renderMonitoringStartedEmail({
@@ -318,9 +322,10 @@ if (!computeRes.ok) {
     }
 
     return NextResponse.json({
-      ok: true,
-      locations_detected: Object.keys(grouped).length,
-    });
+  ok: true,
+  locations_detected: Object.keys(grouped).length,
+  touched_business_ids: Array.from(touchedBusinessIds),
+});
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "CSV ingestion failed";

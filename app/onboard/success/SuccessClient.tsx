@@ -14,31 +14,55 @@ export default function SuccessClient({
   signal,
   source,
   businessId,
+  touchedBusinessIds,
 }: {
   signal: string;
   source: string;
   businessId: string;
+  touchedBusinessIds: string[];
 }) {
   
   const connectedSource = sourceLabel(source);
   const [showPreview, setShowPreview] = useState(signal === "processing");
   const [isReady, setIsReady] = useState(signal !== "processing");
 const [isChecking, setIsChecking] = useState(signal === "processing");
+const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
-  if (signal !== "processing" || !businessId) return;
+  if (signal !== "processing") return;
 
   let cancelled = false;
 
-  const timer = setTimeout(() => {
+  const ids =
+    Array.isArray(touchedBusinessIds) && touchedBusinessIds.length > 0
+      ? touchedBusinessIds
+      : businessId
+      ? [businessId]
+      : [];
+
+  const previewTimer = setTimeout(() => {
     if (!cancelled) setShowPreview(false);
   }, 10000);
 
+  const timeoutTimer = setTimeout(() => {
+    if (!cancelled) {
+      setTimedOut(true);
+      setIsChecking(false);
+      setIsReady(true);
+      setShowPreview(false);
+    }
+  }, 20000);
+
   const poll = async () => {
+    if (!ids.length) return;
+
     try {
-      const res = await fetch(`/api/business/status?business_id=${businessId}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/business/status?business_ids=${encodeURIComponent(ids.join(","))}`,
+        {
+          cache: "no-store",
+        }
+      );
 
       const json = await res.json();
 
@@ -48,7 +72,7 @@ const [isChecking, setIsChecking] = useState(signal === "processing");
         setShowPreview(false);
       }
     } catch {
-      // swallow for now; keep polling
+      // keep polling until timeout
     }
   };
 
@@ -57,10 +81,11 @@ const [isChecking, setIsChecking] = useState(signal === "processing");
 
   return () => {
     cancelled = true;
-    clearTimeout(timer);
+    clearTimeout(previewTimer);
+    clearTimeout(timeoutTimer);
     clearInterval(interval);
   };
-}, [signal, businessId]);
+}, [signal, businessId, touchedBusinessIds]);
 
   return (
     <main className="min-h-screen bg-[#070B18] text-white">

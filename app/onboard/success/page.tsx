@@ -9,10 +9,11 @@ export default async function SuccessPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    signal?: string;
-    source?: string;
-    business_id?: string;
-  }>;
+  signal?: string;
+  source?: string;
+  business_id?: string;
+  touched_business_ids?: string;
+}>;
 }) {
   const params = await searchParams;
   const supabase = supabaseAdmin();
@@ -49,10 +50,15 @@ export default async function SuccessPage({
       </div>
 
       <SuccessClient
-        signal={params.signal ?? ""}
-        source={params.source ?? ""}
-        businessId={params.business_id ?? ""}
-      />
+  signal={params.signal ?? ""}
+  source={params.source ?? ""}
+  businessId={params.business_id ?? ""}
+  touchedBusinessIds={
+    params.touched_business_ids
+      ? params.touched_business_ids.split(",").map((id) => id.trim()).filter(Boolean)
+      : []
+  }
+/>
     </Suspense>
   );
 }
