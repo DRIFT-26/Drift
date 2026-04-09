@@ -15,7 +15,6 @@ const TIMEZONE_OPTIONS = [
   { value: "Pacific/Honolulu", label: "Hawaii — Pacific/Honolulu" },
 ] as const;
 
-export const runtime = "nodejs";
 
 export default function OnboardPage() {
   const router = useRouter();
