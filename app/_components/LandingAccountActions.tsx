@@ -17,34 +17,62 @@ export default function LandingAccountActions() {
 
   useEffect(() => {
     const supabase = createClient();
+    let cancelled = false;
+
+    const finishLoggedOut = () => {
+      if (!cancelled) {
+        setSessionState({
+          email: null,
+          loading: false,
+        });
+      }
+    };
+
+    const finishWithEmail = (email: string | null) => {
+      if (!cancelled) {
+        setSessionState({
+          email,
+          loading: false,
+        });
+      }
+    };
+
+    const timeout = window.setTimeout(() => {
+      finishLoggedOut();
+    }, 2500);
 
     const loadSession = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
-      setSessionState({
-        email: user?.email ?? null,
-        loading: false,
-      });
+        if (error) {
+          finishLoggedOut();
+          return;
+        }
+
+        finishWithEmail(session?.user?.email ?? null);
+      } catch {
+        finishLoggedOut();
+      } finally {
+        window.clearTimeout(timeout);
+      }
     };
 
     loadSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      setSessionState({
-        email: user?.email ?? null,
-        loading: false,
-      });
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.clearTimeout(timeout);
+      finishWithEmail(session?.user?.email ?? null);
     });
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
@@ -58,7 +86,7 @@ export default function LandingAccountActions() {
   if (sessionState.loading) {
     return (
       <div className="mt-10 text-center">
-        <div className="text-sm text-white/45">Checking session…</div>
+        <div className="text-sm text-white/45">Loading account…</div>
       </div>
     );
   }
