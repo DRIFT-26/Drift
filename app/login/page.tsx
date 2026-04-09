@@ -41,11 +41,11 @@ export default function LoginPage() {
     const supabase = createClient();
 
     const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/app/alerts`,
-      },
-    });
+  email,
+  options: {
+    emailRedirectTo: `${window.location.origin}/auth/callback?next=/app/alerts`,
+  },
+});
 
     setLoading(false);
 
