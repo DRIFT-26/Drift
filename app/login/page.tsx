@@ -1,28 +1,38 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
-  const supabase = createClient();
+    const supabase = createClient();
 
-  const checkSession = async () => {
-    const { data } = await supabase.auth.getSession();
+    const moveIntoCommandCenter = async () => {
+      const { data } = await supabase.auth.getSession();
 
-    if (data.session) {
-      window.location.href = "/app/alerts";
-    }
-  };
+      if (data.session) {
+        window.location.replace("/app/alerts");
+      }
+    };
 
-  checkSession();
-}, []);
+    moveIntoCommandCenter();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        window.location.replace("/app/alerts");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -39,7 +49,11 @@ export default function LoginPage() {
 
     setLoading(false);
 
-    if (!error) setSent(true);
+    if (!error) {
+      setSent(true);
+    } else {
+      alert(error.message);
+    }
   }
 
   return (
