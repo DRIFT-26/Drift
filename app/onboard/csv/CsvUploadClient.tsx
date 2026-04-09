@@ -47,12 +47,14 @@ export default function CsvUploadClient({
         body: formData,
       });
 
-      const data = await res.json().catch(() => null);
-      const json = (await res.json()) as {
+      const data = (await res.json().catch(() => null)) as {
+  ok?: boolean;
+  error?: string;
   touched_business_ids?: string[];
-};
-      const touched = Array.isArray(json?.touched_business_ids)
-  ? json.touched_business_ids.join(",")
+} | null;
+
+const touched = Array.isArray(data?.touched_business_ids)
+  ? data.touched_business_ids.join(",")
   : "";
 
       console.log("CSV businessId before success redirect:", businessId);

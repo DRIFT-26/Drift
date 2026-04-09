@@ -43,17 +43,18 @@ export default function SheetsConnectClient({
         }),
       });
 
-      const data = await res.json();
-      const json = (await res.json()) as {
+      const data = (await res.json()) as {
+  ok?: boolean;
+  error?: string;
   touched_business_ids?: string[];
 };
 
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error ?? "Failed to connect Google Sheet.");
-      }
+if (!res.ok || !data?.ok) {
+  throw new Error(data?.error ?? "Failed to connect Google Sheet.");
+}
 
-      const touched = Array.isArray(json?.touched_business_ids)
-  ? json.touched_business_ids.join(",")
+const touched = Array.isArray(data?.touched_business_ids)
+  ? data.touched_business_ids.join(",")
   : "";
 
       console.log("SHEETS businessId before success redirect:", businessId);
