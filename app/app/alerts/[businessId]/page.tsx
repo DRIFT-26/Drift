@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { formatReason } from "@/lib/executive/reasons";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import AppHeader from "@/app/_components/AppHeader";
 
 type DriftStatus =
   | "stable"
@@ -448,23 +449,22 @@ if (!user?.email) {
       }}
     >
       <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-          }}
-        >
-          <div
-  style={{
-    borderLeft: `3px solid ${tone.fg}`,
-    paddingLeft: 14,
-  }}
->
-            <div style={{ fontSize: 12, color: textSecondary, letterSpacing: 0.5 }}>
-              DRIFT / EXECUTIVE BRIEF
-            </div>
+  <AppHeader />
+
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 16,
+    }}
+  >
+      <div
+        style={{
+          borderLeft: `3px solid ${tone.fg}`,
+          paddingLeft: 14,
+        }}
+      >
             <h1
               style={{
                 margin: "6px 0 0",

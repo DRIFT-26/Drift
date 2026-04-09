@@ -10,7 +10,7 @@ export default function AppLayout({
       <header className="border-b border-white/10 px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link
-  href="/app/app"
+  href="/"
   className="text-sm font-semibold tracking-[0.18em] text-white"
 >
   DRIFT
