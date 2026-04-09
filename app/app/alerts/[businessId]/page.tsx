@@ -3,7 +3,6 @@ import Link from "next/link";
 import { formatReason } from "@/lib/executive/reasons";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import AppHeader from "@/app/_components/AppHeader";
 import { cookies } from "next/headers";
 import {
   ONBOARD_ACCESS_COOKIE,
@@ -463,7 +462,7 @@ if (!email) {
       }}
     >
       <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-  <AppHeader />
+  
 
   <div
     style={{
