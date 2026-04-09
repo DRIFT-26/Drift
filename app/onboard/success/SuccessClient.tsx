@@ -15,21 +15,23 @@ export default function SuccessClient({
   source,
   businessId,
   touchedBusinessIds,
+  initialReady,
 }: {
   signal: string;
   source: string;
   businessId: string;
   touchedBusinessIds: string[];
+  initialReady: boolean;
 }) {
   
   const connectedSource = sourceLabel(source);
-  const [showPreview, setShowPreview] = useState(signal === "processing");
-  const [isReady, setIsReady] = useState(signal !== "processing");
-const [isChecking, setIsChecking] = useState(signal === "processing");
-const [timedOut, setTimedOut] = useState(false);
+  const [showPreview, setShowPreview] = useState(signal === "processing" && !initialReady);
+  const [isReady, setIsReady] = useState(initialReady || signal !== "processing");
+  const [isChecking, setIsChecking] = useState(signal === "processing" && !initialReady);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
-  if (signal !== "processing") return;
+  if (signal !== "processing" || initialReady) return;
 
   let cancelled = false;
 
@@ -200,6 +202,12 @@ const [timedOut, setTimedOut] = useState(false);
   >
     {isChecking ? "Preparing Command Center..." : "Finalizing Signals..."}
   </button>
+)}
+
+{timedOut && (
+  <div className="mt-3 text-xs text-white/50">
+    Your Command Center may still be finalizing some signals, but it’s ready to open.
+  </div>
 )}
 
             <Link
