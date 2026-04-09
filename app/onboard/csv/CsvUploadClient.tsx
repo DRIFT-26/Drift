@@ -55,9 +55,7 @@ export default function CsvUploadClient({
   ? json.touched_business_ids.join(",")
   : "";
 
-router.push(
-  `/onboard/success?signal=processing&source=csv&business_id=${businessId}&touched_business_ids=${encodeURIComponent(touched)}`
-);
+    router.push(`/onboard/success?business_id=${businessId}&signal=processing&source=csv&touched_business_ids=${encodeURIComponent(touched)}`);
 
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error ?? "Upload failed.");

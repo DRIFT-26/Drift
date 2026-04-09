@@ -44,12 +44,19 @@ export default function SheetsConnectClient({
       });
 
       const data = await res.json();
+      const json = (await res.json()) as {
+  touched_business_ids?: string[];
+};
 
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error ?? "Failed to connect Google Sheet.");
       }
 
-      router.push("/onboard/success?business_id=${businessId}&signal=processing&source=google_sheets");
+      const touched = Array.isArray(json?.touched_business_ids)
+  ? json.touched_business_ids.join(",")
+  : "";
+
+      router.push(`/onboard/success?business_id=${businessId}&signal=processing&source=google_sheets&touched_business_ids=${encodeURIComponent(touched)}`);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to connect Google Sheet.";
