@@ -147,22 +147,35 @@ export default async function AlertsIndexPage() {
   }
 
   let businesses: BusinessRow[] | null = null;
-let error: { message?: string } | null = null;
+  let error: { message?: string } | null = null;
 
-if (userId) {
-  const ownerMatch = await supabase
-    .from("businesses")
-    .select(
-      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
-    )
-    .eq("owner_id", userId)
-    .order("created_at", { ascending: true })
-    .returns<BusinessRow[]>();
+  if (userId) {
+    const ownerMatch = await supabase
+      .from("businesses")
+      .select(
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+      )
+      .eq("owner_id", userId)
+      .order("created_at", { ascending: true })
+      .returns<BusinessRow[]>();
 
-  businesses = ownerMatch.data ?? null;
-  error = ownerMatch.error;
+    businesses = ownerMatch.data ?? null;
+    error = ownerMatch.error;
 
-  if ((!businesses || businesses.length === 0) && email) {
+    if ((!businesses || businesses.length === 0) && email) {
+      const emailMatch = await supabase
+        .from("businesses")
+        .select(
+          "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+        )
+        .eq("alert_email", email)
+        .order("created_at", { ascending: true })
+        .returns<BusinessRow[]>();
+
+      businesses = emailMatch.data ?? null;
+      error = emailMatch.error;
+    }
+  } else if (email) {
     const emailMatch = await supabase
       .from("businesses")
       .select(
@@ -175,19 +188,10 @@ if (userId) {
     businesses = emailMatch.data ?? null;
     error = emailMatch.error;
   }
-} else if (email) {
-  const emailMatch = await supabase
-    .from("businesses")
-    .select(
-      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
-    )
-    .eq("alert_email", email)
-    .order("created_at", { ascending: true })
-    .returns<BusinessRow[]>();
 
-  businesses = emailMatch.data ?? null;
-  error = emailMatch.error;
-}
+  const totalLocations = businesses?.length || 0;
+  const includedLocations = 3;
+  const additionalLocations = Math.max(totalLocations - includedLocations, 0);
 
   const statusPriority: Record<string, number> = {
     attention: 1,
@@ -209,8 +213,6 @@ if (userId) {
           color: "#E6EAF0",
         }}
       >
-        
-
         <h1
           style={{
             margin: "6px 0 0",
@@ -312,21 +314,38 @@ if (userId) {
           }}
         >
           <div>
-  <h1
-    style={{
-      margin: "6px 0 0",
-      fontSize: 32,
-      lineHeight: 1.05,
-      fontWeight: 950,
-      color: "#E6EAF0",
-    }}
-  >
-    Executive Signal Feed
-  </h1>
-  <div style={{ marginTop: 8, fontSize: 14, color: "#9AA4B2" }}>
-    Prioritized by severity. Review what matters first.
-  </div>
-</div>
+            <h1
+              style={{
+                margin: "6px 0 0",
+                fontSize: 32,
+                lineHeight: 1.05,
+                fontWeight: 950,
+                color: "#E6EAF0",
+              }}
+            >
+              Executive Signal Feed
+            </h1>
+            <div style={{ marginTop: 8, fontSize: 14, color: "#9AA4B2" }}>
+              Prioritized by severity. Review what matters first.
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#9AA4B2" }}>
+              Portfolio:{" "}
+              <span style={{ color: "#E6EAF0", fontWeight: 800 }}>
+                {totalLocations}
+              </span>{" "}
+              location{totalLocations === 1 ? "" : "s"}
+              {additionalLocations > 0 ? (
+                <>
+                  {" · "}
+                  <span style={{ color: "#FFC266", fontWeight: 800 }}>
+                    +{additionalLocations}
+                  </span>{" "}
+                  additional billable location
+                  {additionalLocations === 1 ? "" : "s"}
+                </>
+              ) : null}
+            </div>
+          </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Link
