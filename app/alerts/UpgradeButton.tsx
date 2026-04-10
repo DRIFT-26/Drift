@@ -4,8 +4,14 @@ import { useState } from "react";
 
 export default function UpgradeButton({
   businessId,
+  totalLocations,
+  includedLocations = 3,
+  additionalLocations,
 }: {
   businessId: string;
+  totalLocations: number;
+  includedLocations?: number;
+  additionalLocations: number;
 }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -109,8 +115,31 @@ export default function UpgradeButton({
               months or <strong style={{ color: "#FFFFFF" }}>$399/month</strong>{" "}
               lifetime Founding Cohort pricing
             </div>
-            <div>Includes up to 3 locations per portfolio</div>
-            <div>Additional locations are billed as your operation grows</div>
+            <div>
+              Includes up to{" "}
+              <strong style={{ color: "#FFFFFF" }}>{includedLocations}</strong>{" "}
+              location{includedLocations === 1 ? "" : "s"} per portfolio
+            </div>
+            <div>
+              Portfolio currently monitoring{" "}
+              <strong style={{ color: "#FFFFFF" }}>{totalLocations}</strong>{" "}
+              location{totalLocations === 1 ? "" : "s"}
+            </div>
+
+            {additionalLocations > 0 ? (
+              <div style={{ color: "#FFC266" }}>
+                <strong style={{ color: "#FFFFFF" }}>
+                  +{additionalLocations}
+                </strong>{" "}
+                additional billable location
+                {additionalLocations === 1 ? "" : "s"} beyond the included
+                portfolio threshold
+              </div>
+            ) : (
+              <div>
+                Your current portfolio is within the included location threshold.
+              </div>
+            )}
           </div>
 
           <div
