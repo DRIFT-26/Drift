@@ -20,16 +20,41 @@ export default async function UpgradePage({
     founding_cohort: boolean | null;
     billing_status: string | null;
     alert_email: string | null;
+    owner_id?: string | null;
   } | null = null;
 
   if (businessId) {
     const { data } = await supabase
       .from("businesses")
-      .select("id,name,founding_cohort,billing_status,alert_email")
+      .select("id,name,founding_cohort,billing_status,alert_email,owner_id")
       .eq("id", businessId)
       .single();
 
     business = data;
+  }
+
+  let totalLocations = 0;
+  const includedLocations = 3;
+  let additionalLocations = 0;
+
+  if (business) {
+    if (business.owner_id) {
+      const { count } = await supabase
+        .from("businesses")
+        .select("*", { count: "exact", head: true })
+        .eq("owner_id", business.owner_id);
+
+      totalLocations = count ?? 0;
+    } else if (business.alert_email) {
+      const { count } = await supabase
+        .from("businesses")
+        .select("*", { count: "exact", head: true })
+        .eq("alert_email", business.alert_email);
+
+      totalLocations = count ?? 0;
+    }
+
+    additionalLocations = Math.max(totalLocations - includedLocations, 0);
   }
 
   return (
@@ -41,13 +66,13 @@ export default async function UpgradePage({
           </div>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-            Keep DRIFT active before visibility disappears.
+            Activate DRIFT for your portfolio
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-white/65">
-            DRIFT is already identifying changes in your revenue behavior.
-            Upgrade now to keep continuous monitoring and alert coverage active
-            when something materially shifts.
+            DRIFT is already monitoring revenue movement across your operation.
+            Activate your plan now to keep continuous monitoring, signal detection,
+            and operator-grade alert coverage active.
           </p>
 
           <div className="mt-6 text-center text-xs text-white/40">
@@ -57,10 +82,49 @@ export default async function UpgradePage({
 
         {canceled && (
           <div className="mx-auto mt-6 max-w-2xl rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
-            Your upgrade wasn’t completed. You can resume monitoring below at
-            any time.
+            Your upgrade wasn’t completed. You can resume activation below at any time.
           </div>
         )}
+
+        <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm font-semibold text-white">
+            Portfolio pricing overview
+          </div>
+
+          <div className="mt-3 space-y-2 text-sm text-white/80">
+            <div>
+              <strong className="text-white">$499/month</strong> standard pricing
+            </div>
+            <div>
+              <strong className="text-white">$299/month</strong> for 12 months or{" "}
+              <strong className="text-white">$399/month</strong> lifetime Founding Cohort pricing
+            </div>
+            <div>
+              Includes up to{" "}
+              <strong className="text-white">{includedLocations}</strong> locations per portfolio
+            </div>
+            {business ? (
+              <div>
+                Portfolio currently monitoring{" "}
+                <strong className="text-white">{totalLocations}</strong>{" "}
+                location{totalLocations === 1 ? "" : "s"}
+              </div>
+            ) : null}
+            {business && additionalLocations > 0 ? (
+              <div className="text-[#FFC266]">
+                <strong className="text-white">+{additionalLocations}</strong>{" "}
+                additional billable location
+                {additionalLocations === 1 ? "" : "s"} beyond the included threshold
+              </div>
+            ) : business ? (
+              <div>Your current portfolio is within the included location threshold.</div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 text-sm text-white/60">
+            DRIFT is priced at the portfolio level — not per seat, dashboard, or report.
+          </div>
+        </div>
 
         <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
           <div className="text-sm font-semibold text-red-300">
@@ -74,8 +138,8 @@ export default async function UpgradePage({
           </div>
 
           <div className="mt-4 text-sm text-white/60">
-            DRIFT does not give you another dashboard to babysit. It tells you
-            when something is changing.
+            DRIFT does not give you another dashboard to babysit. It tells you when
+            something is changing.
           </div>
         </div>
 
