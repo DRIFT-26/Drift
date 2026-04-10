@@ -5,11 +5,17 @@ import { useState } from "react";
 type UpgradeActionsProps = {
   businessId: string;
   foundingCohort: boolean;
+  totalLocations: number;
+  includedLocations: number;
+  additionalLocations: number;
 };
 
 export default function UpgradeActions({
   businessId,
   foundingCohort,
+  totalLocations,
+  includedLocations,
+  additionalLocations,
 }: UpgradeActionsProps) {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
@@ -59,6 +65,35 @@ export default function UpgradeActions({
         </div>
       )}
 
+      <div className="mx-auto mb-6 max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-5 text-center ring-1 ring-white/10">
+        <div className="text-xs font-mono tracking-wide text-white/45">
+          PORTFOLIO STATUS
+        </div>
+
+        <div className="mt-3 text-sm text-white/75">
+          Your portfolio is currently monitoring{" "}
+          <span className="font-semibold text-white">{totalLocations}</span>{" "}
+          location{totalLocations === 1 ? "" : "s"}.
+        </div>
+
+        <div className="mt-2 text-sm text-white/65">
+          All plans include up to{" "}
+          <span className="font-semibold text-white">{includedLocations}</span>{" "}
+          location{includedLocations === 1 ? "" : "s"}.
+          {additionalLocations > 0 ? (
+            <>
+              {" "}
+              <span className="text-[#FFC266]">
+                +{additionalLocations} additional billable location
+                {additionalLocations === 1 ? "" : "s"}
+              </span>
+            </>
+          ) : (
+            <> Your current portfolio is within the included threshold.</>
+          )}
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/20 bg-white/10 p-6 ring-2 ring-white/20">
           <div className="text-xs font-mono tracking-wide text-white/45">
@@ -73,13 +108,25 @@ export default function UpgradeActions({
           <div className="mt-1 text-sm text-white/60">per month</div>
 
           <div className="mt-4 text-xs text-white/50">
-            Cancel Anytime · No long-term commitment
+            Portfolio pricing · Cancel anytime
           </div>
 
           <p className="mt-4 text-sm leading-relaxed text-white/65">
             Keep DRIFT continuously monitoring revenue behavior and delivering
             alerts when movement becomes actionable.
           </p>
+
+          <div className="mt-4 space-y-2 text-xs text-white/55">
+            <div>Includes up to {includedLocations} locations</div>
+            {additionalLocations > 0 ? (
+              <div className="text-[#FFC266]">
+                +{additionalLocations} additional billable location
+                {additionalLocations === 1 ? "" : "s"}
+              </div>
+            ) : (
+              <div>Current portfolio is within included location threshold</div>
+            )}
+          </div>
 
           <button
             type="button"
@@ -109,13 +156,25 @@ export default function UpgradeActions({
             </div>
 
             <div className="mt-4 text-xs text-white/50">
-              Cancel anytime · No long-term commitment
+              Portfolio pricing · Cancel anytime
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-white/65">
               Early operator pricing for teams joining DRIFT during the Founding
               Cohort window.
             </p>
+
+            <div className="mt-4 space-y-2 text-xs text-white/55">
+              <div>Includes up to {includedLocations} locations</div>
+              {additionalLocations > 0 ? (
+                <div className="text-[#FFC266]">
+                  +{additionalLocations} additional billable location
+                  {additionalLocations === 1 ? "" : "s"}
+                </div>
+              ) : (
+                <div>Current portfolio is within included location threshold</div>
+              )}
+            </div>
 
             <button
               type="button"
@@ -146,13 +205,25 @@ export default function UpgradeActions({
             </div>
 
             <div className="mt-4 text-xs text-white/50">
-              Cancel Anytime · No long-term commitment
+              Portfolio pricing · Cancel anytime
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-white/65">
               Lock in Founder pricing permanently and keep DRIFT active long
               term.
             </p>
+
+            <div className="mt-4 space-y-2 text-xs text-white/55">
+              <div>Includes up to {includedLocations} locations</div>
+              {additionalLocations > 0 ? (
+                <div className="text-[#FFC266]">
+                  +{additionalLocations} additional billable location
+                  {additionalLocations === 1 ? "" : "s"}
+                </div>
+              ) : (
+                <div>Current portfolio is within included location threshold</div>
+              )}
+            </div>
 
             <button
               type="button"

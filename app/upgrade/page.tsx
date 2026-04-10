@@ -172,6 +172,9 @@ export default async function UpgradePage({
               <UpgradeActions
                 businessId={business.id}
                 foundingCohort={showFounder}
+                totalLocations={totalLocations}
+                includedLocations={includedLocations}
+                additionalLocations={additionalLocations}
               />
             );
           })()
