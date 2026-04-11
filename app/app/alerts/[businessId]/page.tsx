@@ -1,4 +1,3 @@
-// app/alerts/[businessId]/page.tsx
 import Link from "next/link";
 import { formatReason } from "@/lib/executive/reasons";
 import { redirect } from "next/navigation";
@@ -8,6 +7,7 @@ import {
   ONBOARD_ACCESS_COOKIE,
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
+import { businessHasAccess } from "@/lib/billing/access";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -65,6 +65,8 @@ type BusinessRow = {
   monthly_revenue: number | null;
   monthly_revenue_cents: number | null;
   created_at: string | null;
+  billing_status: string | null;
+  trial_ends_at?: string | null;
 };
 
 type EmailLogRow = {
@@ -279,7 +281,6 @@ const subCardBg = "#0F141A";
 const border = "1px solid rgba(255,255,255,0.06)";
 const textPrimary = "#E6EAF0";
 const textSecondary = "#9AA4B2";
-const textMuted = "#6B7280";
 
 export default async function BusinessAlertsPage({
   params,
@@ -291,10 +292,10 @@ export default async function BusinessAlertsPage({
   const resolved = (await Promise.resolve(params)) as { businessId?: string };
   const businessId = resolved?.businessId;
   const resolvedSearch = searchParams
-  ? ((await Promise.resolve(searchParams)) as { eventId?: string })
-  : {};
+    ? ((await Promise.resolve(searchParams)) as { eventId?: string })
+    : {};
 
-const eventId = resolvedSearch?.eventId ?? "";
+  const eventId = resolvedSearch?.eventId ?? "";
 
   if (!businessId || businessId === "undefined" || !isUuidLike(businessId)) {
     return (
@@ -321,43 +322,56 @@ const eventId = resolvedSearch?.eventId ?? "";
 
   const supabase = await createClient();
 
-const {
-  data: { user },
-} = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-const cookieStore = await cookies();
-const onboardAccess = verifyOnboardAccessToken(
-  cookieStore.get(ONBOARD_ACCESS_COOKIE)?.value
-);
+  const cookieStore = await cookies();
+  const onboardAccess = verifyOnboardAccessToken(
+    cookieStore.get(ONBOARD_ACCESS_COOKIE)?.value
+  );
 
-const userId = user?.id ?? null;
-const email = user?.email ?? onboardAccess?.email ?? null;
+  const userId = user?.id ?? null;
+  const email = user?.email ?? onboardAccess?.email ?? null;
 
-if (!userId && !email) {
-  redirect("/login");
-}
+  if (!userId && !email) {
+    redirect("/login");
+  }
 
-let business: BusinessRow | null = null;
-let error: { message?: string } | null = null;
+  let business: BusinessRow | null = null;
+  let error: { message?: string } | null = null;
 
-if (userId) {
-  const ownerMatch = await supabase
-    .from("businesses")
-    .select(
-      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
-    )
-    .eq("id", businessId)
-    .eq("owner_id", userId)
-    .maybeSingle<BusinessRow>();
+  if (userId) {
+    const ownerMatch = await supabase
+      .from("businesses")
+      .select(
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+      )
+      .eq("id", businessId)
+      .eq("owner_id", userId)
+      .maybeSingle<BusinessRow>();
 
-  business = ownerMatch.data ?? null;
-  error = ownerMatch.error;
+    business = ownerMatch.data ?? null;
+    error = ownerMatch.error;
 
-  if (!business && email) {
+    if (!business && email) {
+      const emailMatch = await supabase
+        .from("businesses")
+        .select(
+          "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+        )
+        .eq("id", businessId)
+        .eq("alert_email", email)
+        .maybeSingle<BusinessRow>();
+
+      business = emailMatch.data ?? null;
+      error = emailMatch.error;
+    }
+  } else if (email) {
     const emailMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("id", businessId)
       .eq("alert_email", email)
@@ -366,19 +380,6 @@ if (userId) {
     business = emailMatch.data ?? null;
     error = emailMatch.error;
   }
-} else if (email) {
-  const emailMatch = await supabase
-    .from("businesses")
-    .select(
-      "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
-    )
-    .eq("id", businessId)
-    .eq("alert_email", email)
-    .maybeSingle<BusinessRow>();
-
-  business = emailMatch.data ?? null;
-  error = emailMatch.error;
-}
 
   const { data: timeline } = await supabase
     .from("email_logs")
@@ -413,6 +414,13 @@ if (userId) {
       </div>
     );
   }
+
+  const hasAccess = businessHasAccess({
+    billing_status: business.billing_status,
+    trial_ends_at: business.trial_ends_at ?? null,
+  });
+
+  const isReadOnly = !hasAccess;
 
   const lastDrift = business.last_drift ?? null;
   const driftMeta: DriftMeta = lastDrift?.meta ?? {};
@@ -454,8 +462,8 @@ if (userId) {
     typeof refundsMeta.currentRefundRate === "number"
       ? refundsMeta.currentRefundRate
       : typeof refundsMeta.refund_rate === "number"
-      ? refundsMeta.refund_rate
-      : null;
+        ? refundsMeta.refund_rate
+        : null;
 
   const refundRateBaseline =
     typeof refundsMeta.baselineRefundRate === "number"
@@ -470,8 +478,8 @@ if (userId) {
     typeof business.monthly_revenue_cents === "number"
       ? business.monthly_revenue_cents
       : typeof business.monthly_revenue === "number"
-      ? Math.round(business.monthly_revenue * 100)
-      : null;
+        ? Math.round(business.monthly_revenue * 100)
+        : null;
 
   const tone = statusTone(driftStatus);
   const riskLabel = projectRiskLabel(driftStatus, mriScore);
@@ -486,34 +494,51 @@ if (userId) {
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         background:
-  driftStatus === "attention"
-    ? "radial-gradient(circle at top, rgba(255,107,107,0.14), transparent 22%), #0B0F14"
-    : driftStatus === "softening"
-    ? "radial-gradient(circle at top, rgba(255,176,32,0.12), transparent 22%), #0B0F14"
-    : driftStatus === "watch"
-    ? "radial-gradient(circle at top, rgba(90,169,255,0.12), transparent 22%), #0B0F14"
-    : "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14",
+          driftStatus === "attention"
+            ? "radial-gradient(circle at top, rgba(255,107,107,0.14), transparent 22%), #0B0F14"
+            : driftStatus === "softening"
+              ? "radial-gradient(circle at top, rgba(255,176,32,0.12), transparent 22%), #0B0F14"
+              : driftStatus === "watch"
+                ? "radial-gradient(circle at top, rgba(90,169,255,0.12), transparent 22%), #0B0F14"
+                : "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14",
         minHeight: "100vh",
         color: textPrimary,
       }}
     >
       <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-  
+        {isReadOnly ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 16,
+              background: "rgba(255, 176, 32, 0.10)",
+              border: "1px solid rgba(255, 176, 32, 0.20)",
+              color: "#FDE68A",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 14 }}>Read-only access</div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#F8E7B0" }}>
+              Your trial has ended. This business brief and signal history remain visible,
+              but active monitoring and ongoing alerts are paused until DRIFT is activated.
+            </div>
+          </div>
+        ) : null}
 
-  <div
-    style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      gap: 16,
-    }}
-  >
-      <div
-        style={{
-          borderLeft: `3px solid ${tone.fg}`,
-          paddingLeft: 14,
-        }}
-      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 16,
+          }}
+        >
+          <div
+            style={{
+              borderLeft: `3px solid ${tone.fg}`,
+              paddingLeft: 14,
+            }}
+          >
             <h1
               style={{
                 margin: "6px 0 0",
@@ -551,16 +576,22 @@ if (userId) {
               </span>{" "}
               {recommendedAction(driftStatus, driftReasons)}
             </div>
-            
 
-            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary, lineHeight: 1.5,}}>
-  {driftStatus === "attention" &&
-    "If unaddressed, this may begin impacting revenue performance within days."}
-  {driftStatus === "softening" &&
-    "Left unchecked, this trend may develop into a larger performance issue."}
-  {driftStatus === "watch" &&
-    "Early signal detected — validating now can prevent larger disruption."}
-</div>
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 13,
+                color: textSecondary,
+                lineHeight: 1.5,
+              }}
+            >
+              {driftStatus === "attention" &&
+                "If unaddressed, this may begin impacting revenue performance within days."}
+              {driftStatus === "softening" &&
+                "Left unchecked, this trend may develop into a larger performance issue."}
+              {driftStatus === "watch" &&
+                "Early signal detected — validating now can prevent larger disruption."}
+            </div>
 
             <div style={{ marginTop: 8, fontSize: 13, color: textSecondary }}>
               Source:{" "}
@@ -580,8 +611,8 @@ if (userId) {
                     {direction === "up"
                       ? "Rising"
                       : direction === "down"
-                      ? "Slowing"
-                      : "Stable"}
+                        ? "Slowing"
+                        : "Stable"}
                   </span>
                 </>
               ) : null}
@@ -622,12 +653,21 @@ if (userId) {
               Next 7–14 days: {riskLabel} risk
             </div>
 
-            <Link
-              href="/app/alerts"
-              style={{ color: "#8BC1FF", fontWeight: 700, fontSize: 13 }}
-            >
-              Back
-            </Link>
+            {isReadOnly ? (
+              <Link
+                href={`/upgrade?business_id=${encodeURIComponent(businessId)}`}
+                style={{ color: "#8BC1FF", fontWeight: 700, fontSize: 13 }}
+              >
+                Activate DRIFT
+              </Link>
+            ) : (
+              <Link
+                href="/app/alerts"
+                style={{ color: "#8BC1FF", fontWeight: 700, fontSize: 13 }}
+              >
+                Back
+              </Link>
+            )}
           </div>
         </div>
 
@@ -706,16 +746,15 @@ if (userId) {
 
           <div
             style={{
-            gridColumn: "span 4",
-            background: hasRefundData ? cardBg : subCardBg,
-            border: hasRefundData
-            ? border
-            : "1px solid rgba(255,255,255,0.03)",
-            borderRadius: 18,
-            padding: 16,
+              gridColumn: "span 4",
+              background: hasRefundData ? cardBg : subCardBg,
+              border: hasRefundData
+                ? border
+                : "1px solid rgba(255,255,255,0.03)",
+              borderRadius: 18,
+              padding: 16,
             }}
           >
-            
             <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
               REFUND RATE (14D)
             </div>
@@ -788,28 +827,29 @@ if (userId) {
                 {driftReasons.map((r, i) => (
                   <li key={i} style={{ marginBottom: 16, lineHeight: 1.6 }}>
                     <div style={{ fontWeight: 900 }}>
-  {String(r?.code ?? "") === "BASELINE_WARMUP"
-    ? "Baseline Building"
-    : formatReason(r)}
-</div>
+                      {String(r?.code ?? "") === "BASELINE_WARMUP"
+                        ? "Baseline Building"
+                        : formatReason(r)}
+                    </div>
 
-{r?.code === "REV_FREQ_DROP_30" && (
-  <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
-    Check customer return frequency and recent transaction patterns.
-  </div>
-)}
+                    {r?.code === "REV_FREQ_DROP_30" && (
+                      <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
+                        Check customer return frequency and recent transaction patterns.
+                      </div>
+                    )}
 
-{r?.code === "ENG_DROP_30" && (
-  <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
-    Review campaign performance and recent engagement drop-offs.
-  </div>
-)}
+                    {r?.code === "ENG_DROP_30" && (
+                      <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
+                        Review campaign performance and recent engagement drop-offs.
+                      </div>
+                    )}
 
-{r?.code === "SENTIMENT_DROP_50" && (
-  <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
-    Audit customer feedback and recent experience signals.
-  </div>
-)}
+                    {r?.code === "SENTIMENT_DROP_50" && (
+                      <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
+                        Audit customer feedback and recent experience signals.
+                      </div>
+                    )}
+
                     {r?.detail ? (
                       <div style={{ marginTop: 2, color: textSecondary, fontSize: 13 }}>
                         {String(r.detail)}
@@ -826,22 +866,22 @@ if (userId) {
             )}
 
             <div
-  style={{
-    marginTop: 16,
-    fontSize: 13,
-    color: "#6B7280",
-    lineHeight: 1.5,
-  }}
->
-  {driftStatus === "attention" &&
-    "These signals indicate active performance risk. Immediate attention is recommended."}
+              style={{
+                marginTop: 16,
+                fontSize: 13,
+                color: "#6B7280",
+                lineHeight: 1.5,
+              }}
+            >
+              {driftStatus === "attention" &&
+                "These signals indicate active performance risk. Immediate attention is recommended."}
 
-  {driftStatus === "softening" &&
-    "These signals suggest early decline. Addressing now may prevent deeper impact."}
+              {driftStatus === "softening" &&
+                "These signals suggest early decline. Addressing now may prevent deeper impact."}
 
-  {driftStatus === "watch" &&
-    "These signals are developing. Early validation can prevent escalation."}
-</div>
+              {driftStatus === "watch" &&
+                "These signals are developing. Early validation can prevent escalation."}
+            </div>
           </div>
 
           <div
@@ -942,135 +982,135 @@ if (userId) {
             </div>
 
             {timeline && timeline.length > 0 ? (
-  <div
-    style={{
-      marginTop: 16,
-      position: "relative",
-      paddingLeft: 20,
-      display: "grid",
-      gap: 14,
-    }}
-  >
-    <div
-      style={{
-        position: "absolute",
-        left: 7,
-        top: 4,
-        bottom: 4,
-        width: 2,
-        background: "rgba(255,255,255,0.08)",
-      }}
-    />
-
-    {timeline.map((item) => {
-      const itemStatus = timelineStatusFromEmailType(item.email_type);
-      const itemTone = statusTone(itemStatus);
-
-      return (
-        <div
-          key={item.id}
-          id={item.id}
-          style={{
-  position: "relative",
-  display: "grid",
-  gap: 6,
-  background:
-    eventId === item.id ? "rgba(255,255,255,0.04)" : "transparent",
-  borderRadius: 12,
-  padding:
-    eventId === item.id ? "10px 10px 10px 18px" : "0 0 0 18px",
-}}
-        >
-          <div
-            style={{
-              position: "absolute",
-              left: -1,
-              top: 6,
-              width: 10,
-              height: 10,
-              borderRadius: 999,
-              background: `linear-gradient(180deg, ${itemTone.bg}, rgba(0,0,0,0.45))`,
-              border: `1px solid ${itemTone.border}`,
-              boxShadow: itemTone.glow,
-              backdropFilter: "blur(10px)",
-            }}
-          />
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: 12,
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  fontSize: 14,
-                  fontWeight: 800,
-                  color: textPrimary,
+                  marginTop: 16,
+                  position: "relative",
+                  paddingLeft: 20,
+                  display: "grid",
+                  gap: 14,
                 }}
               >
-                {timelineHeadline(item.subject)}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 7,
+                    top: 4,
+                    bottom: 4,
+                    width: 2,
+                    background: "rgba(255,255,255,0.08)",
+                  }}
+                />
+
+                {timeline.map((item) => {
+                  const itemStatus = timelineStatusFromEmailType(item.email_type);
+                  const itemTone = statusTone(itemStatus);
+
+                  return (
+                    <div
+                      key={item.id}
+                      id={item.id}
+                      style={{
+                        position: "relative",
+                        display: "grid",
+                        gap: 6,
+                        background:
+                          eventId === item.id ? "rgba(255,255,255,0.04)" : "transparent",
+                        borderRadius: 12,
+                        padding:
+                          eventId === item.id ? "10px 10px 10px 18px" : "0 0 0 18px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: -1,
+                          top: 6,
+                          width: 10,
+                          height: 10,
+                          borderRadius: 999,
+                          background: `linear-gradient(180deg, ${itemTone.bg}, rgba(0,0,0,0.45))`,
+                          border: `1px solid ${itemTone.border}`,
+                          boxShadow: itemTone.glow,
+                          backdropFilter: "blur(10px)",
+                        }}
+                      />
+
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 800,
+                              color: textPrimary,
+                            }}
+                          >
+                            {timelineHeadline(item.subject)}
+                          </div>
+
+                          {eventId === item.id ? (
+                            <div
+                              style={{
+                                marginTop: 4,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                letterSpacing: 0.3,
+                                color: "#8BC1FF",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              Selected Event
+                            </div>
+                          ) : null}
+
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontSize: 12,
+                              color: textSecondary,
+                            }}
+                          >
+                            {safeDateTimeLabel(item.created_at)}
+                            {item.email_type ? (
+                              <>
+                                {" · "}
+                                <span style={{ fontWeight: 700 }}>
+                                  {formatEventType(item.email_type)}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 999,
+                            background: `linear-gradient(180deg, ${tone.bg}, rgba(0,0,0,0.45))`,
+                            border: `1px solid ${tone.border}`,
+                            boxShadow: tone.glow,
+                            backdropFilter: "blur(12px)",
+                            WebkitBackdropFilter: "blur(12px)",
+                            fontWeight: 800,
+                            fontSize: 12,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {statusLabel(itemStatus)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-
-              {eventId === item.id ? (
-  <div
-    style={{
-      marginTop: 4,
-      fontSize: 11,
-      fontWeight: 800,
-      letterSpacing: 0.3,
-      color: "#8BC1FF",
-      textTransform: "uppercase",
-    }}
-  >
-    Selected Event
-  </div>
-) : null}
-
-              <div
-                style={{
-                  marginTop: 4,
-                  fontSize: 12,
-                  color: textSecondary,
-                }}
-              >
-                {safeDateTimeLabel(item.created_at)}
-                {item.email_type ? (
-                  <>
-                    {" · "}
-                    <span style={{ fontWeight: 700 }}>
-  {formatEventType(item.email_type)}
-</span>
-                  </>
-                ) : null}
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: `linear-gradient(180deg, ${tone.bg}, rgba(0,0,0,0.45))`,
-                border: `1px solid ${tone.border}`,
-                boxShadow: tone.glow,
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                fontWeight: 800,
-                fontSize: 12,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {statusLabel(itemStatus)}
-            </div>
-          </div>
-        </div>
-      );
-    })}
-  </div>
-) : (
+            ) : (
               <div style={{ marginTop: 14, color: textSecondary, fontSize: 13 }}>
                 No prior signal history is available yet for this business.
               </div>

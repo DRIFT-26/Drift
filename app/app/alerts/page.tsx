@@ -1,4 +1,3 @@
-// app/app/alerts/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
@@ -8,6 +7,7 @@ import {
   ONBOARD_ACCESS_COOKIE,
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
+import { businessHasAccess } from "@/lib/billing/access";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -64,8 +64,8 @@ function formatMoneyFromBusiness(b: {
     typeof b?.monthly_revenue_cents === "number"
       ? b.monthly_revenue_cents
       : typeof b?.monthly_revenue === "number"
-      ? Math.round(b.monthly_revenue * 100)
-      : null;
+        ? Math.round(b.monthly_revenue * 100)
+        : null;
 
   if (typeof cents !== "number") return "—";
 
@@ -125,6 +125,8 @@ type BusinessRow = {
   monthly_revenue: number | null;
   monthly_revenue_cents: number | null;
   created_at: string | null;
+  billing_status: string | null;
+  trial_ends_at?: string | null;
 };
 
 export default async function AlertsIndexPage() {
@@ -153,7 +155,7 @@ export default async function AlertsIndexPage() {
     const ownerMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("owner_id", userId)
       .order("created_at", { ascending: true })
@@ -166,7 +168,7 @@ export default async function AlertsIndexPage() {
       const emailMatch = await supabase
         .from("businesses")
         .select(
-          "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+          "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
         )
         .eq("alert_email", email)
         .order("created_at", { ascending: true })
@@ -179,7 +181,7 @@ export default async function AlertsIndexPage() {
     const emailMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at"
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("alert_email", email)
       .order("created_at", { ascending: true })
@@ -192,6 +194,16 @@ export default async function AlertsIndexPage() {
   const totalLocations = businesses?.length || 0;
   const includedLocations = 3;
   const additionalLocations = Math.max(totalLocations - includedLocations, 0);
+
+  const portfolioHasAccess =
+    (businesses ?? []).some((b) =>
+      businessHasAccess({
+        billing_status: b.billing_status,
+        trial_ends_at: b.trial_ends_at ?? null,
+      })
+    ) || false;
+
+  const isReadOnly = !portfolioHasAccess && (businesses ?? []).length > 0;
 
   const statusPriority: Record<string, number> = {
     attention: 1,
@@ -305,6 +317,25 @@ export default async function AlertsIndexPage() {
       }}
     >
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        {isReadOnly ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 16,
+              background: "rgba(255, 176, 32, 0.10)",
+              border: "1px solid rgba(255, 176, 32, 0.20)",
+              color: "#FDE68A",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 14 }}>Read-only access</div>
+            <div style={{ marginTop: 6, fontSize: 13, color: "#F8E7B0" }}>
+              Your trial has ended. DRIFT history remains visible, but active monitoring,
+              ongoing alerts, and portfolio expansion are paused until your plan is activated.
+            </div>
+          </div>
+        ) : null}
+
         <div
           style={{
             display: "flex",
@@ -349,7 +380,11 @@ export default async function AlertsIndexPage() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Link
-              href="/onboard?mode=add_business"
+              href={
+                isReadOnly && businesses && businesses[0]?.id
+                  ? `/upgrade?business_id=${encodeURIComponent(businesses[0].id)}`
+                  : "/onboard?mode=add_business"
+              }
               style={{
                 padding: "10px 14px",
                 borderRadius: 12,
@@ -361,7 +396,7 @@ export default async function AlertsIndexPage() {
                 border: "1px solid rgba(255,255,255,0.06)",
               }}
             >
-              + Add Business
+              {isReadOnly ? "Activate DRIFT" : "+ Add Business"}
             </Link>
           </div>
         </div>
