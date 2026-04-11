@@ -519,8 +519,8 @@ export default async function BusinessAlertsPage({
           >
             <div style={{ fontWeight: 800, fontSize: 14 }}>Read-only access</div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#F8E7B0" }}>
-              Your trial has ended. This business brief and signal history remain visible,
-              but active monitoring and ongoing alerts are paused until DRIFT is activated.
+              Your trial has ended. Monitoring has paused, but this signal brief and history remain visible.
+Reactivate DRIFT to restore active monitoring and ongoing alerts.
             </div>
           </div>
         ) : null}

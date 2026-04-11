@@ -66,13 +66,13 @@ export default async function UpgradePage({
           </div>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-            Activate DRIFT for your portfolio
+            You’ve already seen what DRIFT catches. Keep it running.
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-white/65">
-            DRIFT is already monitoring revenue movement across your operation.
-            Activate your plan now to keep continuous monitoring, signal detection,
-            and operator-grade alert coverage active.
+            DRIFT is actively monitoring your revenue behavior and detecting
+            changes before they become visible. Keep continuous monitoring and
+            alerts active so nothing slips past you.
           </p>
 
           <div className="mt-6 text-center text-xs text-white/40">
@@ -128,27 +128,26 @@ export default async function UpgradePage({
 
         <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
           <div className="text-sm font-semibold text-red-300">
-            What happens if monitoring stops:
+            What happens when monitoring stops:
           </div>
 
           <div className="mt-3 space-y-2 text-sm text-white/80">
-            <div>• Revenue declines can go undetected until they become obvious</div>
-            <div>• Early momentum changes can be missed completely</div>
-            <div>• Alerts stop, visibility drops, and intervention gets delayed</div>
+            <div>• Revenue shifts go unnoticed until they become obvious</div>
+            <div>• Early momentum signals disappear</div>
+            <div>• Intervention happens later — when it’s more expensive</div>
           </div>
 
           <div className="mt-4 text-sm text-white/60">
-            DRIFT does not give you another dashboard to babysit. It tells you when
-            something is changing.
+            DRIFT exists to catch what you don’t have time to watch.
           </div>
         </div>
 
         <div className="mx-auto mt-8 max-w-2xl text-center">
           <div className="text-sm text-white/70">
-            You do not need more reporting.
+            You do not need another dashboard.
           </div>
           <div className="mt-2 text-sm font-semibold text-white">
-            You need to know when revenue behavior changes before it costs you.
+            You need to know when something changes — before it costs you.
           </div>
         </div>
 

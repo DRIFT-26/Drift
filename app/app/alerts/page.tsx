@@ -330,8 +330,8 @@ export default async function AlertsIndexPage() {
           >
             <div style={{ fontWeight: 800, fontSize: 14 }}>Read-only access</div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#F8E7B0" }}>
-              Your trial has ended. DRIFT history remains visible, but active monitoring,
-              ongoing alerts, and portfolio expansion are paused until your plan is activated.
+              Your trial has ended. Monitoring has paused, but your signal history remains visible.
+Reactivate DRIFT to restore active monitoring, ongoing alerts, and portfolio expansion.
             </div>
           </div>
         ) : null}

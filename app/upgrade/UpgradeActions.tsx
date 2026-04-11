@@ -112,8 +112,8 @@ export default function UpgradeActions({
           </div>
 
           <p className="mt-4 text-sm leading-relaxed text-white/65">
-            Keep DRIFT continuously monitoring revenue behavior and delivering
-            alerts when movement becomes actionable.
+            Continuous monitoring across your portfolio. DRIFT tracks revenue
+            behavior, detects changes early, and alerts you when action is needed.
           </p>
 
           <div className="mt-4 space-y-2 text-xs text-white/55">
@@ -136,11 +136,11 @@ export default function UpgradeActions({
           >
             {loadingPlan === "standard"
               ? "Redirecting..."
-              : "Keep DRIFT Active"}
+              : "Keep DRIFT Running"}
           </button>
 
           <div className="mt-2 text-xs text-white/50">
-            Full monitoring coverage. No interruptions.
+            No interruptions. Full visibility stays active.
           </div>
         </div>
 
@@ -160,8 +160,8 @@ export default function UpgradeActions({
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Early operator pricing for teams joining DRIFT during the Founding
-              Cohort window.
+              Early operator pricing for teams joining DRIFT during its initial
+              release window. Same monitoring. Same signals. Preferred entry.
             </p>
 
             <div className="mt-4 space-y-2 text-xs text-white/55">
@@ -184,11 +184,11 @@ export default function UpgradeActions({
             >
               {loadingPlan === "founder_299"
                 ? "Redirecting..."
-                : "Continue Monitoring at $299"}
+                : "Start at Founder Pricing"}
             </button>
 
             <div className="mt-2 text-xs text-white/50">
-              Early access pricing · Limited to Founding Cohort.
+              Limited to Founding Cohort operators.
             </div>
           </div>
         )}
@@ -209,8 +209,8 @@ export default function UpgradeActions({
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Lock in Founder pricing permanently and keep DRIFT active long
-              term.
+              Lock in Founder pricing permanently. DRIFT continues evolving —
+              your pricing does not.
             </p>
 
             <div className="mt-4 space-y-2 text-xs text-white/55">
@@ -233,11 +233,11 @@ export default function UpgradeActions({
             >
               {loadingPlan === "founder_399"
                 ? "Redirecting..."
-                : "Lock In $399 Founder Pricing"}
+                : "Lock In Founder Rate"}
             </button>
 
             <div className="mt-2 text-xs text-white/50">
-              Permanent Founder pricing · Limited to Founding Cohort.
+              One-time opportunity. Not available after cohort closes.
             </div>
           </div>
         )}
