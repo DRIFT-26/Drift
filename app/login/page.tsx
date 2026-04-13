@@ -66,7 +66,7 @@ export default function LoginPage() {
 
         {sent ? (
           <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
-            Check your inbox for your login link.
+            Check your inbox for your secure DRIFT login link. It should arrive within a few seconds.
           </div>
         ) : (
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
