@@ -131,27 +131,27 @@ export default function OnboardPage() {
 
             <p className="mt-4 leading-relaxed text-white/70">
               {isAddBusiness
-                ? "Add another business to your DRIFT portfolio. Monitoring begins as soon as your revenue source is connected."
-                : "DRIFT delivers executive output—quietly. Connect your primary revenue system and receive signal-level alerts when revenue deviates materially."}
+              ? "Add another business to your DRIFT portfolio. Monitoring begins as soon as your revenue source is connected."
+              : "Connect your revenue source and DRIFT will begin monitoring for meaningful changes in performance — then alert you when something needs attention."}
             </p>
 
             <div className="mt-6 space-y-3 text-sm text-white/70">
               <div className="flex gap-3">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                <span>Automatic Ingestion + Drift Detection (no dashboards to babysit).</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                <span>Short, Specific, Actionable alerts — built for operators.</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                <span>Works for single-location operators and multi-location groups.</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                <span>Founding members get priority access to upcoming integrations and features.</span>
-              </div>
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+              <span>DRIFT monitors your revenue quietly in the background.</span>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+              <span>You only hear from it when something meaningfully changes.</span>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+              <span>Built for single-location operators and multi-location groups.</span>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+              <span>Founding members get priority access to upcoming integrations and features.</span>
+            </div>
             </div>
           </div>
 
@@ -159,9 +159,9 @@ export default function OnboardPage() {
             <div className="p-6 md:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-semibold">Request Access</div>
+                  <div className="text-sm font-semibold">Start Monitoring Setup</div>
                   <div className="mt-1 text-xs text-white/55">
-                    Takes ~30 seconds. You’ll be redirected to connect your system.
+                    Takes ~30 seconds. You’ll choose your revenue source next.
                   </div>
                 </div>
               </div>
@@ -206,12 +206,15 @@ export default function OnboardPage() {
                     ))}
                   </select>
                   <div className="mt-2 text-[11px] text-white/45">
-                    Used for Monday 7:15am local weekly pulse + daily dispatch timing.
+                    Used to time your alerts and weekly pulse correctly.
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs text-white/60">Primary Revenue System</label>
+                  <p className="mb-2 text-xs text-white/45">
+                    If you can export daily sales, you’re ready.
+                  </p>
+                  <label className="text-xs text-white/60">Choose how you want to connect</label>
                   <select
                     value={source}
                     onChange={(e) => setSource(e.target.value)}
@@ -241,9 +244,12 @@ export default function OnboardPage() {
                     </option>
                   </select>
 
+                  <p className="mt-3 text-xs text-white/45">
+                    Stripe is the fastest direct connection. Google Sheets is best if your POS exports or syncs daily revenue. CSV works well for quick setup and historical onboarding.
+                  </p>
+
                   <p className="mt-3 text-xs text-white/40">
-                    Stripe and Google Sheets are available now. CSV is available as a fallback for
-                    historical onboarding and testing.
+                    Stripe and Google Sheets are available now. CSV is the fastest way to get started if you already have exported revenue data.
                   </p>
 
                   <p className="mt-2 text-[11px] text-white/35">
@@ -255,8 +261,7 @@ export default function OnboardPage() {
                   </p>
 
                   <p className="mt-2 text-[11px] text-white/35">
-                    For the most accurate assessment and best results, include ~60 days of baseline
-                    revenue plus your most recent 14 days.
+                    Best results come from including about 60 days of historical revenue plus your most recent 14 days.
                   </p>
 
                   {(source === "csv" || source === "google_sheets") && (
@@ -310,7 +315,7 @@ export default function OnboardPage() {
                   )}
 
                   <p className="mt-2 text-[11px] text-white/40">
-                    Need a starting point?{" "}
+                    Need a simple format to follow?{" "}
                     <a
                       href="/drift-revenue-template.csv"
                       download
@@ -321,9 +326,14 @@ export default function OnboardPage() {
                   </p>
 
                   {source === "google_sheets" && (
-                    <p className="mt-2 text-[11px] text-white/45">
-                      Works with Toast • Square • Clover • QuickBooks • Shopify exports
-                    </p>
+                  <p className="mt-2 text-[11px] text-white/45">
+                      Best for operators using Toast, Aloha, Square, Clover, QuickBooks, Shopify, or any system that can send daily revenue into a sheet.
+                  </p>
+                  )}
+                  {source === "google_sheets" && (
+                  <p className="mt-2 text-[11px] text-white/40">
+                      Using another POS? Zapier can send your daily revenue into Google Sheets automatically.
+                  </p>
                   )}
                 </div>
 
@@ -345,7 +355,7 @@ export default function OnboardPage() {
 
                     <div className="flex gap-3">
                       <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                      <span>You receive signal-level alerts only when something materially changes.</span>
+                      <span>You only receive alerts when something meaningfully changes.</span>
                     </div>
                   </div>
                 </div>
@@ -355,7 +365,7 @@ export default function OnboardPage() {
                   disabled={submitting}
                   className="mt-2 w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-70"
                 >
-                  {submitting ? "Redirecting..." : "Join the Founding Cohort"}
+                  {submitting ? "Redirecting..." : "Continue Setup"}
                 </button>
 
                 <div className="text-[11px] leading-relaxed text-white/45">

@@ -61,7 +61,7 @@ console.log("CSV businessId before success redirect:", businessId);
 console.log("CSV touched ids before success redirect:", touched);
 
 if (!res.ok || !data?.ok) {
-  throw new Error(data?.error ?? "Upload failed.");
+  throw new Error(data?.error ?? "Upload failed. Please check your file and try again");
 }
 
 router.push(
@@ -69,7 +69,7 @@ router.push(
 );
 
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload failed.";
+      const message = err instanceof Error ? err.message : "Upload failed. Please check your file and try again";
       alert(message);
       setUploading(false);
     }
@@ -84,17 +84,28 @@ router.push(
 
         <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.06] p-8 backdrop-blur-md">
           <h1 className="text-2xl font-semibold tracking-tight">
-            Upload Revenue Data
+            Upload Your Revenue Data
           </h1>
 
           <p className="mt-3 text-sm text-white/65">
             Upload a CSV export from your revenue system. DRIFT will use it to
             compute baseline behavior and generate your first signal.
           </p>
+          <p className="mt-2 text-xs text-white/45">
+            If your file includes daily revenue, you’re ready.
+          </p>
+          <p className="mt-1 text-[11px] text-white/40">
+            Don’t worry about perfect formatting — DRIFT will handle minor inconsistencies.
+          </p>
 
           <form onSubmit={handleUpload} className="mt-8 space-y-5">
             <div>
-              <label className="text-xs text-white/60">CSV File</label>
+              <label className="text-xs text-white/60">
+            CSV File
+          </label>
+            <p className="mt-1 text-[11px] text-white/40">
+            Export from your POS, accounting system, or spreadsheet
+            </p>
               <input
                 type="file"
                 accept=".csv"
@@ -104,16 +115,20 @@ router.push(
               />
             </div>
 
+            <p className="text-[11px] text-white/40">
+            You’ll see your first DRIFT signal immediately after upload.
+            </p>
+
             <button
               type="submit"
               disabled={uploading}
               className="w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
             >
-              {uploading ? "Uploading..." : "Upload CSV"}
+              {uploading ? "Reading your data..." : "Upload CSV"}
             </button>
           </form>
 
-          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
   <div className="text-xs font-semibold tracking-wide text-white/55">
     EXPECTED CSV FORMAT
   </div>
@@ -140,7 +155,7 @@ router.push(
 </div>
 
           <div className="mt-4 text-xs text-white/45">
-  DRIFT currently expects a simple two-column CSV with <span className="text-white/65">DATE</span> and <span className="text-white/65">REVENUE</span>.
+  DRIFT works best with a simple two-column CSV: <span className="text-white/65">DATE</span> and <span className="text-white/65">REVENUE</span>.
 </div>
         </div>
       </div>
