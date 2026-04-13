@@ -3,11 +3,13 @@ import { formatReason } from "@/lib/executive/reasons";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import DetailTitleSync from "./DetailTitleSync";
 import {
   ONBOARD_ACCESS_COOKIE,
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
 import { businessHasAccess } from "@/lib/billing/access";
+
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -506,6 +508,7 @@ export default async function BusinessAlertsPage({
       }}
     >
       <div style={{ maxWidth: 1160, margin: "0 auto" }}>
+        <DetailTitleSync status={driftStatus} />
         {isReadOnly ? (
           <div
             style={{
