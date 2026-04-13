@@ -8,7 +8,6 @@ import {
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
 import { businessHasAccess } from "@/lib/billing/access";
-import { useDriftTitle } from "@/app/hooks/useDriftTitle";
 import AlertsTitleSync from "./AlertsTitleSync";
 
 export const dynamic = "force-dynamic";
@@ -315,7 +314,7 @@ export default async function AlertsIndexPage() {
     ? "watch"
     : "stable";
 
-    useDriftTitle(overallStatus);
+   
 
   return (
     <div
