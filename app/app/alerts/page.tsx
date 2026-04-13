@@ -8,6 +8,8 @@ import {
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
 import { businessHasAccess } from "@/lib/billing/access";
+import { useDriftTitle } from "@/app/hooks/useDriftTitle";
+import AlertsTitleSync from "./AlertsTitleSync";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -304,6 +306,17 @@ export default async function AlertsIndexPage() {
     >
   );
 
+  const overallStatus: DriftStatus =
+  counts.attention > 0
+    ? "attention"
+    : counts.softening > 0
+    ? "softening"
+    : counts.watch > 0
+    ? "watch"
+    : "stable";
+
+    useDriftTitle(overallStatus);
+
   return (
     <div
       style={{
@@ -317,6 +330,7 @@ export default async function AlertsIndexPage() {
       }}
     >
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        <AlertsTitleSync status={overallStatus} />
         {isReadOnly ? (
           <div
             style={{
