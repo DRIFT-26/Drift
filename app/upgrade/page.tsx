@@ -151,6 +151,71 @@ export default async function UpgradePage({
           </div>
         </div>
 
+        <div className="mx-auto mt-10 max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-6">
+          <div className="text-xs font-mono tracking-wide text-white/45">
+            WHY DRIFT EXISTS
+          </div>
+
+          <h2 className="mt-3 text-xl font-semibold tracking-tight text-white">
+            Catch revenue problems before they become losses.
+          </h2>
+
+          <p className="mt-4 text-sm leading-relaxed text-white/70">
+            Most operators do not have a data problem — they have a timing problem.
+            By the time something shows up clearly in revenue, it has often already
+            been happening for days or weeks.
+          </p>
+
+          <p className="mt-4 text-sm leading-relaxed text-white/70">
+            DRIFT monitors behavioral shifts across your business and surfaces what
+            needs attention before performance drops become obvious in the numbers.
+          </p>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
+              Identify issues{" "}
+              <span className="font-semibold text-white">
+                before revenue declines
+              </span>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
+              Know{" "}
+              <span className="font-semibold text-white">
+                where to look and why
+              </span>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
+              Prioritize action across locations{" "}
+              <span className="font-semibold text-white">
+                without digging through reports
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-6">
+          <div className="text-xs font-mono tracking-wide text-white/45">
+            WHAT THIS REPLACES
+          </div>
+
+          <p className="mt-4 text-sm leading-relaxed text-white/70">
+            DRIFT replaces hours spent digging through reports, second-guessing
+            performance, and reacting too late.
+          </p>
+
+          <p className="mt-4 text-sm leading-relaxed text-white/70">
+            Instead of asking{" "}
+            <span className="font-semibold text-white">“what happened?”</span>,
+            you know where to look before it does.
+          </p>
+
+          <div className="mt-5 space-y-2 text-sm text-white/75">
+            <div>• Less time analyzing data manually</div>
+            <div>• Faster response to performance shifts</div>
+            <div>• Fewer missed signals across locations</div>
+          </div>
+        </div>
+
         {business ? (
           (() => {
             const allowlistRaw = (process.env.BETA_FOUNDER_EMAILS || "").trim();
@@ -184,6 +249,13 @@ export default async function UpgradePage({
             </div>
           </div>
         )}
+
+        <div className="mx-auto mt-10 max-w-3xl text-center">
+          <p className="text-sm leading-relaxed text-white/60">
+            Most teams do not realize something is wrong until it has already
+            affected revenue. DRIFT exists to change that.
+          </p>
+        </div>
       </div>
     </main>
   );
