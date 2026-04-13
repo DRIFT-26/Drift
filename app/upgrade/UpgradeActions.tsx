@@ -108,23 +108,26 @@ export default function UpgradeActions({
           <div className="mt-1 text-sm text-white/60">per month</div>
 
           <div className="mt-4 text-xs text-white/50">
-            Portfolio pricing · Cancel anytime
+            Portfolio Pricing · Cancel Anytime
           </div>
 
-          <p className="mt-4 text-sm leading-relaxed text-white/65">
-            Continuous monitoring across your portfolio. DRIFT tracks revenue
-            behavior, detects changes early, and alerts you when action is needed.
+          <p className="mt-4 text-sm leading-relaxed text-white/70">
+            Continuous monitoring across your business with real-time signal
+            detection and actionable alerts when performance begins to shift.
           </p>
 
           <div className="mt-4 space-y-2 text-xs text-white/55">
-            <div>Includes up to {includedLocations} locations</div>
+            <div>• Daily signal monitoring across your portfolio</div>
+            <div>• Priority-based alerting when something needs attention</div>
+            <div>• Executive signal visibility across locations</div>
+            <div>• Includes up to {includedLocations} locations</div>
             {additionalLocations > 0 ? (
               <div className="text-[#FFC266]">
-                +{additionalLocations} additional billable location
+                • +{additionalLocations} additional billable location
                 {additionalLocations === 1 ? "" : "s"}
               </div>
             ) : (
-              <div>Current portfolio is within included location threshold</div>
+              <div>• Current portfolio is within included location threshold</div>
             )}
           </div>
 
@@ -136,11 +139,11 @@ export default function UpgradeActions({
           >
             {loadingPlan === "standard"
               ? "Redirecting..."
-              : "Keep DRIFT Running"}
+              : "Keep DRIFT Active"}
           </button>
 
           <div className="mt-2 text-xs text-white/50">
-            No interruptions. Full visibility stays active.
+            Full monitoring coverage. No interruptions.
           </div>
         </div>
 
@@ -152,27 +155,30 @@ export default function UpgradeActions({
 
             <div className="mt-4 text-2xl font-black">$299</div>
             <div className="mt-1 text-sm text-white/60">
-              Per Month · First 12 months
+              Per Month · First 12 Months
             </div>
 
             <div className="mt-4 text-xs text-white/50">
-              Portfolio pricing · Cancel anytime
+              Portfolio Pricing · Cancel Anytime
             </div>
 
-            <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Early operator pricing for teams joining DRIFT during its initial
-              release window. Same monitoring. Same signals. Preferred entry.
+            <p className="mt-4 text-sm leading-relaxed text-white/70">
+              Early operator pricing for teams joining DRIFT during the Founding
+              Cohort window. Full monitoring, full signal coverage, preferred entry.
             </p>
 
             <div className="mt-4 space-y-2 text-xs text-white/55">
-              <div>Includes up to {includedLocations} locations</div>
+              <div>• Full DRIFT monitoring access</div>
+              <div>• Same signal engine as standard monitoring</div>
+              <div>• Founding pricing protection for 12 months</div>
+              <div>• Includes up to {includedLocations} locations</div>
               {additionalLocations > 0 ? (
                 <div className="text-[#FFC266]">
-                  +{additionalLocations} additional billable location
+                  • +{additionalLocations} additional billable location
                   {additionalLocations === 1 ? "" : "s"}
                 </div>
               ) : (
-                <div>Current portfolio is within included location threshold</div>
+                <div>• Current portfolio is within included location threshold</div>
               )}
             </div>
 
@@ -184,11 +190,11 @@ export default function UpgradeActions({
             >
               {loadingPlan === "founder_299"
                 ? "Redirecting..."
-                : "Start at Founder Pricing"}
+                : "Continue Monitoring at $299"}
             </button>
 
             <div className="mt-2 text-xs text-white/50">
-              Limited to Founding Cohort operators.
+              Limited to Founding Cohort participants.
             </div>
           </div>
         )}
@@ -201,27 +207,30 @@ export default function UpgradeActions({
 
             <div className="mt-4 text-2xl font-black">$399</div>
             <div className="mt-1 text-sm text-white/60">
-              Per Month · Locked-in founder pricing
+              Per Month · Locked Founder Pricing
             </div>
 
             <div className="mt-4 text-xs text-white/50">
-              Portfolio pricing · Cancel anytime
+              Portfolio pricing · Cancel Anytime
             </div>
 
-            <p className="mt-4 text-sm leading-relaxed text-white/65">
-              Lock in Founder pricing permanently. DRIFT continues evolving —
-              your pricing does not.
+            <p className="mt-4 text-sm leading-relaxed text-white/70">
+              Lock in Founder pricing permanently and operate with DRIFT as a
+              long-term control system as the platform continues to evolve.
             </p>
 
             <div className="mt-4 space-y-2 text-xs text-white/55">
-              <div>Includes up to {includedLocations} locations</div>
+              <div>• Permanent founder pricing protection</div>
+              <div>• Full monitoring and signal coverage</div>
+              <div>• Built for long-term operators</div>
+              <div>• Includes up to {includedLocations} locations</div>
               {additionalLocations > 0 ? (
                 <div className="text-[#FFC266]">
-                  +{additionalLocations} additional billable location
+                  • +{additionalLocations} additional billable location
                   {additionalLocations === 1 ? "" : "s"}
                 </div>
               ) : (
-                <div>Current portfolio is within included location threshold</div>
+                <div>• Current portfolio is within included location threshold</div>
               )}
             </div>
 
@@ -233,11 +242,11 @@ export default function UpgradeActions({
             >
               {loadingPlan === "founder_399"
                 ? "Redirecting..."
-                : "Lock In Founder Rate"}
+                : "Lock In $399 Founder Pricing"}
             </button>
 
             <div className="mt-2 text-xs text-white/50">
-              One-time opportunity. Not available after cohort closes.
+              Permanent Founder Pricing · Limited Availability.
             </div>
           </div>
         )}
