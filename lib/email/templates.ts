@@ -461,3 +461,72 @@ Revenue control for operators
 
   return { subject, text };
 }
+
+export function renderTrialExpiredDay0Email(args: {
+  businessName: string;
+  upgradeUrl: string;
+}) {
+  const subject = `DRIFT paused — your signals haven’t (${args.businessName})`;
+
+  const text = `During your trial, DRIFT was actively monitoring your revenue behavior and detecting changes as they happened.
+
+That monitoring has now paused.
+
+What this means:
+
+- Signals may still be forming
+- Early changes won’t be surfaced
+- Intervention may happen later than it should
+
+DRIFT isn’t a dashboard — it’s a system that tells you when something changes.
+
+Activate DRIFT:
+${args.upgradeUrl}
+
+— DRIFT`;
+
+  return { subject, text };
+}
+
+export function renderTrialExpiredDay2Email(args: {
+  businessName: string;
+  upgradeUrl: string;
+}) {
+  const subject = `You had visibility. It’s paused now. (${args.businessName})`;
+
+  const text = `Just a quick note—
+
+DRIFT is no longer actively monitoring your portfolio.
+
+The signals you saw during your trial don’t stop existing.
+You just stop seeing them.
+
+If staying ahead of changes matters, reactivate here:
+
+${args.upgradeUrl}
+
+— DRIFT`;
+
+  return { subject, text };
+}
+
+export function renderTrialExpiredDay5Email(args: {
+  businessName: string;
+  upgradeUrl: string;
+}) {
+  const subject = `Before something slips (${args.businessName})`;
+
+  const text = `Last note from us.
+
+Most revenue issues don’t happen all at once — they develop quietly.
+
+That’s exactly what DRIFT is built to catch.
+
+If you want to stay ahead of what’s changing:
+
+${args.upgradeUrl}
+
+— DRIFT`;
+
+  return { subject, text };
+}
