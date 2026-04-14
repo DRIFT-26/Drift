@@ -77,6 +77,25 @@ router.push(
 
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
+      <style>{`
+  @keyframes driftPulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+      opacity: 0.9;
+    }
+    50% {
+      transform: scale(1.015);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.18);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+      opacity: 0.9;
+    }
+  }
+`}</style>
       <div className="mx-auto max-w-3xl px-6 py-20">
         <Link href="/onboard" className="text-sm text-white/70 hover:text-white">
           ← Back
@@ -123,15 +142,15 @@ router.push(
               type="submit"
               disabled={uploading}
               className="w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+              style={
+                uploading
+                  ? {
+                      animation: "driftPulse 1.8s ease-in-out infinite",
+                    }
+                  : undefined
+              }
             >
-            {uploading ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-black/70" />
-                Reading your data...
-              </span>
-            ) : (
-              "Upload CSV"
-            )}  
+              {uploading ? "Reading your data..." : "Upload CSV"}
             </button>
           </form>
 
