@@ -53,9 +53,14 @@ export default async function SuccessPage({
     initialReady = (readyBusinesses ?? []).some((b) => !!b.last_drift);
   }
 
-  const targetPath = params.business_id
-  ? `/app/alerts/${params.business_id}`
-  : "/app/alerts";
+  const targetPath =
+  touchedBusinessIds.length > 1
+    ? "/app/alerts"
+    : touchedBusinessIds.length === 1
+    ? `/app/alerts/${touchedBusinessIds[0]}`
+    : params.business_id
+    ? `/app/alerts/${params.business_id}`
+    : "/app/alerts";
 
 const accessHref =
   business?.alert_email
@@ -63,6 +68,13 @@ const accessHref =
         createOnboardAccessToken(business.alert_email)
       )}&next=${encodeURIComponent(targetPath)}`
     : "/login";
+
+console.log("SUCCESS TARGET DEBUG:", {
+  business_id: params.business_id,
+  touchedBusinessIds,
+  targetPath,
+  accessHref,
+});
 
   return (
     <Suspense fallback={null}>
