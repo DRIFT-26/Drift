@@ -60,7 +60,9 @@ export async function POST(req: Request) {
 
     const { data: parentBusiness, error: parentBusinessErr } = await supabase
       .from("businesses")
-      .select("id,name,alert_email,timezone")
+      .select(
+        "id,name,alert_email,timezone,owner_id,billing_status,trial_started_at,trial_ends_at"
+      )
       .eq("id", businessId)
       .single();
 
@@ -72,56 +74,58 @@ export async function POST(req: Request) {
     }
 
     const text = (await file.text()).replace(/^\uFEFF/, "");
-const rows = text
-  .split(/\r?\n/)
-  .map((r) => r.replace(/^\uFEFF/, "").trim())
-  .filter(Boolean);
+    const rows = text
+      .split(/\r?\n/)
+      .map((r) => r.replace(/^\uFEFF/, "").trim())
+      .filter(Boolean);
 
-if (rows.length < 2) {
-  return NextResponse.json(
-    { ok: false, error: "CSV must contain header + data rows" },
-    { status: 400 }
-  );
-}
+    if (rows.length < 2) {
+      return NextResponse.json(
+        { ok: false, error: "CSV must contain header + data rows" },
+        { status: 400 }
+      );
+    }
 
-const rawHeader = rows[0]
-  .replace(/^\uFEFF/, "")
-  .replace(/"/g, "")
-  .trim();
+    const rawHeader = rows[0]
+      .replace(/^\uFEFF/, "")
+      .replace(/"/g, "")
+      .trim();
 
-const headerParts = rawHeader
-  .split(/[,\t]/)
-  .map((part) => part.replace(/^\uFEFF/, "").replace(/"/g, "").trim().toLowerCase())
-  .filter(Boolean);
+    const headerParts = rawHeader
+      .split(/[,\t]/)
+      .map((part) =>
+        part.replace(/^\uFEFF/, "").replace(/"/g, "").trim().toLowerCase()
+      )
+      .filter(Boolean);
 
-const isSingleLocation =
-  headerParts.length === 2 &&
-  headerParts[0] === "date" &&
-  headerParts[1] === "revenue";
+    const isSingleLocation =
+      headerParts.length === 2 &&
+      headerParts[0] === "date" &&
+      headerParts[1] === "revenue";
 
-const isMultiLocation =
-  headerParts.length === 3 &&
-  headerParts[0] === "location" &&
-  headerParts[1] === "date" &&
-  headerParts[2] === "revenue";
+    const isMultiLocation =
+      headerParts.length === 3 &&
+      headerParts[0] === "location" &&
+      headerParts[1] === "date" &&
+      headerParts[2] === "revenue";
 
-console.log("DRIFT CSV HEADER DEBUG:", {
-  rawHeader,
-  headerParts,
-  isSingleLocation,
-  isMultiLocation,
-});
+    console.log("DRIFT CSV HEADER DEBUG:", {
+      rawHeader,
+      headerParts,
+      isSingleLocation,
+      isMultiLocation,
+    });
 
-if (!isSingleLocation && !isMultiLocation) {
-  return NextResponse.json(
-    {
-      ok: false,
-      error:
-        "Accepted CSV format: Date,Revenue or Location,Date,Revenue (case-insensitive; commas or tabs accepted)",
-    },
-    { status: 400 }
-  );
-}
+    if (!isSingleLocation && !isMultiLocation) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Accepted CSV format: Date,Revenue or Location,Date,Revenue (case-insensitive; commas or tabs accepted)",
+        },
+        { status: 400 }
+      );
+    }
 
     const grouped: Record<
       string,
@@ -167,6 +171,12 @@ if (!isSingleLocation && !isMultiLocation) {
       );
     }
 
+    console.log("DRIFT CSV PARSE DEBUG:", {
+      total_rows: rows.length - 1,
+      unique_locations: Object.keys(grouped),
+      unique_location_count: Object.keys(grouped).length,
+    });
+
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co";
     const touchedBusinessIds = new Set<string>();
 
@@ -190,6 +200,11 @@ if (!isSingleLocation && !isMultiLocation) {
             .maybeSingle();
 
         if (existingBusinessErr) {
+          console.error("DRIFT CSV existing business lookup failed:", {
+            location,
+            businessName,
+            error: existingBusinessErr.message,
+          });
           continue;
         }
 
@@ -203,11 +218,20 @@ if (!isSingleLocation && !isMultiLocation) {
                 name: businessName,
                 alert_email: parentBusiness.alert_email,
                 timezone: parentBusiness.timezone ?? DEFAULT_TIMEZONE,
+                owner_id: parentBusiness.owner_id ?? null,
+                billing_status: parentBusiness.billing_status ?? null,
+                trial_started_at: parentBusiness.trial_started_at ?? null,
+                trial_ends_at: parentBusiness.trial_ends_at ?? null,
               })
               .select("id")
               .single();
 
           if (createdBusinessErr || !createdBusiness?.id) {
+            console.error("DRIFT CSV business creation failed:", {
+              location,
+              businessName,
+              error: createdBusinessErr?.message ?? "Unknown business creation error",
+            });
             continue;
           }
 
@@ -223,6 +247,11 @@ if (!isSingleLocation && !isMultiLocation) {
         .maybeSingle();
 
       if (existingSourceErr) {
+        console.error("DRIFT CSV source lookup failed:", {
+          business_id: locationBusinessId,
+          location,
+          error: existingSourceErr.message,
+        });
         continue;
       }
 
@@ -248,6 +277,11 @@ if (!isSingleLocation && !isMultiLocation) {
           .single();
 
         if (createdSourceErr || !createdSource?.id) {
+          console.error("DRIFT CSV source creation failed:", {
+            business_id: locationBusinessId,
+            location,
+            error: createdSourceErr?.message ?? "Unknown source creation error",
+          });
           continue;
         }
 
@@ -283,30 +317,39 @@ if (!isSingleLocation && !isMultiLocation) {
         });
 
       if (snapshotErr) {
+        console.error("DRIFT CSV snapshot upsert failed:", {
+          business_id: locationBusinessId,
+          location,
+          error: snapshotErr.message,
+        });
         continue;
       }
 
       const computeRes = await fetch(`${appUrl}/api/internal/compute-first`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    business_id: locationBusinessId,
-    force_email: true,
-  }),
-});
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          business_id: locationBusinessId,
+          force_email: true,
+        }),
+      });
 
-if (!computeRes.ok) {
-  console.error(
-    `compute-first failed for business ${locationBusinessId}:`,
-    await computeRes.text()
-  );
-}
+      if (!computeRes.ok) {
+        console.error(
+          `compute-first failed for business ${locationBusinessId}:`,
+          await computeRes.text()
+        );
+      }
 
-touchedBusinessIds.add(locationBusinessId);
+      touchedBusinessIds.add(locationBusinessId);
+    }
 
-}
+    console.log("DRIFT CSV TOUCH DEBUG:", {
+      touched_business_ids: Array.from(touchedBusinessIds),
+      touched_count: touchedBusinessIds.size,
+    });
 
     if (parentBusiness.alert_email) {
       const { subject, text } = renderMonitoringStartedEmail({
@@ -322,10 +365,10 @@ touchedBusinessIds.add(locationBusinessId);
     }
 
     return NextResponse.json({
-  ok: true,
-  locations_detected: Object.keys(grouped).length,
-  touched_business_ids: Array.from(touchedBusinessIds),
-});
+      ok: true,
+      locations_detected: Object.keys(grouped).length,
+      touched_business_ids: Array.from(touchedBusinessIds),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "CSV ingestion failed";
