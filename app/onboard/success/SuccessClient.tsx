@@ -144,10 +144,10 @@ export default function SuccessClient({
           </p>
 
           {signal === "processing" && (
-  <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-    Your first DRIFT signal is on the way to your inbox. DRIFT is now processing your revenue source and preparing your Command Center.
-  </div>
-)}
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+              DRIFT is now processing your revenue source and preparing your Command Center.
+            </div>
+          )}
 
           {showPreview && (
             <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-4">

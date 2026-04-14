@@ -124,7 +124,14 @@ router.push(
               disabled={uploading}
               className="w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
             >
-              {uploading ? "Reading your data..." : "Upload CSV"}
+            {uploading ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-black/70" />
+                Reading your data...
+              </span>
+            ) : (
+              "Upload CSV"
+            )}  
             </button>
           </form>
 
