@@ -45,34 +45,95 @@ export async function POST(req: Request) {
     }
 
     const { data: existingTrial, error: trialCheckError } = await supabase
-      .from("trial_claims")
-      .select("id, email, business_id, claimed_at")
-      .eq("email", email)
-      .maybeSingle();
+  .from("trial_claims")
+  .select("id, email, business_id, claimed_at")
+  .eq("email", email)
+  .maybeSingle();
 
-    if (trialCheckError) {
-      return NextResponse.json(
-        { ok: false, error: trialCheckError.message },
-        { status: 500 }
-      );
+if (trialCheckError) {
+  return NextResponse.json(
+    { ok: false, error: trialCheckError.message },
+    { status: 500 }
+  );
+}
+
+const ownerOrEmail = ownerId ?? user?.id ?? null;
+
+let existingPortfolioBusiness:
+  | {
+      billing_status: string | null;
+      trial_started_at: string | null;
+      trial_ends_at: string | null;
     }
+  | null = null;
 
-    const hasUsedTrial = Boolean(existingTrial);
+if (ownerOrEmail) {
+  const { data } = await supabase
+    .from("businesses")
+    .select("billing_status,trial_started_at,trial_ends_at")
+    .eq("owner_id", ownerOrEmail)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
-    const trialStartedAt = hasUsedTrial ? null : new Date();
-    const trialEndsAt = hasUsedTrial
-      ? null
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  existingPortfolioBusiness = data;
+} else {
+  const { data } = await supabase
+    .from("businesses")
+    .select("billing_status,trial_started_at,trial_ends_at")
+    .eq("alert_email", email)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  existingPortfolioBusiness = data;
+}
+
+const now = Date.now();
+
+const existingStatus = existingPortfolioBusiness?.billing_status ?? null;
+const existingTrialEndsAt = existingPortfolioBusiness?.trial_ends_at ?? null;
+const existingTrialStartedAt = existingPortfolioBusiness?.trial_started_at ?? null;
+
+const existingTrialIsActive =
+  existingStatus === "trialing" &&
+  !!existingTrialEndsAt &&
+  new Date(existingTrialEndsAt).getTime() > now;
+
+const existingIsPaidOrInternal =
+  existingStatus === "active" || existingStatus === "internal";
+
+const hasUsedTrial = Boolean(existingTrial);
+
+let billingStatus: string;
+let trialStartedAt: Date | null = null;
+let trialEndsAt: Date | null = null;
+
+if (existingIsPaidOrInternal) {
+  billingStatus = existingStatus!;
+} else if (existingTrialIsActive) {
+  billingStatus = "trialing";
+  trialStartedAt = existingTrialStartedAt
+    ? new Date(existingTrialStartedAt)
+    : null;
+  trialEndsAt = existingTrialEndsAt ? new Date(existingTrialEndsAt) : null;
+} else if (!hasUsedTrial) {
+  billingStatus = "trialing";
+  trialStartedAt = new Date();
+  trialEndsAt = new Date(now + 30 * 24 * 60 * 60 * 1000);
+} else {
+  billingStatus = "expired";
+}
 
     const insertPayload: Record<string, unknown> = {
-      name: businessName,
-      alert_email: email,
-      timezone,
-      billing_status: hasUsedTrial ? "expired" : "trialing",
-      trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
-      trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
-      owner_id: user?.id ?? null,
-    };
+  name: businessName,
+  alert_email: email,
+  timezone,
+  billing_status: billingStatus,
+  trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
+  trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
+  owner_id: user?.id ?? null,
+};
 
     if (ownerId) {
       insertPayload.owner_id = ownerId;
@@ -134,7 +195,7 @@ export async function POST(req: Request) {
       business_id: business.id,
       source_id: createdSource?.id ?? null,
       source_type: normalizedSource,
-      billing_status: hasUsedTrial ? "expired" : "trialing",
+      billing_status: billingStatus,
       trial_started_at: trialStartedAt ? trialStartedAt.toISOString() : null,
       trial_ends_at: trialEndsAt ? trialEndsAt.toISOString() : null,
       reused_email_without_trial: hasUsedTrial,
