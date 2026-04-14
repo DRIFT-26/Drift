@@ -10,7 +10,6 @@ import {
 } from "@/lib/auth/onboard-access";
 import { businessHasAccess } from "@/lib/billing/access";
 
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -176,6 +175,7 @@ function mriLabel(score: number | null, status: DriftStatus) {
   if (status === "attention") return "At Risk";
   if (status === "softening") return "Unstable";
   if (status === "watch") return "Developing";
+  if (status === "movement") return "Accelerating";
   return "Stable";
 }
 
@@ -245,7 +245,9 @@ function recommendedAction(status: DriftStatus, reasons: DriftReason[]) {
   return "Maintain current performance and monitor for changes.";
 }
 
-function timelineStatusFromEmailType(emailType: string | null | undefined): DriftStatus {
+function timelineStatusFromEmailType(
+  emailType: string | null | undefined
+): DriftStatus {
   const value = String(emailType ?? "").toLowerCase();
   if (value === "daily_alert") return "attention";
   if (value === "daily_monitor") return "watch";
@@ -257,7 +259,10 @@ function timelineHeadline(subject: string | null | undefined): string {
   if (!text) return "Signal event recorded";
 
   const cleaned = text
-    .replace(/^DRIFT\s*(Daily Monitor|Weekly Pulse|Trial Status|Monitoring Started)\s*—\s*/i, "")
+    .replace(
+      /^DRIFT\s*(Daily Monitor|Weekly Pulse|Trial Status|Monitoring Started)\s*—\s*/i,
+      ""
+    )
     .replace(/^DRIFT\s*—\s*/i, "")
     .replace(/\s*\([^)]*\)\s*$/g, "")
     .trim();
@@ -277,7 +282,8 @@ function formatEventType(type?: string | null) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const pageBg = "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14";
+const pageBg =
+  "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14";
 const cardBg = "#11161C";
 const subCardBg = "#0F141A";
 const border = "1px solid rgba(255,255,255,0.06)";
@@ -334,7 +340,9 @@ export default async function BusinessAlertsPage({
   );
 
   const userId = user?.id ?? null;
-  const email = user?.email ?? onboardAccess?.email ?? null;
+  const onboardEmail = onboardAccess?.email ?? null;
+  const sessionEmail = user?.email ?? null;
+  const email = onboardEmail ?? sessionEmail ?? null;
 
   if (!userId && !email) {
     redirect("/login");
@@ -343,7 +351,19 @@ export default async function BusinessAlertsPage({
   let business: BusinessRow | null = null;
   let error: { message?: string } | null = null;
 
-  if (userId) {
+  if (onboardEmail) {
+    const emailMatch = await supabase
+      .from("businesses")
+      .select(
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+      )
+      .eq("id", businessId)
+      .eq("alert_email", onboardEmail)
+      .maybeSingle<BusinessRow>();
+
+    business = emailMatch.data ?? null;
+    error = emailMatch.error;
+  } else if (userId) {
     const ownerMatch = await supabase
       .from("businesses")
       .select(
@@ -356,14 +376,14 @@ export default async function BusinessAlertsPage({
     business = ownerMatch.data ?? null;
     error = ownerMatch.error;
 
-    if (!business && email) {
+    if (!business && sessionEmail) {
       const emailMatch = await supabase
         .from("businesses")
         .select(
           "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
         )
         .eq("id", businessId)
-        .eq("alert_email", email)
+        .eq("alert_email", sessionEmail)
         .maybeSingle<BusinessRow>();
 
       business = emailMatch.data ?? null;
@@ -464,8 +484,8 @@ export default async function BusinessAlertsPage({
     typeof refundsMeta.currentRefundRate === "number"
       ? refundsMeta.currentRefundRate
       : typeof refundsMeta.refund_rate === "number"
-        ? refundsMeta.refund_rate
-        : null;
+      ? refundsMeta.refund_rate
+      : null;
 
   const refundRateBaseline =
     typeof refundsMeta.baselineRefundRate === "number"
@@ -480,8 +500,8 @@ export default async function BusinessAlertsPage({
     typeof business.monthly_revenue_cents === "number"
       ? business.monthly_revenue_cents
       : typeof business.monthly_revenue === "number"
-        ? Math.round(business.monthly_revenue * 100)
-        : null;
+      ? Math.round(business.monthly_revenue * 100)
+      : null;
 
   const tone = statusTone(driftStatus);
   const riskLabel = projectRiskLabel(driftStatus, mriScore);
@@ -499,10 +519,10 @@ export default async function BusinessAlertsPage({
           driftStatus === "attention"
             ? "radial-gradient(circle at top, rgba(255,107,107,0.14), transparent 22%), #0B0F14"
             : driftStatus === "softening"
-              ? "radial-gradient(circle at top, rgba(255,176,32,0.12), transparent 22%), #0B0F14"
-              : driftStatus === "watch"
-                ? "radial-gradient(circle at top, rgba(90,169,255,0.12), transparent 22%), #0B0F14"
-                : "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14",
+            ? "radial-gradient(circle at top, rgba(255,176,32,0.12), transparent 22%), #0B0F14"
+            : driftStatus === "watch"
+            ? "radial-gradient(circle at top, rgba(90,169,255,0.12), transparent 22%), #0B0F14"
+            : "radial-gradient(circle at top, rgba(10,42,102,0.18), transparent 24%), #0B0F14",
         minHeight: "100vh",
         color: textPrimary,
       }}
@@ -520,10 +540,13 @@ export default async function BusinessAlertsPage({
               color: "#FDE68A",
             }}
           >
-            <div style={{ fontWeight: 800, fontSize: 14 }}>Read-only access</div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>
+              Read-only access
+            </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#F8E7B0" }}>
-              Your trial has ended. Monitoring has paused, but this signal brief and history remain visible.
-Reactivate DRIFT to restore active monitoring and ongoing alerts.
+              Your trial has ended. Monitoring has paused, but this signal brief
+              and history remain visible.
+              Reactivate DRIFT to restore active monitoring and ongoing alerts.
             </div>
           </div>
         ) : null}
@@ -614,8 +637,8 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
                     {direction === "up"
                       ? "Rising"
                       : direction === "down"
-                        ? "Slowing"
-                        : "Stable"}
+                      ? "Slowing"
+                      : "Stable"}
                   </span>
                 </>
               ) : null}
@@ -691,7 +714,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
               padding: 16,
             }}
           >
-            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+            <div
+              style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}
+            >
               MRI SCORE
             </div>
             <div
@@ -721,7 +746,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
               padding: 16,
             }}
           >
-            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+            <div
+              style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}
+            >
               NET REVENUE (14D)
             </div>
             <div
@@ -758,7 +785,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
               padding: 16,
             }}
           >
-            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+            <div
+              style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}
+            >
               REFUND RATE (14D)
             </div>
 
@@ -774,7 +803,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
                 >
                   {formatPct(refundRateCurrent)}
                 </div>
-                <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
+                <div
+                  style={{ marginTop: 6, fontSize: 13, color: textSecondary }}
+                >
                   Baseline: {formatPct(refundRateBaseline)}
                 </div>
               </>
@@ -790,7 +821,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
                 >
                   Connect Stripe
                 </div>
-                <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
+                <div
+                  style={{ marginTop: 6, fontSize: 13, color: textSecondary }}
+                >
                   Refund signals unlock when a Stripe source is connected.
                 </div>
               </>
@@ -806,7 +839,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
               padding: 18,
             }}
           >
-            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+            <div
+              style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}
+            >
               WHY THIS STATUS
             </div>
             <div
@@ -826,7 +861,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
             </div>
 
             {driftReasons.length ? (
-              <ul style={{ margin: "14px 0 0", paddingLeft: 18, color: textPrimary }}>
+              <ul
+                style={{ margin: "14px 0 0", paddingLeft: 18, color: textPrimary }}
+              >
                 {driftReasons.map((r, i) => (
                   <li key={i} style={{ marginBottom: 16, lineHeight: 1.6 }}>
                     <div style={{ fontWeight: 900 }}>
@@ -836,25 +873,39 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
                     </div>
 
                     {r?.code === "REV_FREQ_DROP_30" && (
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
-                        Check customer return frequency and recent transaction patterns.
+                      <div
+                        style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}
+                      >
+                        Check customer return frequency and recent transaction
+                        patterns.
                       </div>
                     )}
 
                     {r?.code === "ENG_DROP_30" && (
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
-                        Review campaign performance and recent engagement drop-offs.
+                      <div
+                        style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}
+                      >
+                        Review campaign performance and recent engagement
+                        drop-offs.
                       </div>
                     )}
 
                     {r?.code === "SENTIMENT_DROP_50" && (
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}>
+                      <div
+                        style={{ marginTop: 4, fontSize: 13, color: "#9AA4B2" }}
+                      >
                         Audit customer feedback and recent experience signals.
                       </div>
                     )}
 
                     {r?.detail ? (
-                      <div style={{ marginTop: 2, color: textSecondary, fontSize: 13 }}>
+                      <div
+                        style={{
+                          marginTop: 2,
+                          color: textSecondary,
+                          fontSize: 13,
+                        }}
+                      >
                         {String(r.detail)}
                       </div>
                     ) : null}
@@ -896,7 +947,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
               padding: 18,
             }}
           >
-            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+            <div
+              style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}
+            >
               BUSINESS CONTEXT
             </div>
 
@@ -954,7 +1007,8 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
             </div>
 
             <div style={{ marginTop: 12, fontSize: 12, color: textSecondary }}>
-              This context helps frame the likely business impact of the current signal.
+              This context helps frame the likely business impact of the current
+              signal.
             </div>
           </div>
 
@@ -967,7 +1021,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
               padding: 18,
             }}
           >
-            <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+            <div
+              style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}
+            >
               SIGNAL TIMELINE
             </div>
             <div
@@ -1006,7 +1062,9 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
                 />
 
                 {timeline.map((item) => {
-                  const itemStatus = timelineStatusFromEmailType(item.email_type);
+                  const itemStatus = timelineStatusFromEmailType(
+                    item.email_type
+                  );
                   const itemTone = statusTone(itemStatus);
 
                   return (
@@ -1018,10 +1076,14 @@ Reactivate DRIFT to restore active monitoring and ongoing alerts.
                         display: "grid",
                         gap: 6,
                         background:
-                          eventId === item.id ? "rgba(255,255,255,0.04)" : "transparent",
+                          eventId === item.id
+                            ? "rgba(255,255,255,0.04)"
+                            : "transparent",
                         borderRadius: 12,
                         padding:
-                          eventId === item.id ? "10px 10px 10px 18px" : "0 0 0 18px",
+                          eventId === item.id
+                            ? "10px 10px 10px 18px"
+                            : "0 0 0 18px",
                       }}
                     >
                       <div

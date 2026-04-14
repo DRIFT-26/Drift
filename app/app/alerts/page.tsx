@@ -13,7 +13,12 @@ import AlertsTitleSync from "./AlertsTitleSync";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type DriftStatus = "stable" | "watch" | "softening" | "attention" | "movement";
+type DriftStatus =
+  | "stable"
+  | "watch"
+  | "softening"
+  | "attention"
+  | "movement";
 
 function normalizeStatus(raw: unknown): DriftStatus {
   const s = String(raw ?? "").toLowerCase();
@@ -72,8 +77,8 @@ function formatMoneyFromBusiness(b: {
     typeof b?.monthly_revenue_cents === "number"
       ? b.monthly_revenue_cents
       : typeof b?.monthly_revenue === "number"
-        ? Math.round(b.monthly_revenue * 100)
-        : null;
+      ? Math.round(b.monthly_revenue * 100)
+      : null;
 
   if (typeof cents !== "number") return "—";
 
@@ -152,7 +157,9 @@ export default async function AlertsIndexPage() {
   );
 
   const userId = user?.id ?? null;
-  const email = user?.email ?? onboardAccess?.email ?? null;
+  const onboardEmail = onboardAccess?.email ?? null;
+  const sessionEmail = user?.email ?? null;
+  const email = onboardEmail ?? sessionEmail ?? null;
 
   if (!userId && !email) {
     redirect("/login");
@@ -161,7 +168,19 @@ export default async function AlertsIndexPage() {
   let businesses: BusinessRow[] | null = null;
   let error: { message?: string } | null = null;
 
-  if (userId) {
+  if (onboardEmail) {
+    const emailMatch = await supabase
+      .from("businesses")
+      .select(
+        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+      )
+      .eq("alert_email", onboardEmail)
+      .order("created_at", { ascending: true })
+      .returns<BusinessRow[]>();
+
+    businesses = emailMatch.data ?? null;
+    error = emailMatch.error;
+  } else if (userId) {
     const ownerMatch = await supabase
       .from("businesses")
       .select(
@@ -174,13 +193,13 @@ export default async function AlertsIndexPage() {
     businesses = ownerMatch.data ?? null;
     error = ownerMatch.error;
 
-    if ((!businesses || businesses.length === 0) && email) {
+    if ((!businesses || businesses.length === 0) && sessionEmail) {
       const emailMatch = await supabase
         .from("businesses")
         .select(
           "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
         )
-        .eq("alert_email", email)
+        .eq("alert_email", sessionEmail)
         .order("created_at", { ascending: true })
         .returns<BusinessRow[]>();
 
@@ -216,12 +235,12 @@ export default async function AlertsIndexPage() {
   const isReadOnly = !portfolioHasAccess && (businesses ?? []).length > 0;
 
   const statusPriority: Record<string, number> = {
-  attention: 1,
-  softening: 2,
-  watch: 3,
-  movement: 4,
-  stable: 5,
-};
+    attention: 1,
+    softening: 2,
+    watch: 3,
+    movement: 4,
+    stable: 5,
+  };
 
   if (error) {
     return (
@@ -308,24 +327,26 @@ export default async function AlertsIndexPage() {
       acc[b._status] += 1;
       return acc;
     },
-    { total: 0, stable: 0, watch: 0, softening: 0, attention: 0, movement: 0 } as Record<
-      DriftStatus | "total",
-      number
-    >
+    {
+      total: 0,
+      stable: 0,
+      watch: 0,
+      softening: 0,
+      attention: 0,
+      movement: 0,
+    } as Record<DriftStatus | "total", number>
   );
 
   const overallStatus: DriftStatus =
-  counts.attention > 0
-    ? "attention"
-    : counts.softening > 0
-    ? "softening"
-    : counts.watch > 0
-    ? "watch"
-    : counts.movement > 0
-    ? "movement"
-    : "stable";
-
-   
+    counts.attention > 0
+      ? "attention"
+      : counts.softening > 0
+      ? "softening"
+      : counts.watch > 0
+      ? "watch"
+      : counts.movement > 0
+      ? "movement"
+      : "stable";
 
   return (
     <div
@@ -341,6 +362,7 @@ export default async function AlertsIndexPage() {
     >
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
         <AlertsTitleSync status={overallStatus} />
+
         {isReadOnly ? (
           <div
             style={{
@@ -354,8 +376,9 @@ export default async function AlertsIndexPage() {
           >
             <div style={{ fontWeight: 800, fontSize: 14 }}>Read-only access</div>
             <div style={{ marginTop: 6, fontSize: 13, color: "#F8E7B0" }}>
-              Your trial has ended. Monitoring has paused, but your signal history remains visible.
-Reactivate DRIFT to restore active monitoring, ongoing alerts, and portfolio expansion.
+              Your trial has ended. Monitoring has paused, but your signal
+              history remains visible. Reactivate DRIFT to restore active
+              monitoring, ongoing alerts, and portfolio expansion.
             </div>
           </div>
         ) : null}
@@ -406,7 +429,9 @@ Reactivate DRIFT to restore active monitoring, ongoing alerts, and portfolio exp
             <Link
               href={
                 isReadOnly && businesses && businesses[0]?.id
-                  ? `/upgrade?business_id=${encodeURIComponent(businesses[0].id)}`
+                  ? `/upgrade?business_id=${encodeURIComponent(
+                      businesses[0].id
+                    )}`
                   : "/onboard?mode=add_business"
               }
               style={{
