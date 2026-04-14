@@ -210,6 +210,28 @@ export async function POST(req: Request) {
 
         if (existingBusiness?.id) {
           locationBusinessId = existingBusiness.id;
+
+          const { error: updateExistingBusinessErr } = await supabase
+            .from("businesses")
+            .update({
+              alert_email: parentBusiness.alert_email,
+              timezone: parentBusiness.timezone ?? DEFAULT_TIMEZONE,
+              owner_id: parentBusiness.owner_id ?? null,
+              billing_status: parentBusiness.billing_status ?? null,
+              trial_started_at: parentBusiness.trial_started_at ?? null,
+              trial_ends_at: parentBusiness.trial_ends_at ?? null,
+            })
+            .eq("id", existingBusiness.id);
+
+          if (updateExistingBusinessErr) {
+            console.error("DRIFT CSV existing business update failed:", {
+              location,
+              businessName,
+              business_id: existingBusiness.id,
+              error: updateExistingBusinessErr.message,
+            });
+            continue;
+          }
         } else {
           const { data: createdBusiness, error: createdBusinessErr } =
             await supabase
@@ -230,7 +252,8 @@ export async function POST(req: Request) {
             console.error("DRIFT CSV business creation failed:", {
               location,
               businessName,
-              error: createdBusinessErr?.message ?? "Unknown business creation error",
+              error:
+                createdBusinessErr?.message ?? "Unknown business creation error",
             });
             continue;
           }
@@ -280,7 +303,8 @@ export async function POST(req: Request) {
           console.error("DRIFT CSV source creation failed:", {
             business_id: locationBusinessId,
             location,
-            error: createdSourceErr?.message ?? "Unknown source creation error",
+            error:
+              createdSourceErr?.message ?? "Unknown source creation error",
           });
           continue;
         }
@@ -332,7 +356,7 @@ export async function POST(req: Request) {
         },
         body: JSON.stringify({
           business_id: locationBusinessId,
-          force_email: true,
+          force_email: false,
         }),
       });
 
