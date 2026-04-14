@@ -2,29 +2,28 @@
 
 import { useEffect } from "react";
 
-type DriftStatus = "stable" | "watch" | "softening" | "attention";
+type DriftTitleStatus =
+  | "stable"
+  | "watch"
+  | "softening"
+  | "attention"
+  | "movement";
 
-function titleFromStatus(status: DriftStatus) {
-  switch (status) {
-    case "attention":
-      return "DRIFT — Action Needed 🔴";
-    case "softening":
-      return "DRIFT — Unstable 🟠";
-    case "watch":
-      return "DRIFT — Developing 🟡";
-    case "stable":
-    default:
-      return "DRIFT — Stable ✅";
-  }
+function titleForStatus(status: DriftTitleStatus) {
+  if (status === "attention") return "DRIFT — Action Needed";
+  if (status === "softening") return "DRIFT — Softening";
+  if (status === "watch") return "DRIFT — Developing";
+  if (status === "movement") return "DRIFT — Momentum Detected";
+  return "DRIFT — Stable";
 }
 
 export default function AlertsTitleSync({
   status,
 }: {
-  status: DriftStatus;
+  status: DriftTitleStatus;
 }) {
   useEffect(() => {
-    document.title = titleFromStatus(status);
+    document.title = titleForStatus(status);
   }, [status]);
 
   return null;
