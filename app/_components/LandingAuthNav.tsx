@@ -58,7 +58,7 @@ export default function LandingAuthNav() {
   if (sessionState.loading) {
     return (
       <div className="flex items-center gap-3">
-        <div className="text-sm text-white/45">Checking session…</div>
+        <div className="h-5 w-24" />
       </div>
     );
   }
