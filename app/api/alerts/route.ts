@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 // Accept any of these env vars as valid bearer secrets for list mode
 function validTokens(): string[] {
   return [
-    process.env.DRIFT_CRON_SECRET,
+    process.env.CRON_SECRET,
     process.env.DRIFT_ADMIN_TOKEN,
     process.env.DRIFT_LOCAL_API_TOKEN,
   ].filter(Boolean) as string[];
