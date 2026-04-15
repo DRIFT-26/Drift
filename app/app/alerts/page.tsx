@@ -452,6 +452,43 @@ export default async function AlertsIndexPage() {
           </div>
         ) : null}
 
+        {!isReadOnly && additionalLocations > 0 ? (
+  <div
+    style={{
+      marginBottom: 16,
+      padding: 16,
+      borderRadius: 16,
+      background: "rgba(255, 176, 32, 0.10)",
+      border: "1px solid rgba(255, 176, 32, 0.20)",
+      color: "#FDE68A",
+    }}
+  >
+    <div style={{ fontWeight: 800, fontSize: 14 }}>
+      Portfolio exceeds included locations
+    </div>
+
+    <div style={{ marginTop: 6, fontSize: 13 }}>
+      You are monitoring{" "}
+      <span style={{ color: "#FFFFFF", fontWeight: 800 }}>
+        {totalLocations}
+      </span>{" "}
+      locations. Your plan includes{" "}
+      <span style={{ color: "#FFFFFF", fontWeight: 800 }}>
+        {includedLocations}
+      </span>
+      .
+    </div>
+
+    <div style={{ marginTop: 6, fontSize: 13 }}>
+      <span style={{ color: "#FFC266", fontWeight: 800 }}>
+        +{additionalLocations} additional location
+        {additionalLocations === 1 ? "" : "s"}
+      </span>{" "}
+      (${additionalLocations * 99}/month when activated)
+    </div>
+  </div>
+) : null}
+
         <div
           style={{
             display: "flex",
@@ -487,8 +524,8 @@ export default async function AlertsIndexPage() {
                   <span style={{ color: "#FFC266", fontWeight: 800 }}>
                     +{additionalLocations}
                   </span>{" "}
-                  additional billable location
-                  {additionalLocations === 1 ? "" : "s"}
+                  additional location{additionalLocations === 1 ? "" : "s"} (
+                  ${additionalLocations * 99}/month)
                 </>
               ) : null}
             </div>
