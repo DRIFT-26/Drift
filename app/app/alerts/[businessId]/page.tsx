@@ -473,12 +473,18 @@ const displaySource =
     : engine.toLowerCase().includes("csv")
     ? "CSV Upload"
     : connectedSource?.type
-    ? String(connectedSource.type)
-        .replace(/_/g, " ")
-        .replace(/\brevenue\b/gi, "")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-        .trim()
-    : "Revenue Source";
+? (() => {
+    const raw = String(connectedSource.type).toLowerCase();
+
+    if (raw.includes("csv")) return "CSV Upload";
+
+    return raw
+      .replace(/_/g, " ")
+      .replace(/\brevenue\b/gi, "")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+      .trim();
+  })()
+: "Revenue Source";
 
   const direction = normalizeDirection(driftMeta.direction);
   const mriScore =
