@@ -181,12 +181,12 @@ function mriLabel(score: number | null, status: DriftStatus) {
 }
 
 function sourceLabel(engine: string) {
-  const value = engine.toLowerCase();
-  if (value === "stripe_revenue" || value === "stripe") return "Stripe";
-  if (value === "google_sheets_revenue" || value === "google_sheets") {
-    return "Google Sheets";
-  }
-  if (value === "csv_revenue" || value === "csv") return "CSV Upload";
+  const value = engine.toLowerCase().trim();
+
+  if (value.includes("stripe")) return "Stripe";
+  if (value.includes("google") || value.includes("sheet")) return "Google Sheets";
+  if (value.includes("csv")) return "CSV Upload";
+
   return "Revenue Source";
 }
 
