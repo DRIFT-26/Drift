@@ -865,34 +865,29 @@ const displaySource =
           </div>
 
           <div
-            style={{
-              gridColumn: "span 8",
-              background: cardBg,
-              border,
-              borderRadius: 18,
-              padding: 18,
-            }}
-          >
-            <div
-              style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}
-            >
-              WHY THIS STATUS
-            </div>
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 15,
-                fontWeight: 900,
-                color: textPrimary,
-              }}
-            >
-              {driftReasons.length
-                ? "What DRIFT is seeing right now"
-                : "No material negative signals detected"}
-            </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: textSecondary }}>
-              These are the signal conditions currently shaping this status.
-            </div>
+  style={{
+    gridColumn: "span 8",
+    background: cardBg,
+    border,
+    borderRadius: 18,
+    padding: 18,
+  }}
+>
+  <div style={{ fontSize: 12, color: textSecondary, fontWeight: 700 }}>
+    WHAT’S DRIVING THIS SIGNAL
+  </div>
+  <div
+    style={{
+      marginTop: 8,
+      fontSize: 15,
+      fontWeight: 900,
+      color: textPrimary,
+    }}
+  >
+    {driftReasons.length
+      ? "Key factors influencing performance right now"
+      : "No material issues detected right now"}
+  </div>
 
             {driftReasons.length ? (
               <ul
@@ -902,7 +897,11 @@ const displaySource =
                   <li key={i} style={{ marginBottom: 16, lineHeight: 1.6 }}>
                     <div style={{ fontWeight: 900 }}>
                       {String(r?.code ?? "") === "BASELINE_WARMUP"
-                        ? "Baseline Building"
+                        ? "Baseline building in progress"
+                        : r?.detail
+                        ? String(r.detail)
+                        : formatReason(r) === "Signal detected"
+                        ? "Performance change detected"
                         : formatReason(r)}
                     </div>
 
@@ -948,9 +947,8 @@ const displaySource =
               </ul>
             ) : (
               <div style={{ marginTop: 14, color: textSecondary, fontSize: 13 }}>
-                DRIFT currently reads as stable. When signals appear, you’ll see
-                them here.
-              </div>
+  No significant changes are affecting performance right now.
+</div>
             )}
 
             <div
