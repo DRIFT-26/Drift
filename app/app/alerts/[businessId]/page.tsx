@@ -463,6 +463,23 @@ export default async function BusinessAlertsPage({
     : [];
 
   const engine = String(driftMeta.engine ?? connectedSource?.type ?? "").trim();
+
+const displaySource =
+  engine.toLowerCase().includes("stripe")
+    ? "Stripe"
+    : engine.toLowerCase().includes("google") ||
+      engine.toLowerCase().includes("sheet")
+    ? "Google Sheets"
+    : engine.toLowerCase().includes("csv")
+    ? "CSV Upload"
+    : connectedSource?.type
+    ? String(connectedSource.type)
+        .replace(/_/g, " ")
+        .replace(/\brevenue\b/gi, "")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .trim()
+    : "Revenue Source";
+
   const direction = normalizeDirection(driftMeta.direction);
   const mriScore =
     typeof driftMeta.mriScore === "number"
@@ -633,7 +650,7 @@ export default async function BusinessAlertsPage({
             <div style={{ marginTop: 8, fontSize: 13, color: textSecondary }}>
               Source:{" "}
               <span style={{ color: textPrimary, fontWeight: 700 }}>
-                {sourceLabel(engine)}
+                {displaySource}
               </span>
               {" · "}
               Updated:{" "}
