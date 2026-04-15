@@ -16,38 +16,34 @@ export default function LandingAuthNav() {
   });
 
   useEffect(() => {
-    const supabase = createClient();
+  const supabase = createClient();
 
-    const loadSession = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      setSessionState({
-        email: user?.email ?? null,
-        loading: false,
-      });
-    };
-
-    loadSession();
-
+  const loadSession = async () => {
     const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
 
-      setSessionState({
-        email: user?.email ?? null,
-        loading: false,
-      });
+    setSessionState({
+      email: session?.user?.email ?? null,
+      loading: false,
     });
+  };
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  loadSession();
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSessionState({
+      email: session?.user?.email ?? null,
+      loading: false,
+    });
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
 
   async function handleLogout() {
     const supabase = createClient();
