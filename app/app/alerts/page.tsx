@@ -89,11 +89,12 @@ function formatMoneyFromBusiness(b: {
   });
 }
 
-function safeDateLabel(v: unknown) {
+function safeDateLabel(v: unknown, timeZone?: string | null) {
   if (!v) return "—";
   const d = new Date(String(v));
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString(undefined, {
+    timeZone: timeZone || "America/Chicago",
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -139,6 +140,7 @@ type DriftReason = {
 type BusinessRow = {
   id: string;
   name: string;
+  timezone?: string | null;
   last_drift: {
     status?: string | null;
     reasons?: DriftReason[] | null;
@@ -183,7 +185,7 @@ export default async function AlertsIndexPage() {
     const emailMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+        "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("alert_email", onboardEmail)
       .order("created_at", { ascending: true })
@@ -195,7 +197,7 @@ export default async function AlertsIndexPage() {
     const ownerMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+        "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("owner_id", userId)
       .order("created_at", { ascending: true })
@@ -208,7 +210,7 @@ export default async function AlertsIndexPage() {
       const emailMatch = await supabase
         .from("businesses")
         .select(
-          "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+          "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
         )
         .eq("alert_email", sessionEmail)
         .order("created_at", { ascending: true })
@@ -221,7 +223,7 @@ export default async function AlertsIndexPage() {
     const emailMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+        "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("alert_email", email)
       .order("created_at", { ascending: true })
@@ -605,7 +607,7 @@ export default async function AlertsIndexPage() {
             {sorted.map((b) => {
               const tone = statusTone(b._status);
               const score = b._score;
-              const updated = safeDateLabel(b._updated);
+              const updated = safeDateLabel(b._updated, b.timezone);
 
               return (
                 <Link
