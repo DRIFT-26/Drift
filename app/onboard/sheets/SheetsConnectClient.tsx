@@ -71,6 +71,25 @@ const touched = Array.isArray(data?.touched_business_ids)
 
   return (
     <main className="min-h-screen bg-[#070B18] text-white">
+      <style>{`
+  @keyframes driftPulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+      opacity: 0.9;
+    }
+    50% {
+      transform: scale(1.015);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.18);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+      opacity: 0.9;
+    }
+  }
+`}</style>
       <div className="mx-auto max-w-3xl px-6 py-20">
         <Link href="/onboard" className="text-sm text-white/70 hover:text-white">
           ← Back
@@ -134,12 +153,19 @@ const touched = Array.isArray(data?.touched_business_ids)
             </div>
 
             <button
-              type="submit"
-              disabled={saving}
-              className="w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
-            >
-              {saving ? "Connecting..." : "Connect Google Sheet"}
-            </button>
+  type="submit"
+  disabled={saving}
+  className="w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+  style={
+    saving
+      ? {
+          animation: "driftPulse 1.8s ease-in-out infinite",
+        }
+      : undefined
+  }
+>
+  {saving ? "Connecting..." : "Connect Google Sheet"}
+</button>
           </form>
         </div>
       </div>
