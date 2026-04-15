@@ -218,14 +218,14 @@ export default async function UpgradePage({
 
         {business ? (
           (() => {
-            const allowlistRaw = (process.env.BETA_FOUNDER_EMAILS || "").trim();
+            const allowlistRaw = (process.env.BETA_FOUNDERS || "").trim();
 
             const allowlist = allowlistRaw
               .split(",")
               .map((s) => s.trim().toLowerCase())
               .filter(Boolean);
 
-            const email = String(business.alert_email || "").toLowerCase();
+            const email = String(business.alert_email || "").trim().toLowerCase();
             const isAllowlisted =
               Boolean(email) && allowlist.includes(email);
 
