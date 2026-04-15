@@ -95,6 +95,7 @@ export default async function UpgradePage({
             <div>
               <strong className="text-white">$499/month</strong> standard pricing
             </div>
+
             <div>
               <strong className="text-white">$299/month</strong> for 12 months or{" "}
               <strong className="text-white">$399/month</strong> lifetime Founding Cohort pricing
@@ -103,17 +104,13 @@ export default async function UpgradePage({
             <div>
               Includes up to{" "}
               <strong className="text-white">{includedLocations}</strong> locations per portfolio
-              </div>
+            </div>
 
-            <div>
+            <div className="text-white/70">
               Additional locations:{" "}
               <strong className="text-white">$99/month each</strong>
             </div>
 
-            <div>
-              Includes up to{" "}
-              <strong className="text-white">{includedLocations}</strong> locations per portfolio
-            </div>
             {business ? (
               <div>
                 Portfolio currently monitoring{" "}
