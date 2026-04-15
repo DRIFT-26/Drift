@@ -285,14 +285,22 @@ export default async function AlertsIndexPage() {
     );
   }
 
-  const normalized = (businesses ?? []).map((b) => {
+  const normalized = (businesses ?? [])
+  .filter((b) => {
+    // Only include businesses with real signal data
+    return b?.last_drift && b?.last_drift?.status;
+  })
+  .map((b) => {
     const last = b?.last_drift ?? null;
     const status = normalizeStatus(last?.status ?? "stable");
+
     const score =
       typeof last?.meta?.mriScore === "number"
         ? clamp(last.meta.mriScore, 0, 100)
         : null;
+
     const updated = b?.last_drift_at ?? null;
+
     const reason =
       Array.isArray(last?.reasons) && last.reasons.length > 0
         ? formatReason(last.reasons[0])
