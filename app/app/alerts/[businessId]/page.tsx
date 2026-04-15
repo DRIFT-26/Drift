@@ -9,6 +9,7 @@ import {
   verifyOnboardAccessToken,
 } from "@/lib/auth/onboard-access";
 import { businessHasAccess } from "@/lib/billing/access";
+import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -330,7 +331,8 @@ export default async function BusinessAlertsPage({
     );
   }
 
-  const supabase = await createClient();
+  const authClient = await createClient();
+  const supabase = supabaseAdmin();
 
   const {
     data: { user },

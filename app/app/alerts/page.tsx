@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/onboard-access";
 import { businessHasAccess } from "@/lib/billing/access";
 import AlertsTitleSync from "./AlertsTitleSync";
+import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -158,11 +159,12 @@ type BusinessRow = {
 };
 
 export default async function AlertsIndexPage() {
-  const supabase = await createClient();
+  const authClient = await createClient();
+  const supabase = supabaseAdmin();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await authClient.auth.getUser();
 
   const cookieStore = await cookies();
   const onboardAccess = verifyOnboardAccessToken(
