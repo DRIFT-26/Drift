@@ -117,6 +117,17 @@ function statusLabel(status: DriftStatus) {
   return "Stable";
 }
 
+function getTrialDaysLeft(trialEndsAt?: string | null) {
+  if (!trialEndsAt) return null;
+
+  const now = new Date();
+  const end = new Date(trialEndsAt);
+  const diff = end.getTime() - now.getTime();
+
+  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  return days > 0 ? days : 0;
+}
+
 type DriftReason = {
   code?: string | null;
   detail?: string | null;
@@ -370,6 +381,52 @@ export default async function AlertsIndexPage() {
     >
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
         <AlertsTitleSync status={overallStatus} />
+
+        {!isReadOnly && businesses && businesses.length > 0 ? (() => {
+  const trialEndsAt = businesses[0]?.trial_ends_at;
+  const daysLeft = getTrialDaysLeft(trialEndsAt);
+
+  if (daysLeft === null) return null;
+
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        padding: "12px 16px",
+        borderRadius: 14,
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <div style={{ fontSize: 13, color: "#9AA4B2" }}>
+        <span style={{ color: "#E6EAF0", fontWeight: 800 }}>
+          Trial active
+        </span>
+        {" · "}
+        {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+      </div>
+
+      <Link
+        href={`/upgrade?business_id=${encodeURIComponent(businesses[0].id)}`}
+        style={{
+          padding: "6px 12px",
+          borderRadius: 10,
+          background: "#0A2A66",
+          color: "#FFFFFF",
+          textDecoration: "none",
+          fontWeight: 700,
+          fontSize: 12,
+        }}
+      >
+        Activate DRIFT
+      </Link>
+    </div>
+  );
+})() : null}
 
         {isReadOnly ? (
           <div

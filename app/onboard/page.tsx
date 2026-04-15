@@ -267,10 +267,6 @@ export default function OnboardPage() {
                     Stripe is the fastest direct connection. Google Sheets is best if your POS exports or syncs daily revenue. CSV works well for quick setup and historical onboarding.
                   </p>
 
-                  <p className="mt-3 text-xs text-white/40">
-                    Stripe and Google Sheets are available now. CSV is the fastest way to get started if you already have exported revenue data.
-                  </p>
-
                   <p className="mt-2 text-[11px] text-white/35">
                     Accepted CSV format:
                     <br />
