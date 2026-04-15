@@ -61,6 +61,7 @@ type LastDrift = {
 type BusinessRow = {
   id: string;
   name: string;
+  timezone?: string | null;
   last_drift: LastDrift | null;
   last_drift_at: string | null;
   monthly_revenue: number | null;
@@ -197,11 +198,12 @@ function statusLabel(status: DriftStatus) {
   return "Stable";
 }
 
-function safeDateTimeLabel(v: unknown) {
+function safeDateTimeLabel(v: unknown, timeZone?: string | null) {
   if (!v) return "—";
   const d = new Date(String(v));
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString(undefined, {
+    timeZone: timeZone || "America/Chicago",
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -355,7 +357,7 @@ export default async function BusinessAlertsPage({
     const emailMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+        "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("id", businessId)
       .eq("alert_email", onboardEmail)
@@ -367,7 +369,7 @@ export default async function BusinessAlertsPage({
     const ownerMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+        "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("id", businessId)
       .eq("owner_id", userId)
@@ -380,7 +382,7 @@ export default async function BusinessAlertsPage({
       const emailMatch = await supabase
         .from("businesses")
         .select(
-          "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+          "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
         )
         .eq("id", businessId)
         .eq("alert_email", sessionEmail)
@@ -393,7 +395,7 @@ export default async function BusinessAlertsPage({
     const emailMatch = await supabase
       .from("businesses")
       .select(
-        "id,name,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
+        "id,name,timezone,last_drift,last_drift_at,monthly_revenue,monthly_revenue_cents,created_at,billing_status,trial_ends_at"
       )
       .eq("id", businessId)
       .eq("alert_email", email)
@@ -402,6 +404,15 @@ export default async function BusinessAlertsPage({
     business = emailMatch.data ?? null;
     error = emailMatch.error;
   }
+
+  const { data: connectedSource } = await supabase
+  .from("sources")
+  .select("type")
+  .eq("business_id", businessId)
+  .eq("is_connected", true)
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle();
 
   const { data: timeline } = await supabase
     .from("email_logs")
@@ -451,7 +462,7 @@ export default async function BusinessAlertsPage({
     ? lastDrift.reasons
     : [];
 
-  const engine = String(driftMeta.engine ?? "—");
+  const engine = String(driftMeta.engine ?? connectedSource?.type ?? "").trim();
   const direction = normalizeDirection(driftMeta.direction);
   const mriScore =
     typeof driftMeta.mriScore === "number"
@@ -627,7 +638,7 @@ export default async function BusinessAlertsPage({
               {" · "}
               Updated:{" "}
               <span style={{ color: textPrimary, fontWeight: 700 }}>
-                {safeDateTimeLabel(business.last_drift_at)}
+                {safeDateTimeLabel(business.last_drift_at, business.timezone)}
               </span>
               {direction ? (
                 <>
@@ -1142,7 +1153,7 @@ export default async function BusinessAlertsPage({
                               color: textSecondary,
                             }}
                           >
-                            {safeDateTimeLabel(item.created_at)}
+                            {safeDateTimeLabel(item.created_at, business.timezone)}
                             {item.email_type ? (
                               <>
                                 {" · "}
