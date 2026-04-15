@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
+const founders = (process.env.BETA_FOUNDERS || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+function isFounderEmail(email?: string | null) {
+  return founders.includes((email || "").toLowerCase());
+}
+
 export const runtime = "nodejs";
 
 /**
@@ -43,6 +52,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const founderByEmail = isFounderEmail(biz.alert_email);
+
     if (biz.billing_status === "internal") {
       return NextResponse.json(
         {
@@ -70,7 +81,8 @@ export async function POST(req: Request) {
 
     if (
       (plan === "founder_299" || plan === "founder_399") &&
-      !biz.founding_cohort
+      !biz.founding_cohort &&
+      !founderByEmail
     ) {
       return NextResponse.json(
         { ok: false, error: "Founder pricing not available." },
@@ -110,7 +122,7 @@ subscription_data: {
   metadata: { business_id: biz.id, plan },
 },
 
-      success_url: `${appUrl}/onboard/success?business_id=${biz.id}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${appUrl}/billing/success?business_id=${biz.id}&session_id={CHECKOUT_SESSION_ID}`,
 cancel_url: `${appUrl}/upgrade?canceled=true&business_id=${biz.id}`,
     });
 
