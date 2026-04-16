@@ -15,6 +15,15 @@ export default function LoginPage() {
       const { data } = await supabase.auth.getSession();
 
       if (data.session) {
+        try {
+          await supabase.from("login_events").insert({
+            email: data.session.user.email,
+            user_id: data.session.user.id,
+          });
+        } catch {
+          // ignore logging failure
+        }
+
         window.location.replace("/app/alerts");
       }
     };
@@ -23,8 +32,17 @@ export default function LoginPage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
+        try {
+          await supabase.from("login_events").insert({
+            email: session.user.email,
+            user_id: session.user.id,
+          });
+        } catch {
+          // ignore logging failure
+        }
+
         window.location.replace("/app/alerts");
       }
     });
@@ -39,13 +57,14 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
+    const normalizedEmail = email.trim().toLowerCase();
 
     const { error } = await supabase.auth.signInWithOtp({
-  email,
-  options: {
-    emailRedirectTo: `${window.location.origin}/auth/callback?next=/app/alerts`,
-  },
-});
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/app/alerts`,
+      },
+    });
 
     setLoading(false);
 
