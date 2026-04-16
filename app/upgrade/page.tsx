@@ -93,7 +93,7 @@ export default async function UpgradePage({
 
           <div className="mt-3 space-y-2 text-sm text-white/80">
             <div>
-              <strong className="text-white">$499/month</strong> standard pricing
+              <strong className="text-white">$499/month</strong> introductory portfolio pricing
             </div>
 
             <div>
@@ -109,6 +109,10 @@ export default async function UpgradePage({
             <div className="text-white/70">
               Additional locations:{" "}
               <strong className="text-white">$99/month each</strong>
+            </div>
+
+            <div className="text-white/60">
+              Introductory pricing is available during the current launch period and may be updated with notice as DRIFT expands.
             </div>
 
             {business ? (

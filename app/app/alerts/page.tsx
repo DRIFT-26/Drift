@@ -21,6 +21,15 @@ type DriftStatus =
   | "attention"
   | "movement";
 
+function isInternalEmail(email?: string | null) {
+  const allowed = String(process.env.INTERNAL_USAGE_EMAILS || "")
+    .split(",")
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+
+  return allowed.includes(String(email || "").toLowerCase().trim());
+}
+
 function normalizeStatus(raw: unknown): DriftStatus {
   const s = String(raw ?? "").toLowerCase();
   if (s === "attention") return "attention";
@@ -175,6 +184,7 @@ export default async function AlertsIndexPage() {
   const onboardEmail = onboardAccess?.email ?? null;
   const sessionEmail = user?.email ?? null;
   const email = onboardEmail ?? sessionEmail ?? null;
+  const showUsageLink = isInternalEmail(sessionEmail ?? onboardEmail);
 
   if (!userId && !email) {
     redirect("/login");
@@ -531,29 +541,45 @@ export default async function AlertsIndexPage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <Link
-              href={
-                isReadOnly && businesses && businesses[0]?.id
-                  ? `/upgrade?business_id=${encodeURIComponent(
-                      businesses[0].id
-                    )}`
-                  : "/onboard?mode=add_business"
-              }
-              style={{
-                padding: "10px 14px",
-                borderRadius: 12,
-                background: "#0A2A66",
-                color: "#FFFFFF",
-                textDecoration: "none",
-                fontWeight: 800,
-                fontSize: 13,
-                border: "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              {isReadOnly ? "Activate DRIFT" : "+ Add Business"}
-            </Link>
-          </div>
+<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+  {showUsageLink ? (
+    <Link
+      href="/app/usage"
+      style={{
+        padding: "10px 14px",
+        borderRadius: 12,
+        background: "#11161C",
+        color: "#FFFFFF",
+        textDecoration: "none",
+        fontWeight: 800,
+        fontSize: 13,
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      Usage
+    </Link>
+  ) : null}
+
+  <Link
+    href={
+      isReadOnly && businesses && businesses[0]?.id
+        ? `/upgrade?business_id=${encodeURIComponent(businesses[0].id)}`
+        : "/onboard?mode=add_business"
+    }
+    style={{
+      padding: "10px 14px",
+      borderRadius: 12,
+      background: "#0A2A66",
+      color: "#FFFFFF",
+      textDecoration: "none",
+      fontWeight: 800,
+      fontSize: 13,
+      border: "1px solid rgba(255,255,255,0.06)",
+    }}
+  >
+    {isReadOnly ? "Activate DRIFT" : "+ Add Business"}
+  </Link>
+</div>
         </div>
 
         <div
