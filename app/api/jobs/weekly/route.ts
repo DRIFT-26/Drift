@@ -1,13 +1,17 @@
-// app/api/jobs/weekly/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendDriftEmail } from "@/lib/email/resend";
 import { shouldRunWeeklyNow } from "@/lib/dispatch";
-import { renderWeeklyPulseEmail } from "@/lib/email/templates";
+import { renderWeeklyBriefingEmail } from "@/lib/email/templates";
 
 export const runtime = "nodejs";
 
-type DriftStatus = "stable" | "watch" | "softening" | "attention";
+type DriftStatus =
+  | "stable"
+  | "watch"
+  | "softening"
+  | "attention"
+  | "movement";
 
 function baseUrl() {
   const explicit = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
@@ -45,23 +49,47 @@ function normalizeStatus(raw: any): DriftStatus {
   if (s === "attention") return "attention";
   if (s === "softening") return "softening";
   if (s === "watch") return "watch";
+  if (s === "movement") return "movement";
   return "stable";
 }
 
 function statusCounts(statuses: DriftStatus[]) {
   return {
+    total: statuses.length,
     attention: statuses.filter((s) => s === "attention").length,
     softening: statuses.filter((s) => s === "softening").length,
     watch: statuses.filter((s) => s === "watch").length,
+    movement: statuses.filter((s) => s === "movement").length,
     stable: statuses.filter((s) => s === "stable").length,
   };
 }
 
-function pickTopStatus(statuses: DriftStatus[]) {
+function pickTopStatus(statuses: DriftStatus[]): DriftStatus {
   if (statuses.includes("attention")) return "attention";
   if (statuses.includes("softening")) return "softening";
   if (statuses.includes("watch")) return "watch";
+  if (statuses.includes("movement")) return "movement";
   return "stable";
+}
+
+function buildWatchout(status: DriftStatus) {
+  if (status === "attention") {
+    return "Watch for any continued weakness early in the week. If conditions persist, immediate operator intervention may be needed.";
+  }
+
+  if (status === "softening") {
+    return "Watch for consistency across the first half of the week. If performance stays below range, DRIFT will escalate it quickly.";
+  }
+
+  if (status === "watch") {
+    return "Watch for whether this early movement carries into mid-week or settles back into normal range.";
+  }
+
+  if (status === "movement") {
+    return "Watch whether this upside movement sustains into the week ahead or normalizes after the recent lift.";
+  }
+
+  return "Watch for any developing inconsistency across the week. If something begins to move, DRIFT will surface it early.";
 }
 
 async function alreadySentRecently(params: {
@@ -76,7 +104,7 @@ async function alreadySentRecently(params: {
   const { data } = await supabase
     .from("email_logs")
     .select("id")
-    .eq("email_type", "weekly_pulse")
+    .eq("email_type", "weekly_briefing")
     .eq("to_email", ownerEmail)
     .gte("created_at", since.toISOString())
     .limit(1);
@@ -84,59 +112,15 @@ async function alreadySentRecently(params: {
   return (data?.length ?? 0) > 0;
 }
 
-function buildWeeklyPulseText(args: {
-  windowStart: string;
-  windowEnd: string;
-  businesses: Array<{ id: string; name: string; last_drift: any | null }>;
-}) {
-  const statuses = args.businesses.map((b) => normalizeStatus(b.last_drift?.status));
-  const counts = statusCounts(statuses);
-  const top = pickTopStatus(statuses);
-
-  const header =
-    top === "attention"
-      ? `Needs attention 🔴`
-      : top === "softening"
-      ? `Softening 🟠`
-      : top === "watch"
-      ? `Watch 🟡`
-      : `All clear ✅`;
-
-  const ranked = [...args.businesses].sort((a, b) => {
-    const rank = (s: DriftStatus) =>
-      s === "attention" ? 3 : s === "softening" ? 2 : s === "watch" ? 1 : 0;
-    return rank(normalizeStatus(b.last_drift?.status)) - rank(normalizeStatus(a.last_drift?.status));
-  });
-
-  const topItems = ranked
-    .filter((b) => normalizeStatus(b.last_drift?.status) !== "stable")
-    .slice(0, 3)
-    .map((b) => {
-      const s = normalizeStatus(b.last_drift?.status);
-      const reason = b.last_drift?.reasons?.[0]?.detail ?? "Signal detected";
-      return `- ${b.name} — ${s.toUpperCase()} — ${reason}\n  ${baseUrl()}/alerts/${b.id}`;
-    });
-
-  return `
-DRIFT Weekly Pulse — ${header}
-
-Week: ${args.windowStart} → ${args.windowEnd}
-Portfolio: ${args.businesses.length} business(es)
-Status mix: ${counts.attention} Attention · ${counts.softening} Softening · ${counts.watch} Watch · ${counts.stable} Stable
-
-${topItems.length ? `Top items:\n${topItems.join("\n")}` : "Top items: None this week."}
-
-Open DRIFT: ${baseUrl()}/app/alerts
-
-—
-Short. Specific. Actionable.
-`.trim();
-}
-
 export async function POST(req: Request) {
   const url = new URL(req.url);
   const auth = requireCronAuth(req);
-  if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: 401 });
+  if (!auth.ok) {
+    return NextResponse.json(
+      { ok: false, error: auth.error },
+      { status: 401 }
+    );
+  }
 
   const supabase = supabaseAdmin();
   const dispatch = url.searchParams.get("dispatch") === "1";
@@ -145,7 +129,9 @@ export async function POST(req: Request) {
 
   const { data: businesses } = await supabase
     .from("businesses")
-    .select("id,name,timezone,is_paid,alert_email,last_drift,created_at,billing_status,trial_ends_at")
+    .select(
+      "id,name,timezone,alert_email,last_drift,created_at,billing_status,trial_ends_at"
+    )
     .order("created_at", { ascending: true });
 
   const byEmail = new Map<string, any[]>();
@@ -153,14 +139,14 @@ export async function POST(req: Request) {
   for (const biz of businesses ?? []) {
     const billingStatus = biz.billing_status;
 
-const hasAccess =
-  billingStatus === "active" ||
-  billingStatus === "internal" ||
-  (billingStatus === "trialing" &&
-    biz.trial_ends_at &&
-    new Date(biz.trial_ends_at).getTime() > Date.now());
+    const hasAccess =
+      billingStatus === "active" ||
+      billingStatus === "internal" ||
+      (billingStatus === "trialing" &&
+        biz.trial_ends_at &&
+        new Date(biz.trial_ends_at).getTime() > Date.now());
 
-if (!hasAccess && !forceSend) continue;
+    if (!hasAccess && !forceSend) continue;
 
     if (dispatch && !shouldRunWeeklyNow(biz.timezone)) continue;
 
@@ -177,64 +163,96 @@ if (!hasAccess && !forceSend) continue;
   windowStart.setDate(now.getDate() - 7);
 
   for (const [ownerEmail, bizList] of byEmail.entries()) {
-  if (dispatch) {
-    const sentRecently = await alreadySentRecently({ supabase, ownerEmail, now });
-    if (sentRecently) {
-      results.push({ owner_email: ownerEmail, skipped: true, reason: "already_sent_recently" });
+    if (dispatch) {
+      const sentRecently = await alreadySentRecently({
+        supabase,
+        ownerEmail,
+        now,
+      });
+
+      if (sentRecently) {
+        results.push({
+          owner_email: ownerEmail,
+          skipped: true,
+          reason: "already_sent_recently",
+        });
+        continue;
+      }
+    }
+
+    const statuses = bizList.map((b: any) =>
+      normalizeStatus(b.last_drift?.status)
+    );
+
+    const counts = statusCounts(statuses);
+    const topStatus = pickTopStatus(statuses);
+    const watchout = buildWatchout(topStatus);
+
+    const portfolioName =
+  bizList.length === 1
+    ? bizList[0].name
+    : "Your Portfolio";
+
+    const { subject, text } = renderWeeklyBriefingEmail({
+      portfolioName,
+      status: topStatus,
+      counts,
+      watchout,
+      openDriftUrl: `${baseUrl()}/app/alerts`,
+    });
+
+    if (dryRun) {
+      results.push({
+        owner_email: ownerEmail,
+        skipped: true,
+        reason: "dry_run",
+        subject,
+        status: topStatus,
+      });
       continue;
     }
+
+    const sendResult = await sendDriftEmail({
+      to: ownerEmail,
+      subject,
+      text,
+    });
+
+    const emailId =
+      (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
+
+    await supabase.from("email_logs").insert({
+      business_id: null,
+      email_type: "weekly_briefing",
+      to_email: ownerEmail,
+      subject,
+      status: (sendResult as any)?.error ? "error" : "sent",
+      provider: "resend",
+      provider_message_id: emailId,
+      meta: {
+        kind: "weekly_briefing",
+        dispatch,
+        force_send: forceSend,
+        window_start: isoDate(windowStart),
+        window_end: isoDate(now),
+        portfolio_status: topStatus,
+        counts,
+        businesses: bizList.map((b: any) => ({
+          id: b.id,
+          name: b.name,
+          status: normalizeStatus(b.last_drift?.status),
+        })),
+        open_drift_url: `${baseUrl()}/app/alerts`,
+      },
+    });
+
+    results.push({
+      owner_email: ownerEmail,
+      sent: true,
+      email_id: emailId,
+      status: topStatus,
+    });
   }
-
-  const { subject, text } = renderWeeklyPulseEmail({
-  windowStart: isoDate(windowStart),
-  windowEnd: isoDate(now),
-  businesses: bizList.map((b: any) => ({
-    id: b.id,
-    name: b.name,
-    status: b.last_drift?.status ?? "stable",
-    reason:
-      Array.isArray(b.last_drift?.reasons) && b.last_drift.reasons.length > 0
-        ? typeof b.last_drift.reasons[0] === "string"
-          ? b.last_drift.reasons[0]
-          : b.last_drift.reasons[0]?.message ??
-            b.last_drift.reasons[0]?.label ??
-            b.last_drift.reasons[0]?.reason ??
-            null
-        : null,
-  })),
-  billingStatus: bizList[0]?.billing_status ?? null,
-  trialEndsAt: bizList[0]?.trial_ends_at ?? null,
-  openDriftUrl: `${baseUrl()}/alerts`,
-});
-
-  if (dryRun) {
-    results.push({ owner_email: ownerEmail, skipped: true, reason: "dry_run" });
-    continue;
-  }
-
-  const sendResult = await sendDriftEmail({ to: ownerEmail, subject, text });
-  const emailId = (sendResult as any)?.data?.id ?? (sendResult as any)?.id ?? null;
-
-  await supabase.from("email_logs").insert({
-    business_id: null,
-    email_type: "weekly_pulse",
-    to_email: ownerEmail,
-    subject,
-    status: (sendResult as any)?.error ? "error" : "sent",
-    provider: "resend",
-    provider_message_id: emailId,
-    meta: {
-      kind: "weekly_pulse",
-      dispatch,
-      force_send: forceSend,
-      window_start: isoDate(windowStart),
-      window_end: isoDate(now),
-      businesses: bizList.map((b: any) => ({ id: b.id, name: b.name })),
-    },
-  });
-
-  results.push({ owner_email: ownerEmail, sent: true, email_id: emailId });
-}
 
   return NextResponse.json({
     ok: true,

@@ -530,3 +530,169 @@ ${args.upgradeUrl}
 
   return { subject, text };
 }
+
+type WeeklyBriefingStatus =
+  | "stable"
+  | "watch"
+  | "softening"
+  | "attention"
+  | "movement";
+
+type WeeklyBriefingParams = {
+  portfolioName: string;
+  status: WeeklyBriefingStatus;
+  counts: {
+    total: number;
+    stable: number;
+    watch: number;
+    softening: number;
+    attention: number;
+    movement: number;
+  };
+  watchout: string;
+  openDriftUrl?: string;
+};
+
+function weeklyBriefingSubject({
+  status,
+  portfolioName,
+}: {
+  status: WeeklyBriefingStatus;
+  portfolioName: string;
+}) {
+  if (status === "attention") {
+    return `DRIFT Weekly Briefing — Action needed (${portfolioName})`;
+  }
+
+  if (status === "softening") {
+    return `DRIFT Weekly Briefing — Revenue softened (${portfolioName})`;
+  }
+
+  if (status === "watch") {
+    return `DRIFT Weekly Briefing — Early movement detected (${portfolioName})`;
+  }
+
+  if (status === "movement") {
+    return `DRIFT Weekly Briefing — Momentum detected (${portfolioName})`;
+  }
+
+  return `DRIFT Weekly Briefing — Your week was stable (${portfolioName})`;
+}
+
+function weeklyBriefingOpening(status: WeeklyBriefingStatus) {
+  if (status === "attention") {
+    return "Material change was detected this past week. DRIFT surfaced conditions that need immediate attention.";
+  }
+
+  if (status === "softening") {
+    return "This past week showed measurable softening against baseline. Nothing catastrophic, but enough movement to warrant a closer look.";
+  }
+
+  if (status === "watch") {
+    return "This past week showed early movement against baseline. It has not escalated, but it is worth keeping an eye on.";
+  }
+
+  if (status === "movement") {
+    return "This past week showed positive momentum beyond expected range. DRIFT detected performance moving above baseline.";
+  }
+
+  return "This past week held steady. No material deviation was detected.";
+}
+
+function weeklyBriefingWatched(status: WeeklyBriefingStatus) {
+  if (status === "attention") {
+    return "DRIFT monitored your revenue behavior across the week and flagged conditions that moved beyond expected operating range.";
+  }
+
+  if (status === "softening") {
+    return "DRIFT monitored your revenue behavior across the week and detected softening relative to your recent baseline.";
+  }
+
+  if (status === "watch") {
+    return "DRIFT monitored your revenue behavior across the week and picked up early movement that stayed below more serious thresholds.";
+  }
+
+  if (status === "movement") {
+    return "DRIFT monitored your revenue behavior across the week and detected upside movement that exceeded the expected range.";
+  }
+
+  return "DRIFT monitored your revenue behavior across the week, watching for early deviation against baseline. Everything remained within expected range.";
+}
+
+function weeklyBriefingWithinRange(counts: WeeklyBriefingParams["counts"]) {
+  const lines: string[] = [];
+
+  if (counts.attention === 0) {
+    lines.push("No immediate attention signals were triggered.");
+  }
+
+  if (counts.softening === 0) {
+    lines.push("No softening conditions crossed threshold.");
+  }
+
+  if (counts.watch === 0) {
+    lines.push("No early warning conditions moved into Watch.");
+  }
+
+  if (counts.movement === 0) {
+    lines.push("No unusual upside movement moved beyond expected range.");
+  }
+
+  if (lines.length === 0) {
+    lines.push("This week produced meaningful movement worth reviewing more closely.");
+  }
+
+  return lines;
+}
+
+function weeklyBriefingForwardClose(status: WeeklyBriefingStatus) {
+  if (status === "attention") {
+    return "DRIFT will continue monitoring closely and will surface any additional change the moment it matters.";
+  }
+
+  if (status === "softening") {
+    return "DRIFT will continue monitoring for further deterioration or signs of stabilization heading into the new week.";
+  }
+
+  if (status === "watch") {
+    return "DRIFT will continue monitoring to see whether this early movement settles or develops into a stronger signal.";
+  }
+
+  if (status === "movement") {
+    return "DRIFT will continue monitoring to see whether this momentum holds or settles back toward baseline.";
+  }
+
+  return "DRIFT will continue monitoring for any meaningful change and will surface it the moment it matters.";
+}
+
+export function renderWeeklyBriefingEmail({
+  portfolioName,
+  status,
+  counts,
+  watchout,
+  openDriftUrl,
+}: WeeklyBriefingParams) {
+  const subject = weeklyBriefingSubject({ status, portfolioName });
+  const opening = weeklyBriefingOpening(status);
+  const watched = weeklyBriefingWatched(status);
+  const withinRange = weeklyBriefingWithinRange(counts);
+  const close = weeklyBriefingForwardClose(status);
+
+  const text = [
+    opening,
+    "",
+    watched,
+    "",
+    "What stayed within range:",
+    ...withinRange.map((line) => `- ${line}`),
+    "",
+    "One thing to watch heading into this week:",
+    watchout,
+    "",
+    close,
+    "",
+    ...(openDriftUrl ? ["", `Open DRIFT: ${openDriftUrl}`] : []),
+  ].join("\n");
+
+  return { subject, text };
+}
