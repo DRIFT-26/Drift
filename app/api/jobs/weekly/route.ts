@@ -14,13 +14,7 @@ type DriftStatus =
   | "movement";
 
 function baseUrl() {
-  const explicit = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  if (explicit) return explicit.replace(/\/$/, "");
-
-  const vercel = (process.env.VERCEL_URL || "").trim();
-  if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
-
-  return "https://drift-app-indol.vercel.app";
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://drifthq.co").replace(/\/$/, "");
 }
 
 function isoDate(d: Date) {
