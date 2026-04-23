@@ -93,7 +93,7 @@ export default function LandingAccountActions() {
           href="/onboard"
           className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-8 py-3 text-sm font-semibold text-white transition hover:bg-[#09306F]"
         >
-          Join the Founding Cohort
+          Start 30 Days of DRIFT
         </a>
 
         <Link
@@ -104,9 +104,18 @@ export default function LandingAccountActions() {
         </Link>
       </div>
 
-      <div className="mt-3 text-sm text-white/60">Takes ~30 seconds</div>
-      <div className="mt-1 text-xs text-white/45">
-        Founding Cohort — Limited to 10 Companies
+      <div className="mt-4 text-sm text-white/65">
+        30 days of DRIFT watching your revenue. No card required.
+      </div>
+
+      <div className="mt-2 text-xs text-white/50">
+        Founding members receive locked pricing, direct access to the roadmap,
+        and white-glove onboarding while DRIFT is shaped with a small group of
+        early operators.
+      </div>
+
+      <div className="mt-2 text-xs text-white/40">
+        Limited to 10 founding companies.
       </div>
     </div>
   );
