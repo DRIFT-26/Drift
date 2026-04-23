@@ -51,14 +51,16 @@ function JobTicker() {
   const latest = ticks[0];
 
   return (
-    <span className="font-mono text-xs text-white/55">
-      <span className="text-white/35">DRIFT</span>{" "}
-      <span className="text-white/45">{latest.t}</span>{" "}
-      <span className="text-white/35">·</span>{" "}
-      <span className="text-white/70">{latest.msg}</span>{" "}
-      <span className="text-white/35">·</span>{" "}
-      <span className="text-white/70">Confidence: High</span>
-    </span>
+    <div className="min-w-0 overflow-hidden">
+      <div className="truncate whitespace-nowrap font-mono text-xs tabular-nums text-white/55">
+        <span className="text-white/35">DRIFT</span>{" "}
+        <span className="text-white/45">{latest.t}</span>{" "}
+        <span className="text-white/35">·</span>{" "}
+        <span className="text-white/70">{latest.msg}</span>{" "}
+        <span className="text-white/35">·</span>{" "}
+        <span className="text-white/70">Confidence: High</span>
+      </div>
+    </div>
   );
 }
 
@@ -126,15 +128,15 @@ function ControlLayerSection() {
 
           <div className="mt-4 space-y-2 text-sm text-white/70">
             <div className="flex items-center justify-between">
-              <span>Baseline Modeling --</span>
+              <span>Baseline Modeling</span>
               <span className="font-mono text-white/45">Rolling Window</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Deviation Detection --</span>
+              <span>Deviation Detection</span>
               <span className="font-mono text-white/45">Material Only</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Evidence Capture --</span>
+              <span>Evidence Capture</span>
               <span className="font-mono text-white/45">Why + Where</span>
             </div>
           </div>
@@ -168,9 +170,7 @@ function ControlLayerSection() {
             <div className="rounded-xl border border-white/10 bg-black/20 p-4">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-yellow-300" />
-                <div className="text-sm font-semibold text-white">
-                  Movement Detected
-                </div>
+                <div className="text-sm font-semibold text-white">Watch</div>
               </div>
               <div className="mt-2 text-sm text-white/70">
                 Early movement relative to baseline.
@@ -232,9 +232,9 @@ function MaterialDeviationSection() {
           DRIFT ignores noise while surfacing only trajectory-changing movement.
         </h3>
         <p className="mt-3 max-w-3xl text-sm text-white/70 md:text-base">
-          Most dashboards show fluctuations that don’t matter. DRIFT filters
+          Most dashboards show fluctuations that do not matter. DRIFT filters
           routine variance and alerts only when the system deviates materially
-          from expected behavior — early enough to act.
+          from expected behavior, early enough to act.
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -297,22 +297,62 @@ function OpsMeta() {
   );
 }
 
+function MondayBriefingSample() {
+  return (
+    <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
+      <div className="font-mono text-xs tracking-wide text-white/45">
+        SAMPLE MONDAY BRIEFING
+      </div>
+
+      <div className="mt-3 text-sm font-semibold text-white">
+        Your week was stable. One thing to watch.
+      </div>
+
+      <div className="mt-4 space-y-3 text-sm text-white/75">
+        <p>
+          This past week held steady. No material deviation was detected.
+        </p>
+
+        <p>
+          DRIFT monitored your revenue behavior across the week and everything
+          remained within expected range.
+        </p>
+
+        <p>
+          <span className="font-semibold text-white">
+            One thing to watch heading into this week:
+          </span>{" "}
+          Mid-week performance has shown slight variability in your recent
+          baseline. If that pattern continues, DRIFT will surface it early.
+        </p>
+
+        <p>
+          DRIFT will continue monitoring for any meaningful change and will
+          surface it the moment it matters.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
       <section className="mx-auto max-w-4xl px-6 pb-16 pt-20 text-center">
         <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-          Know what changed before you feel it.
+          You found out revenue was down on the 15th.
+          <br className="hidden md:block" />
+          It started slipping on the 3rd.
         </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-white/80">
-          DRIFT surfaces meaningful revenue movement across your business before it
-          turns into a bigger problem — or a missed opportunity.
+          DRIFT catches meaningful revenue movement while it is still small
+          enough to act on.
         </p>
 
         <p className="mx-auto mt-4 max-w-2xl text-sm text-white/65">
-          No dashboards to interpret. No noise to sort through. Just clear signals when
-          revenue actually moves.
+          No dashboards to interpret. No noise to sort through. Just clear
+          signals when something actually changes.
         </p>
 
         <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-white/10 bg-white/5 p-5 text-left shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-sm">
@@ -325,7 +365,7 @@ export default function Home() {
           </div>
 
           <div className="mt-3 text-sm text-white/85">
-            Revenue is down 14% vs Baseline.
+            Revenue is down 14% vs baseline.
           </div>
 
           <div className="mt-1 text-xs text-white/60">
@@ -338,13 +378,12 @@ export default function Home() {
             href="#demo"
             className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(10,42,102,0.35)] transition hover:bg-[#09306F]"
           >
-            See Live Signals
+            Try the 60-second demo
           </a>
         </div>
 
         <p className="mx-auto mt-3 max-w-2xl text-xs text-white/45">
-          Built for operators who need to know what changed before the numbers tell the
-          full story.
+          Built for operators who need signal, not noise.
         </p>
       </section>
 
@@ -353,7 +392,7 @@ export default function Home() {
       <section id="demo" className="mx-auto max-w-4xl px-6 pb-16 pt-12">
         <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-white/60">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
-          <span className="text-white/78">Live Revenue Signal Preview</span>
+          <span className="text-white/78">60-Second Operator Demo</span>
 
           <span className="text-white/35">·</span>
           <JobTicker />
@@ -363,6 +402,8 @@ export default function Home() {
         </div>
 
         <DemoCard />
+
+        <MondayBriefingSample />
 
         <div className="mt-16">
           <MaterialDeviationSection />
