@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Tick = {
-  t: string; // time
+  t: string;
   msg: string;
 };
 
@@ -19,9 +19,9 @@ function nowStamp() {
 export default function JobTicker() {
   const seed = useMemo<Tick[]>(
     () => [
-      { t: nowStamp(), msg: "ingest: queued (14d)" },
-      { t: nowStamp(), msg: "compute: scheduled" },
-      { t: nowStamp(), msg: "alerts: standing by" },
+      { t: nowStamp(), msg: "Ingest: queued (14d)" },
+      { t: nowStamp(), msg: "Compute: scheduled" },
+      { t: nowStamp(), msg: "Alerts: standing by" },
     ],
     []
   );
@@ -29,7 +29,6 @@ export default function JobTicker() {
   const [ticks, setTicks] = useState<Tick[]>(seed);
 
   useEffect(() => {
-    // Subtle, not “dashboard-y”: updates occasionally and stays quiet.
     const events = [
       "Ingest: Stripe sync complete",
       "Compute: Baseline checked",
@@ -51,10 +50,12 @@ export default function JobTicker() {
   const latest = ticks[0];
 
   return (
-    <span className="text-xs text-white/55 font-mono">
-      <span className="text-white/35">job</span>{" "}
-      <span className="text-white/45">{latest.t}</span>{" "}
-      <span className="text-white/70">{latest.msg}</span>
-    </span>
+    <div className="min-w-0 overflow-hidden">
+      <div className="truncate whitespace-nowrap text-xs font-mono tabular-nums text-white/55">
+        <span className="text-white/35">job</span>{" "}
+        <span className="text-white/45">{latest.t}</span>{" "}
+        <span className="text-white/70">{latest.msg}</span>
+      </div>
+    </div>
   );
 }

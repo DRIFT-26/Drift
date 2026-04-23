@@ -1,6 +1,5 @@
 "use client";
 
-// app/_components/DemoCard.tsx
 import { useEffect, useMemo, useState } from "react";
 
 type DriftStatus = "stable" | "watch" | "softening" | "attention";
@@ -40,14 +39,16 @@ function statusTone(status: DriftStatus) {
 
 function money(cents: number) {
   const dollars = cents / 100;
-  return dollars.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  return dollars.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+  });
 }
 
 function pct(p: number) {
   return `${(p * 100).toFixed(1)}%`;
 }
 
-// no "Decision prompt:" label
 function decisionPrompt(status: DriftStatus) {
   switch (status) {
     case "attention":
@@ -74,10 +75,6 @@ function previewLine(status: DriftStatus) {
   }
 }
 
-/**
- * Next best action — tiny but powerful.
- * This makes it feel like a control system (not a dashboard).
- */
 function nextAction(status: DriftStatus) {
   switch (status) {
     case "attention":
@@ -115,30 +112,27 @@ function makeJobEvent(status: DriftStatus): string {
     status === "attention"
       ? ["Alert threshold crossed", "Escalation triggered"]
       : status === "softening"
-      ? ["Trend slope detected", "Deviation widening"]
-      : status === "watch"
-      ? ["Movement confirmed", "Change detected"]
-      : ["No material deviation"];
+        ? ["Trend slope detected", "Deviation widening"]
+        : status === "watch"
+          ? ["Movement confirmed", "Change detected"]
+          : ["No material deviation"];
 
   const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
   return `${pick(base)} · ${pick(contextual)}`;
 }
 
-/**
- * Stable-ish human-readable signal ids.
- * Example: DRFT-3K9Q2
- */
 function makeSignalId() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "DRFT-";
-  for (let i = 0; i < 5; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (let i = 0; i < 5; i++) {
+    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
   return out;
 }
 
 type Confidence = "Low" | "Medium" | "High";
 
 function confidenceFrom(status: DriftStatus, deltaPct: number): Confidence {
-  // You can tune this later when you wire real stats.
   const magnitude = Math.abs(deltaPct);
   if (status === "attention") return magnitude > 0.12 ? "High" : "Medium";
   if (status === "softening") return magnitude > 0.08 ? "High" : "Medium";
@@ -170,23 +164,18 @@ function operatorScoreFrom(
 export default function DemoCard() {
   const [status, setStatus] = useState<DriftStatus>("watch");
   const [updatedAt, setUpdatedAt] = useState<Date>(() => new Date());
-
-  // Supporting metrics (hidden by default)
   const [showDetail, setShowDetail] = useState(true);
 
-  // Simulated signal snapshot
   const [mri, setMri] = useState(92);
-  const [net14d, setNet14d] = useState(186_420); // cents
-  const [baseline14d, setBaseline14d] = useState(201_900); // cents
+  const [net14d, setNet14d] = useState(186_420);
+  const [baseline14d, setBaseline14d] = useState(201_900);
   const [refundRate, setRefundRate] = useState(0.042);
   const [baselineRefundRate, setBaselineRefundRate] = useState(0.028);
 
-  // Operator-grade meta
   const [signalId, setSignalId] = useState<string>(() => makeSignalId());
   const baselineWindow = "Rolling (90d)";
   const detection = "Material Deviation";
 
-  // Background job ticker (most recent first)
   const [events, setEvents] = useState<JobEvent[]>([
     { t: new Date(), msg: "System online · Signals streaming" },
   ]);
@@ -214,7 +203,10 @@ export default function DemoCard() {
       ];
     }
     if (status === "softening") {
-      return ["Net revenue is trending below baseline.", "Refund rate is elevated vs baseline."];
+      return [
+        "Net revenue is trending below baseline.",
+        "Refund rate is elevated vs baseline.",
+      ];
     }
     if (status === "watch") {
       return ["Early movement vs baseline — confirm cause and direction."];
@@ -229,25 +221,29 @@ export default function DemoCard() {
 
         setEvents((prev) => {
           const nextEvent: JobEvent = { t: new Date(), msg: makeJobEvent(next) };
-          const merged = [nextEvent, ...prev];
-          return merged.slice(0, 4);
+          return [nextEvent, ...prev].slice(0, 4);
         });
 
-        // rotate signal id when the system transitions into a non-stable signal,
-        // so it feels like distinct signals are being created
-        if (next !== "stable") setSignalId(makeSignalId());
+        if (next !== "stable") {
+          setSignalId(makeSignalId());
+        }
 
         return next;
       });
 
       setUpdatedAt(new Date());
 
-      // Gentle number drift
       setMri((v) => clamp(v + Math.round((Math.random() - 0.55) * 6), 60, 100));
-      setNet14d((v) => clamp(v + Math.round((Math.random() - 0.55) * 18_000), 20_000, 420_000));
-      setBaseline14d((v) => clamp(v + Math.round((Math.random() - 0.5) * 10_000), 40_000, 460_000));
+      setNet14d((v) =>
+        clamp(v + Math.round((Math.random() - 0.55) * 18_000), 20_000, 420_000)
+      );
+      setBaseline14d((v) =>
+        clamp(v + Math.round((Math.random() - 0.5) * 10_000), 40_000, 460_000)
+      );
       setRefundRate((v) => clamp(v + (Math.random() - 0.55) * 0.01, 0, 0.25));
-      setBaselineRefundRate((v) => clamp(v + (Math.random() - 0.5) * 0.004, 0, 0.2));
+      setBaselineRefundRate((v) =>
+        clamp(v + (Math.random() - 0.5) * 0.004, 0, 0.2)
+      );
     }, 2200);
 
     return () => clearInterval(t);
@@ -255,36 +251,37 @@ export default function DemoCard() {
 
   return (
     <div className="rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <div className="text-xs font-semibold tracking-wide text-white/60">
             CONTROL TOWER SIGNAL
           </div>
 
-          {/* Make it a named object: DRIFT Signal */}
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex min-w-0 items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
             <div className="text-base font-extrabold">DRIFT Signal</div>
-            <span className="text-[11px] text-white/35 font-mono">#{signalId}</span>
+            <span className="truncate text-[11px] font-mono text-white/35">
+              #{signalId}
+            </span>
           </div>
 
           <div className="mt-1 text-sm text-white/70">{previewLine(status)}</div>
 
-          {/* Operator-grade metadata row */}
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/55 font-mono">
-            <span className="text-white/35">Baseline:</span>{" "}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-mono text-white/55">
+            <span className="text-white/35">Baseline:</span>
             <span className="text-white/75">{baselineWindow}</span>
             <span className="text-white/35">·</span>
-            <span className="text-white/35">Detection:</span>{" "}
+            <span className="text-white/35">Detection:</span>
             <span className="text-white/75">{detection}</span>
             <span className="text-white/35">·</span>
-            <span className="text-white/35">Confidence:</span>{" "}
+            <span className="text-white/35">Confidence:</span>
             <span className="text-white/75">{confidence}</span>
           </div>
         </div>
 
-        <div className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black ring-1 ${tone.pill}`}>
+        <div
+          className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black ring-1 ${tone.pill}`}
+        >
           {tone.label}
         </div>
       </div>
@@ -292,61 +289,76 @@ export default function DemoCard() {
       <div className="mt-4 rounded-2xl bg-black/20 px-4 py-3 ring-1 ring-white/10">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-semibold text-white/55">OPERATOR SCORE</div>
-            <div className="mt-1 text-xs text-white/45">0–100 · Control Confidence</div>
+            <div className="text-[11px] font-semibold text-white/55">
+              OPERATOR SCORE
+            </div>
+            <div className="mt-1 text-xs text-white/45">
+              0–100 · Control Confidence
+            </div>
           </div>
 
-          <div className="text-3xl font-black text-white tabular-nums">
+          <div className="text-3xl font-black tabular-nums text-white">
             {operatorScore}
           </div>
         </div>
       </div>
 
-      {/* Auto-update bar */}
       <div className="mt-4 flex items-center justify-between rounded-2xl bg-black/20 px-4 py-3 ring-1 ring-white/10">
-        <div className="text-xs font-semibold text-white/70">
+        <div className="min-w-0 pr-3 text-xs font-semibold text-white/70">
           DRIFT watches the signals most dashboards miss.
         </div>
-        <div className="text-[11px] text-white/55">
-          Updated {updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        <div className="w-[88px] shrink-0 text-right text-[11px] tabular-nums text-white/55">
+          Updated{" "}
+          {updatedAt.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
         </div>
       </div>
 
-      {/* Next action (NEW) */}
       <div className="mt-3 rounded-2xl bg-white/5 px-4 py-3 ring-1 ring-white/10">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[11px] font-semibold text-white/60">NEXT ACTION</div>
-          <div className="text-[11px] text-white/45 font-mono">Operator Mode</div>
+          <div className="text-[11px] font-semibold text-white/60">
+            NEXT ACTION
+          </div>
+          <div className="text-[11px] font-mono text-white/45">
+            Operator Mode
+          </div>
         </div>
         <div className="mt-1 text-sm text-white/80">{nextAction(status)}</div>
       </div>
 
-      {/* Background job ticker */}
       <div className="mt-3 rounded-2xl bg-white/5 p-3 ring-1 ring-white/10">
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] font-semibold text-white/60">BACKGROUND ACTIVITY</div>
-          <div className="text-[11px] text-white/50">Executive-Level · Quiet Automation</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[11px] font-semibold text-white/60">
+            BACKGROUND ACTIVITY
+          </div>
+          <div className="shrink-0 text-[11px] text-white/50">
+            Executive-Level · Quiet Automation
+          </div>
         </div>
 
         <div className="mt-2 space-y-1.5">
           {events.map((e, i) => (
             <div
-  key={i}
-  className="flex items-center justify-between gap-3 text-[11px] text-white/70 transition-all duration-300 ease-out hover:translate-x-[2px]"
->
-              <div className="truncate">
+              key={i}
+              className="flex items-center justify-between gap-3 text-[11px] text-white/70 transition-all duration-300 ease-out hover:translate-x-[2px]"
+            >
+              <div className="min-w-0 truncate">
                 <span className="mr-2 text-white/45">•</span>
                 {e.msg}
               </div>
-              <div className="shrink-0 text-white/40">
-                {e.t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              <div className="shrink-0 tabular-nums text-white/40">
+                {e.t.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Why + prompt */}
       <div className="mt-4 min-h-[120px]">
         <div className="text-[11px] font-semibold text-white/60">
           WHY THIS SHOWED UP
@@ -366,16 +378,15 @@ export default function DemoCard() {
         {decisionPrompt(status)}
       </div>
 
-      {/* Supporting detail toggle (keeps it from feeling like a dashboard) */}
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => setShowDetail((v) => !v)}
-          className="text-[12px] font-semibold text-white/70 hover:text-white transition"
+          className="text-[12px] font-semibold text-white/70 transition hover:text-white"
         >
           {showDetail ? "Hide Evidence" : "Show Evidence"}
         </button>
-        <div className="text-[11px] text-white/45">
+        <div className="text-right text-[11px] text-white/45">
           Evidence Only — The signal is the product.
         </div>
       </div>
@@ -383,16 +394,24 @@ export default function DemoCard() {
       {showDetail ? (
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
-            <div className="text-[11px] font-semibold text-white/55">NET REV (14D)</div>
-            <div className="mt-2 text-xl font-black text-white">{money(net14d)}</div>
+            <div className="text-[11px] font-semibold text-white/55">
+              NET REV (14D)
+            </div>
+            <div className="mt-2 text-xl font-black text-white">
+              {money(net14d)}
+            </div>
             <div className="mt-1 text-xs text-white/45">
               Baseline {money(baseline14d)} · Δ {(deltaPct * 100).toFixed(0)}%
             </div>
           </div>
 
           <div className="rounded-2xl bg-black/20 p-4 ring-1 ring-white/10">
-            <div className="text-[11px] font-semibold text-white/55">REFUND RATE</div>
-            <div className="mt-2 text-xl font-black text-white">{pct(refundRate)}</div>
+            <div className="text-[11px] font-semibold text-white/55">
+              REFUND RATE
+            </div>
+            <div className="mt-2 text-xl font-black text-white">
+              {pct(refundRate)}
+            </div>
             <div className="mt-1 text-xs text-white/45">
               Baseline {pct(baselineRefundRate)}
             </div>
