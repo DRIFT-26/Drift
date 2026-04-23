@@ -163,6 +163,7 @@ function operatorScoreFrom(
 
 export default function DemoCard() {
   const [status, setStatus] = useState<DriftStatus>("watch");
+  const [signalPulse, setSignalPulse] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date>(() => new Date());
   const [showDetail, setShowDetail] = useState(true);
 
@@ -219,6 +220,11 @@ export default function DemoCard() {
       setStatus((s) => {
         const next = nextStatusTick(s);
 
+        if (next !== s) {
+          setSignalPulse(true);
+          setTimeout(() => setSignalPulse(false), 900);
+        }
+
         setEvents((prev) => {
           const nextEvent: JobEvent = { t: new Date(), msg: makeJobEvent(next) };
           return [nextEvent, ...prev].slice(0, 4);
@@ -250,7 +256,13 @@ export default function DemoCard() {
   }, []);
 
   return (
-    <div className="rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+    <div
+      className={`rounded-3xl bg-white/5 p-5 ring-1 transition-all duration-500 ${
+        signalPulse
+          ? "ring-sky-300/40 shadow-[0_0_45px_rgba(56,189,248,0.18)]"
+          : "ring-white/10"
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-xs font-semibold tracking-wide text-white/60">
