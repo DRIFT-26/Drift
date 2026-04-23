@@ -129,7 +129,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
       {/* HERO */}
-      <section className="mx-auto max-w-4xl px-6 pb-16 pt-20 text-center">
+      <section className="mx-auto max-w-6xl px-6 pb-16 pt-20 text-center">
         <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
           Your revenue should never surprise you.
         </h1>
@@ -169,7 +169,7 @@ export default function Home() {
             href="#demo"
             className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#09306F]"
           >
-            Try the 60-second demo
+            See how DRIFT detects revenue shifts
           </a>
         </div>
 
@@ -180,15 +180,33 @@ export default function Home() {
 
       {/* DEMO */}
       <section id="demo" className="mx-auto max-w-4xl px-6 pb-16 pt-12">
-        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-white/60">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
-          <span className="text-white/80">60-Second Operator Demo</span>
+        <div className="mb-5 flex flex-col items-start gap-2 text-sm text-white/60">
+  <div className="flex items-center gap-2">
+    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
 
-          <span className="text-white/35">·</span>
-          <JobTicker />
-        </div>
+    <div>
+      <div className="text-white/85 font-medium">
+        60-Second Operator Demo
+      </div>
+      <div className="text-xs text-white/50">
+        Watch how DRIFT detects a shift before it becomes obvious.
+      </div>
+    </div>
+
+    <span className="text-white/35 ml-2">·</span>
+    <JobTicker />
+  </div>
+</div>
 
         <DemoCard />
+
+        <div className="mt-4 text-center text-xs text-white/50">
+  Notice how the signal changes before the numbers fully move.
+</div>
+
+<div className="mt-1 text-center text-xs text-white/40">
+  Let it run for a few seconds.
+</div>
 
         {/* MONDAY EMAIL */}
         <MondayBriefingSample />
