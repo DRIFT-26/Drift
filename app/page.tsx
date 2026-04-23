@@ -64,272 +64,62 @@ function JobTicker() {
   );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-      {children}
-    </span>
-  );
-}
-
-function ControlLayerSection() {
-  return (
-    <section className="mx-auto max-w-5xl px-6 pb-24">
-      <div className="mx-auto max-w-3xl text-center">
-        <div className="font-mono text-xs tracking-wide text-white/45">
-          THE CONTROL LAYER
-        </div>
-
-        <h2 className="mt-3 text-2xl font-semibold leading-tight tracking-tight md:text-3xl">
-          <span className="whitespace-nowrap">DRIFT sits between</span>{" "}
-          <span className="whitespace-nowrap">your revenue systems</span>{" "}
-          <span className="whitespace-nowrap">and your attention.</span>
-        </h2>
-
-        <p className="mt-4 text-sm text-white/80 md:text-base">
-          It runs quietly in the background, surfaces only{" "}
-          <span className="font-medium text-white/90">material deviation</span>{" "}
-          and gives you evidence fast enough to act.
-        </p>
-
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Pill>Signal Layer</Pill>
-          <Pill>Material Deviation</Pill>
-          <Pill>Noise Filtered</Pill>
-          <Pill>Evidence-First</Pill>
-        </div>
-      </div>
-
-      <div className="mt-10 grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-          <div className="font-mono text-xs text-white/45">
-            SUPPORTED REVENUE SOURCES
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Pill>STRIPE</Pill>
-            <Pill>GOOGLE SHEETS</Pill>
-            <Pill>CSV</Pill>
-            <Pill>TOAST</Pill>
-            <Pill>QUICKBOOKS</Pill>
-            <Pill>SHOPIFY</Pill>
-            <Pill>SQUARE</Pill>
-          </div>
-          <p className="mt-4 text-sm text-white/55">
-            DRIFT connects directly to Stripe or ingests revenue data from
-            Sheets and exports from systems like Toast, QuickBooks, Shopify, and
-            Square.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-          <div className="font-mono text-xs text-white/45">
-            DRIFT SIGNAL LAYER
-          </div>
-
-          <div className="mt-4 space-y-2 text-sm text-white/70">
-            <div className="flex items-center justify-between">
-              <span>Baseline Modeling</span>
-              <span className="font-mono text-white/45">Rolling Window</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Deviation Detection</span>
-              <span className="font-mono text-white/45">Material Only</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Evidence Capture</span>
-              <span className="font-mono text-white/45">Why + Where</span>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-4">
-            <div className="font-mono text-xs text-white/45">SYSTEM ONLINE</div>
-            <div className="mt-1 text-sm text-white/80">Signals Streaming</div>
-            <div className="mt-3 text-xs text-white/50">
-              DRIFT ignores noise and escalates only trajectory-changing
-              movement.
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-          <div className="font-mono text-xs text-white/45">
-            OPERATOR SIGNALS
-          </div>
-
-          <div className="mt-4 space-y-3">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-                <div className="text-sm font-semibold text-white">Stable</div>
-              </div>
-              <div className="mt-2 text-sm text-white/70">
-                Revenue tracking within expected baseline.
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-yellow-300" />
-                <div className="text-sm font-semibold text-white">Watch</div>
-              </div>
-              <div className="mt-2 text-sm text-white/70">
-                Early movement relative to baseline.
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-orange-300" />
-                <div className="text-sm font-semibold text-white">Softening</div>
-              </div>
-              <div className="mt-2 text-sm text-white/70">
-                Revenue trending below baseline.
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-                <div className="text-sm font-semibold text-white">
-                  Action Needed
-                </div>
-              </div>
-              <div className="mt-2 text-sm text-white/70">
-                Material deviation detected.
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
-                <div className="text-sm font-semibold text-white">
-                  Momentum Detected
-                </div>
-              </div>
-              <div className="mt-2 text-sm text-white/70">
-                Revenue accelerating beyond baseline.
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-4 font-mono text-xs text-white/45">
-            Evidence Only — The signal is the product.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MaterialDeviationSection() {
-  return (
-    <section className="mx-auto max-w-5xl px-6 pb-10">
-      <div className="rounded-xl border border-white/10 bg-white/5 p-6 md:p-8">
-        <div className="font-mono text-xs tracking-wide text-white/45">
-          MATERIAL DEVIATION
-        </div>
-        <h3 className="mt-3 text-xl font-semibold tracking-tight md:text-2xl">
-          DRIFT ignores noise while surfacing only trajectory-changing movement.
-        </h3>
-        <p className="mt-3 max-w-3xl text-sm text-white/70 md:text-base">
-          Most dashboards show fluctuations that do not matter. DRIFT filters
-          routine variance and alerts only when the system deviates materially
-          from expected behavior, early enough to act.
-        </p>
-
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-            <div className="font-mono text-xs text-white/45">NOISE</div>
-            <div className="mt-1 text-sm text-white/80">
-              Normal Daily Variance
-            </div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-            <div className="font-mono text-xs text-white/45">MATERIAL</div>
-            <div className="mt-1 text-sm text-white/80">
-              Baseline Deviation
-            </div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-            <div className="font-mono text-xs text-white/45">ACTION</div>
-            <div className="mt-1 text-sm text-white/80">
-              Evidence-First Investigation
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Pill>Baseline Window: 30–90d</Pill>
-          <Pill>Detection: Statistical</Pill>
-          <Pill>Confidence: Scoring</Pill>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function OpsMeta() {
-  const [mins, setMins] = useState<number>(() => Math.floor(Math.random() * 6) + 1);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMins((m) => {
-        const delta = Math.random() < 0.55 ? 1 : 0;
-        const next = Math.min(12, m + delta);
-        return next;
-      });
-    }, 12000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <span className="font-mono text-xs text-white/55">
-      <span className="text-white/35">Baseline:</span>{" "}
-      <span className="text-white/70">Rolling (90d)</span>{" "}
-      <span className="text-white/35">·</span>{" "}
-      <span className="text-white/35">Confidence:</span>{" "}
-      <span className="text-white/70">High</span>{" "}
-      <span className="text-white/35">·</span>{" "}
-      <span className="text-white/35">Last Sync:</span>{" "}
-      <span className="text-white/70">{mins}m ago</span>
-    </span>
-  );
-}
-
 function MondayBriefingSample() {
   return (
-    <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
-      <div className="font-mono text-xs tracking-wide text-white/45">
-        SAMPLE MONDAY BRIEFING
+    <div className="mt-8 rounded-2xl border border-white/10 bg-[#0F172A] shadow-[0_12px_40px_rgba(0,0,0,0.24)] overflow-hidden">
+      <div className="border-b border-white/10 bg-white/[0.03] px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-mono text-white/45">
+              SAMPLE MONDAY BRIEFING
+            </div>
+            <div className="mt-2 text-sm font-semibold text-white">
+              DRIFT Weekly Briefing — Your week was stable. One thing to watch.
+            </div>
+          </div>
+          <div className="text-xs text-white/40">Mon 8:02 AM</div>
+        </div>
+
+        <div className="mt-2 text-xs text-white/50">From: DRIFT</div>
       </div>
 
-      <div className="mt-3 text-sm font-semibold text-white">
-        Your week was stable. One thing to watch.
-      </div>
+      <div className="px-5 py-5 text-sm leading-7 text-white/80">
+        <p>This past week held steady. No material deviation was detected.</p>
 
-      <div className="mt-4 space-y-3 text-sm text-white/75">
-        <p>
-          This past week held steady. No material deviation was detected.
-        </p>
-
-        <p>
+        <p className="mt-4">
           DRIFT monitored your revenue behavior across the week and everything
           remained within expected range.
         </p>
 
-        <p>
-          <span className="font-semibold text-white">
-            One thing to watch heading into this week:
-          </span>{" "}
-          Mid-week performance has shown slight variability in your recent
-          baseline. If that pattern continues, DRIFT will surface it early.
+        <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="text-xs font-mono text-white/45">
+            WHAT STAYED WITHIN RANGE
+          </div>
+          <ul className="mt-3 space-y-2 text-white/75">
+            <li>No immediate attention signals were triggered.</li>
+            <li>No softening conditions crossed threshold.</li>
+            <li>No early warning conditions moved into Watch.</li>
+          </ul>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
+          <div className="text-xs font-mono text-white/45">
+            ONE THING TO WATCH
+          </div>
+          <p className="mt-2 text-white/85">
+            Mid-week performance has shown slight variability. If it continues,
+            DRIFT will surface it early.
+          </p>
+        </div>
+
+        <p className="mt-5">
+          DRIFT will continue monitoring and surface any meaningful change the
+          moment it matters.
         </p>
 
-        <p>
-          DRIFT will continue monitoring for any meaningful change and will
-          surface it the moment it matters.
-        </p>
+        <div className="mt-5 text-xs text-white/45">
+          Open DRIFT → Command Center
+        </div>
       </div>
     </div>
   );
@@ -338,11 +128,10 @@ function MondayBriefingSample() {
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
+      {/* HERO */}
       <section className="mx-auto max-w-4xl px-6 pb-16 pt-20 text-center">
         <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-          You found out revenue was down on the 15th.
-          <br className="hidden md:block" />
-          It started slipping on the 3rd.
+          Your revenue should never surprise you.
         </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-white/80">
@@ -355,7 +144,8 @@ export default function Home() {
           signals when something actually changes.
         </p>
 
-        <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-white/10 bg-white/5 p-5 text-left shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-sm">
+        {/* SIGNAL PREVIEW */}
+        <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-white/10 bg-white/5 p-5 text-left">
           <div className="flex items-center justify-between">
             <div className="font-mono text-xs text-white/45">DRIFT SIGNAL</div>
 
@@ -373,10 +163,11 @@ export default function Home() {
           </div>
         </div>
 
+        {/* CTA */}
         <div className="mt-10 flex justify-center">
           <a
             href="#demo"
-            className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(10,42,102,0.35)] transition hover:bg-[#09306F]"
+            className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#09306F]"
           >
             Try the 60-second demo
           </a>
@@ -387,44 +178,26 @@ export default function Home() {
         </p>
       </section>
 
-      <ControlLayerSection />
-
+      {/* DEMO */}
       <section id="demo" className="mx-auto max-w-4xl px-6 pb-16 pt-12">
         <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-white/60">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
-          <span className="text-white/78">60-Second Operator Demo</span>
+          <span className="text-white/80">60-Second Operator Demo</span>
 
           <span className="text-white/35">·</span>
           <JobTicker />
-
-          <span className="text-white/35">·</span>
-          <OpsMeta />
         </div>
 
         <DemoCard />
 
+        {/* MONDAY EMAIL */}
         <MondayBriefingSample />
-
-        <div className="mt-16">
-          <MaterialDeviationSection />
-        </div>
       </section>
 
       <HowOperatorsUseDrift />
 
       <section className="mx-auto mt-14 max-w-5xl px-6">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="text-xs font-mono tracking-wide text-white/45">
-            OPERATOR FIT
-          </div>
-
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-            Built for operators who need signal, not noise.
-          </h2>
-        </div>
-
         <OperatorFitSection />
-
         <div className="pb-24">
           <LandingAccountActions />
         </div>
