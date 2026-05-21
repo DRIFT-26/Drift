@@ -396,8 +396,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-      
-
+    
     const estimatedMriScore = estimateMriScore(drift.deltaPct, drift.status);
 
 await supabase

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import LandingAuthNav from "@/app/_components/LandingAuthNav";
+
 
 export default function AppLayout({
   children,
@@ -18,8 +18,10 @@ export default function AppLayout({
 </Link>
 
           <nav className="flex items-center gap-6 text-sm text-white/60">
-            <LandingAuthNav />
-          </nav>
+  <Link href="/app/alerts" className="transition hover:text-white">
+    Command Center
+  </Link>
+</nav>
         </div>
       </header>
 

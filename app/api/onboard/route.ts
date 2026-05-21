@@ -57,7 +57,7 @@ if (trialCheckError) {
   );
 }
 
-const ownerOrEmail = ownerId ?? user?.id ?? null;
+const effectiveOwnerId = ownerId ?? user?.id ?? null;
 
 let existingPortfolioBusiness:
   | {
@@ -67,11 +67,11 @@ let existingPortfolioBusiness:
     }
   | null = null;
 
-if (ownerOrEmail) {
+if (effectiveOwnerId) {
   const { data } = await supabase
     .from("businesses")
     .select("billing_status,trial_started_at,trial_ends_at")
-    .eq("owner_id", ownerOrEmail)
+    .eq("owner_id", effectiveOwnerId)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

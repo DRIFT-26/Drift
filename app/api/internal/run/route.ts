@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CRON_SECRET = process.env.DRIFT_CRON_SECRET;
+const CRON_SECRET = process.env.CRON_SECRET;
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");

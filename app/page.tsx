@@ -129,10 +129,10 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0B1220] text-white">
       {/* HERO */}
-      <section className="mx-auto max-w-6xl px-6 pb-16 pt-20 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-          Your revenue should never surprise you.
-        </h1>
+      <section className="mx-auto max-w-5xl px-6 pb-16 pt-20 text-center">
+  <h1 className="mx-auto max-w-4xl text-4xl font-semibold leading-tight tracking-tight md:text-[3.2rem]">
+    Your revenue should never surprise you.
+  </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-white/80">
           DRIFT catches meaningful revenue movement while it is still small

@@ -336,7 +336,7 @@ export default async function BusinessAlertsPage({
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await authClient.auth.getUser();
 
   const cookieStore = await cookies();
   const onboardAccess = verifyOnboardAccessToken(
