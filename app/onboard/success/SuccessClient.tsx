@@ -9,6 +9,7 @@ function sourceLabel(source: string) {
     return "Google Sheets";
   }
   if (source === "csv" || source === "csv_debug") return "CSV Upload";
+  if (source === "quickbooks") return "QuickBooks";
   return "Revenue Source";
 }
 

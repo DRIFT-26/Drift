@@ -222,7 +222,12 @@ export async function POST(req: NextRequest) {
       .from("sources")
       .select("id,type,is_connected")
       .eq("business_id", businessId)
-      .in("type", ["csv_revenue", "stripe_revenue", "google_sheets_revenue"]);
+      .in("type", [
+        "csv_revenue",
+        "stripe_revenue",
+        "google_sheets_revenue",
+        "quickbooks_revenue",
+      ]);
 
     if (sourceErr) {
       return NextResponse.json(

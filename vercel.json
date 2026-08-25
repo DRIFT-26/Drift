@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/jobs/stripe-ingest", "schedule": "0 13 * * *" },
+    { "path": "/api/jobs/quickbooks-ingest", "schedule": "3 13 * * *" },
     { "path": "/api/jobs/ingest", "schedule": "5 13 * * *" },
     { "path": "/api/jobs/daily", "schedule": "0 13 * * *" },
     { "path": "/api/jobs/weekly", "schedule": "0 13 * * 1" },
@@ -12,4 +13,3 @@
     }
   ]
 }
-

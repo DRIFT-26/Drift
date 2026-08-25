@@ -27,10 +27,22 @@ jobs:
           curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=14" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
+      - name: Daily QuickBooks Ingest (14d)
+        if: github.event.schedule == '0 6 * * *'
+        run: |
+          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/quickbooks-ingest?days=14" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
+
       - name: Weekly Baseline Refresh (90d)
         if: github.event.schedule == '0 7 * * 0'
         run: |
           curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=90" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
+
+      - name: Weekly QuickBooks Baseline Refresh (90d)
+        if: github.event.schedule == '0 7 * * 0'
+        run: |
+          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/quickbooks-ingest?days=90" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Dispatch Weekly (timezone-aware)

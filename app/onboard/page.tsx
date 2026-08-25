@@ -86,6 +86,13 @@ export default function OnboardPage() {
         return;
       }
 
+      if (source === "quickbooks") {
+        router.push(
+          `/api/quickbooks/connect?business_id=${encodeURIComponent(businessId)}`
+        );
+        return;
+      }
+
       router.push(
         `/onboard/csv?business_id=${encodeURIComponent(
           businessId
@@ -249,8 +256,8 @@ export default function OnboardPage() {
                     <option className="bg-[#070B18]" value="csv">
                       CSV
                     </option>
-                    <option className="bg-[#070B18]" value="quickbooks" disabled>
-                      QuickBooks (coming soon)
+                    <option className="bg-[#070B18]" value="quickbooks">
+                      QuickBooks
                     </option>
                     <option className="bg-[#070B18]" value="toast" disabled>
                       Toast (coming soon)

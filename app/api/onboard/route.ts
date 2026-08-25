@@ -5,9 +5,14 @@ export const runtime = "nodejs";
 
 function normalizeSourceType(
   source: string
-): "stripe_revenue" | "csv_revenue" | "google_sheets_revenue" {
+):
+  | "stripe_revenue"
+  | "csv_revenue"
+  | "google_sheets_revenue"
+  | "quickbooks_revenue" {
   if (source === "stripe") return "stripe_revenue";
   if (source === "google_sheets") return "google_sheets_revenue";
+  if (source === "quickbooks") return "quickbooks_revenue";
   return "csv_revenue";
 }
 
