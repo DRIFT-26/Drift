@@ -4,6 +4,7 @@ import DemoCard from "@/app/_components/DemoCard";
 import OperatorFitSection from "@/app/_components/OperatorFitSection";
 import HowOperatorsUseDrift from "@/app/_components/HowOperatorsUseDrift";
 import LandingAccountActions from "@/app/_components/LandingAccountActions";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type Tick = { t: string; msg: string };
@@ -220,6 +221,20 @@ export default function Home() {
           <LandingAccountActions />
         </div>
       </section>
+
+      <footer className="border-t border-white/10 px-6 py-8">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
+          <div>© {new Date().getFullYear()} DRIFT</div>
+          <div className="flex gap-4">
+            <Link href="/terms" className="hover:text-white">
+              Terms
+            </Link>
+            <Link href="/privacy" className="hover:text-white">
+              Privacy
+            </Link>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
