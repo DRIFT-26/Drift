@@ -2,8 +2,11 @@ export const QUICKBOOKS_SOURCE_TYPE = "quickbooks_revenue";
 
 const AUTH_BASE_URL = "https://appcenter.intuit.com/connect/oauth2";
 const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
-const API_BASE_URL = "https://quickbooks.api.intuit.com";
+const PRODUCTION_API_BASE_URL = "https://quickbooks.api.intuit.com";
+const SANDBOX_API_BASE_URL = "https://sandbox-quickbooks.api.intuit.com";
 const ACCOUNTING_SCOPE = "com.intuit.quickbooks.accounting";
+
+export type QuickBooksEnvironment = "production" | "sandbox";
 
 export type QuickBooksTokenResponse = {
   access_token?: string;
@@ -15,6 +18,7 @@ export type QuickBooksTokenResponse = {
 
 export type QuickBooksSourceConfig = {
   oauth_state?: string;
+  quickbooks_environment?: QuickBooksEnvironment;
   realm_id?: string;
   access_token?: string;
   refresh_token?: string;
@@ -57,9 +61,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function quickBooksEnvironmentFromEnv(): QuickBooksEnvironment {
+  return process.env.QUICKBOOKS_ENVIRONMENT === "sandbox"
+    ? "sandbox"
+    : "production";
+}
+
+function quickBooksApiBaseUrl(environment: QuickBooksEnvironment) {
+  return environment === "sandbox" ? SANDBOX_API_BASE_URL : PRODUCTION_API_BASE_URL;
+}
+
 export function getQuickBooksEnv() {
   const clientId = (process.env.QUICKBOOKS_CLIENT_ID || "").trim();
   const clientSecret = (process.env.QUICKBOOKS_CLIENT_SECRET || "").trim();
+  const environment = quickBooksEnvironmentFromEnv();
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co").replace(
     /\/$/,
     ""
@@ -71,6 +86,7 @@ export function getQuickBooksEnv() {
   return {
     clientId,
     clientSecret,
+    environment,
     appUrl,
     redirectUri,
   };
@@ -233,10 +249,11 @@ export async function fetchQuickBooksProfitAndLoss(args: {
   realmId: string;
   startDate: string;
   endDate: string;
+  environment: QuickBooksEnvironment;
   summarizeColumnBy?: "Days";
 }) {
   const url = new URL(
-    `${API_BASE_URL}/v3/company/${encodeURIComponent(
+    `${quickBooksApiBaseUrl(args.environment)}/v3/company/${encodeURIComponent(
       args.realmId
     )}/reports/ProfitAndLoss`
   );

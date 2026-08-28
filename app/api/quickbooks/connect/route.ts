@@ -25,7 +25,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const { clientId, redirectUri } = getQuickBooksEnv();
+    const { clientId, redirectUri, environment } = getQuickBooksEnv();
 
     if (!clientId) {
       return NextResponse.json(
@@ -76,6 +76,7 @@ export async function GET(req: Request) {
           is_connected: false,
           config: {
             oauth_state: state,
+            quickbooks_environment: environment,
             created_via: "quickbooks_connect",
           },
           meta: {
@@ -102,6 +103,7 @@ export async function GET(req: Request) {
       const nextConfig = {
         ...(existing?.config || {}),
         oauth_state: state,
+        quickbooks_environment: environment,
         updated_at: new Date().toISOString(),
       };
 

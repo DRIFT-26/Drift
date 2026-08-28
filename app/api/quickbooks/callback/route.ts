@@ -42,7 +42,8 @@ export async function GET(req: Request) {
       });
     }
 
-    const { clientId, clientSecret, redirectUri, appUrl } = getQuickBooksEnv();
+    const { clientId, clientSecret, redirectUri, appUrl, environment } =
+      getQuickBooksEnv();
 
     if (!clientId || !clientSecret) {
       return jsonError("QuickBooks client credentials missing (env).", 500);
@@ -81,6 +82,7 @@ export async function GET(req: Request) {
     const nextConfig = {
       ...mergeTokenConfig(source.config || {}, tokenJson),
       oauth_state: state,
+      quickbooks_environment: environment,
       realm_id: realmId,
       connected_at: new Date().toISOString(),
     };

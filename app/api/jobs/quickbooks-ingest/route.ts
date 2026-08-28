@@ -62,7 +62,7 @@ async function handleIngest(req: Request) {
     );
   }
 
-  const { clientId, clientSecret } = getQuickBooksEnv();
+  const { clientId, clientSecret, environment } = getQuickBooksEnv();
 
   if (!clientId || !clientSecret) {
     return NextResponse.json(
@@ -114,6 +114,8 @@ async function handleIngest(req: Request) {
         throw new Error("quickbooks_source_missing_access_token_or_realm_id");
       }
 
+      const sourceEnvironment = config.quickbooks_environment ?? environment;
+
       if (refreshed && !dryRun) {
         const { error: updateTokenErr } = await supabase
           .from("sources")
@@ -132,6 +134,7 @@ async function handleIngest(req: Request) {
         realmId: config.realm_id,
         startDate: isoDate(start),
         endDate: isoDate(end),
+        environment: sourceEnvironment,
         summarizeColumnBy: "Days",
       });
 
@@ -184,6 +187,7 @@ async function handleIngest(req: Request) {
         type: QUICKBOOKS_SOURCE_TYPE,
         ok: true,
         refreshed,
+        environment: sourceEnvironment,
         window: {
           start: isoDate(start),
           end: isoDate(end),
