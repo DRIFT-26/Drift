@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import {
+  extractDailyRevenueFromProfitAndLoss,
   extractRevenueFromProfitAndLoss,
   fetchQuickBooksProfitAndLoss,
   getQuickBooksEnv,
@@ -126,17 +127,22 @@ async function handleIngest(req: Request) {
         }
       }
 
+      const report = await fetchQuickBooksProfitAndLoss({
+        accessToken: config.access_token,
+        realmId: config.realm_id,
+        startDate: isoDate(start),
+        endDate: isoDate(end),
+        summarizeColumnBy: "Days",
+      });
+
+      const dailyRevenue = extractDailyRevenueFromProfitAndLoss(report);
       let snapshotsWritten = 0;
 
       for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
         const snapshotDate = isoDate(d);
-        const report = await fetchQuickBooksProfitAndLoss({
-          accessToken: config.access_token,
-          realmId: config.realm_id,
-          startDate: snapshotDate,
-          endDate: snapshotDate,
-        });
-        const revenue = extractRevenueFromProfitAndLoss(report);
+        const revenue =
+          dailyRevenue.get(snapshotDate) ??
+          (days === 1 ? extractRevenueFromProfitAndLoss(report) : 0);
 
         if (!dryRun) {
           const { error: upsertErr } = await supabase

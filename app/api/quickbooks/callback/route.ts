@@ -126,7 +126,7 @@ export async function GET(req: Request) {
 
     const cronSecret = (process.env.CRON_SECRET || "").trim();
 
-    await fetch(
+    const ingestRes = await fetch(
       `${appUrl}/api/jobs/quickbooks-ingest?days=74&business_id=${encodeURIComponent(
         source.business_id
       )}`,
@@ -137,7 +137,30 @@ export async function GET(req: Request) {
       }
     ).catch((error) => {
       console.error("QuickBooks initial ingest trigger failed:", error);
+      return null;
     });
+
+    if (ingestRes?.ok) {
+      await fetch(`${appUrl}/api/internal/compute-first`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          business_id: source.business_id,
+          force_email: true,
+        }),
+      }).catch((error) => {
+        console.error("QuickBooks initial compute trigger failed:", error);
+      });
+    } else if (ingestRes) {
+      const ingestText = await ingestRes.text().catch(() => "");
+      console.error("QuickBooks initial ingest returned non-ok response:", {
+        status: ingestRes.status,
+        response: ingestText.slice(0, 500),
+      });
+    }
 
     const redirectTo = new URL(
       `/onboard/success?business_id=${encodeURIComponent(

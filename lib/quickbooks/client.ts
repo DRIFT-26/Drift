@@ -233,6 +233,7 @@ export async function fetchQuickBooksProfitAndLoss(args: {
   realmId: string;
   startDate: string;
   endDate: string;
+  summarizeColumnBy?: "Days";
 }) {
   const url = new URL(
     `${API_BASE_URL}/v3/company/${encodeURIComponent(
@@ -243,6 +244,9 @@ export async function fetchQuickBooksProfitAndLoss(args: {
   url.searchParams.set("start_date", args.startDate);
   url.searchParams.set("end_date", args.endDate);
   url.searchParams.set("accounting_method", "Accrual");
+  if (args.summarizeColumnBy) {
+    url.searchParams.set("summarize_column_by", args.summarizeColumnBy);
+  }
   url.searchParams.set("minorversion", "75");
 
   const res = await fetch(url.toString(), {
@@ -338,4 +342,65 @@ export function extractRevenueFromProfitAndLoss(report: QuickBooksReport | null)
   }
 
   return income ?? 0;
+}
+
+function dateFromColumnTitle(raw: unknown) {
+  const value = String(raw ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function reportColumnDates(report: QuickBooksReport | null) {
+  const columns = (report as { Columns?: { Column?: Array<{ ColTitle?: unknown }> } } | null)
+    ?.Columns?.Column;
+
+  if (!Array.isArray(columns)) return [];
+
+  return columns.map((column) => dateFromColumnTitle(column?.ColTitle));
+}
+
+export function extractDailyRevenueFromProfitAndLoss(
+  report: QuickBooksReport | null
+) {
+  const columnDates = reportColumnDates(report);
+  const rows = report?.Rows?.Row;
+  const stack = Array.isArray(rows) ? [...rows] : [];
+  let incomeRow: QuickBooksReportRow | null = null;
+
+  while (stack.length) {
+    const row = stack.shift();
+    if (!row) continue;
+
+    const label = rowLabel(row);
+
+    if (label === "total income") {
+      incomeRow = row;
+      break;
+    }
+
+    if (label === "income") {
+      incomeRow = row;
+    }
+
+    const nested = row?.Rows?.Row;
+    if (Array.isArray(nested)) {
+      stack.push(...nested);
+    }
+  }
+
+  const colData =
+    incomeRow?.Summary?.ColData || incomeRow?.ColData || incomeRow?.Header?.ColData;
+  const revenueByDate = new Map<string, number>();
+
+  if (!Array.isArray(colData)) {
+    return revenueByDate;
+  }
+
+  for (let i = 0; i < colData.length; i++) {
+    const date = columnDates[i];
+    if (!date) continue;
+
+    revenueByDate.set(date, numericValue(colData[i]?.value) ?? 0);
+  }
+
+  return revenueByDate;
 }
