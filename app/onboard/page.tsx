@@ -88,7 +88,11 @@ export default function OnboardPage() {
 
       if (source === "quickbooks") {
         router.push(
-          `/api/quickbooks/connect?business_id=${encodeURIComponent(businessId)}`
+          `/onboard/quickbooks?business_id=${encodeURIComponent(
+            businessId
+          )}&company=${encodeURIComponent(company)}&email=${encodeURIComponent(
+            email
+          )}&timezone=${encodeURIComponent(timezone)}`
         );
         return;
       }
@@ -351,6 +355,12 @@ export default function OnboardPage() {
                   <p className="mt-2 text-[11px] text-white/45">
                       Best for operators using Toast, Aloha, Square, Clover, QuickBooks, Shopify, or any system that can send daily revenue into a sheet.
                   </p>
+                  )}
+                  {source === "quickbooks" && (
+                    <p className="mt-2 text-[11px] text-white/45">
+                      You will review what DRIFT reads from QuickBooks before
+                      signing in with Intuit.
+                    </p>
                   )}
                   {source === "google_sheets" && (
                   <p className="mt-2 text-[11px] text-white/40">

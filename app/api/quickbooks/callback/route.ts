@@ -22,6 +22,15 @@ function jsonError(
   );
 }
 
+function quickBooksSetupUrl(appUrl: string, businessId: string, error: string) {
+  return new URL(
+    `/onboard/quickbooks?business_id=${encodeURIComponent(
+      businessId
+    )}&error=${encodeURIComponent(error)}`,
+    appUrl
+  ).toString();
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -29,8 +38,26 @@ export async function GET(req: Request) {
     const state = String(url.searchParams.get("state") || "").trim();
     const realmId = String(url.searchParams.get("realmId") || "").trim();
     const quickBooksError = url.searchParams.get("error");
+    const { clientId, clientSecret, redirectUri, appUrl, environment } =
+      getQuickBooksEnv();
 
     if (quickBooksError) {
+      if (state) {
+        const supabase = supabaseAdmin();
+        const { data: source } = await supabase
+          .from("sources")
+          .select("business_id")
+          .eq("type", QUICKBOOKS_SOURCE_TYPE)
+          .contains("config", { oauth_state: state })
+          .maybeSingle();
+
+        if (source?.business_id) {
+          return NextResponse.redirect(
+            quickBooksSetupUrl(appUrl, source.business_id, quickBooksError)
+          );
+        }
+      }
+
       return jsonError(`QuickBooks OAuth error: ${quickBooksError}`, 400);
     }
 
@@ -41,9 +68,6 @@ export async function GET(req: Request) {
         has_realm_id: Boolean(realmId),
       });
     }
-
-    const { clientId, clientSecret, redirectUri, appUrl, environment } =
-      getQuickBooksEnv();
 
     if (!clientId || !clientSecret) {
       return jsonError("QuickBooks client credentials missing (env).", 500);
