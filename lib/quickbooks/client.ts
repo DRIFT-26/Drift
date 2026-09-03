@@ -16,6 +16,25 @@ export type QuickBooksTokenResponse = {
   x_refresh_token_expires_in?: number;
 };
 
+function maskedValue(value: string) {
+  if (!value) return null;
+  if (value.length <= 10) return `${value.slice(0, 2)}...${value.slice(-2)}`;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+export function getQuickBooksClientIdIssue(clientId: string) {
+  const normalized = clientId.trim();
+  const lower = normalized.toLowerCase();
+
+  if (!normalized) return "missing";
+  if (["secret", "client_secret", "client_id", "quickbooks_client_id"].includes(lower)) {
+    return "placeholder";
+  }
+  if (normalized.length < 20) return "too_short";
+
+  return null;
+}
+
 export type QuickBooksSourceConfig = {
   oauth_state?: string;
   quickbooks_environment?: QuickBooksEnvironment;
@@ -83,6 +102,9 @@ export function getQuickBooksPublicConfig() {
     apiBaseUrl: quickBooksApiBaseUrl(env.environment),
     accountingScope: ACCOUNTING_SCOPE,
     hasClientId: Boolean(env.clientId),
+    clientIdPreview: maskedValue(env.clientId),
+    clientIdLength: env.clientId.length,
+    clientIdIssue: getQuickBooksClientIdIssue(env.clientId),
     hasClientSecret: Boolean(env.clientSecret),
     hasExplicitRedirectUri: Boolean(
       (process.env.QUICKBOOKS_REDIRECT_URI || "").trim()

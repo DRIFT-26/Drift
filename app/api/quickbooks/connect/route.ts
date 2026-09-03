@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import {
   buildQuickBooksAuthorizeUrl,
+  getQuickBooksClientIdIssue,
   getQuickBooksEnv,
   QUICKBOOKS_SOURCE_TYPE,
 } from "@/lib/quickbooks/client";
@@ -30,6 +31,17 @@ export async function GET(req: Request) {
     if (!clientId) {
       return NextResponse.json(
         { ok: false, error: "QUICKBOOKS_CLIENT_ID missing (env)." },
+        { status: 500 }
+      );
+    }
+
+    const clientIdIssue = getQuickBooksClientIdIssue(clientId);
+    if (clientIdIssue) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `QUICKBOOKS_CLIENT_ID is invalid: ${clientIdIssue}.`,
+        },
         { status: 500 }
       );
     }
