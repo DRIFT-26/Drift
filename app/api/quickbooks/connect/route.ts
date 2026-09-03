@@ -4,6 +4,7 @@ import {
   buildQuickBooksAuthorizeUrl,
   getQuickBooksClientIdIssue,
   getQuickBooksEnv,
+  maskedValue,
   QUICKBOOKS_SOURCE_TYPE,
 } from "@/lib/quickbooks/client";
 import crypto from "crypto";
@@ -18,6 +19,7 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const businessId = String(url.searchParams.get("business_id") || "").trim();
+    const preview = url.searchParams.get("preview") === "1";
 
     if (!businessId) {
       return NextResponse.json(
@@ -155,6 +157,30 @@ export async function GET(req: Request) {
       redirectUri,
       state,
     });
+
+    if (preview) {
+      const authorizationUrl = new URL(connectUrl);
+
+      return NextResponse.json({
+        ok: true,
+        preview: true,
+        quickbooks: {
+          authorizationOrigin: authorizationUrl.origin,
+          authorizationPath: authorizationUrl.pathname,
+          hasClientIdParam: authorizationUrl.searchParams.has("client_id"),
+          clientIdPreview: maskedValue(
+            authorizationUrl.searchParams.get("client_id") || ""
+          ),
+          responseType: authorizationUrl.searchParams.get("response_type"),
+          scope: authorizationUrl.searchParams.get("scope"),
+          redirectUri: authorizationUrl.searchParams.get("redirect_uri"),
+          hasState: Boolean(authorizationUrl.searchParams.get("state")),
+          environment,
+        },
+        note:
+          "Preview mode validates the Intuit authorization request without exposing the full Client ID, secret, tokens, or customer data.",
+      });
+    }
 
     return NextResponse.redirect(connectUrl);
   } catch (error) {
