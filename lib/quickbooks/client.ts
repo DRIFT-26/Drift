@@ -8,6 +8,12 @@ const ACCOUNTING_SCOPE = "com.intuit.quickbooks.accounting";
 
 export type QuickBooksEnvironment = "production" | "sandbox";
 
+type NormalizedUrl = {
+  value: string;
+  wasMarkdownLink: boolean;
+  issue: string | null;
+};
+
 export type QuickBooksTokenResponse = {
   access_token?: string;
   refresh_token?: string;
@@ -33,6 +39,36 @@ export function getQuickBooksClientIdIssue(clientId: string) {
   if (normalized.length < 20) return "too_short";
 
   return null;
+}
+
+function normalizeEnvUrl(rawValue: string, fallback: string): NormalizedUrl {
+  const trimmed = rawValue.trim();
+  const value = trimmed || fallback;
+  const markdownLinkMatch = value.match(/^\[(https:\/\/[^\]]+)\]\(https:\/\/[^)]+\)$/);
+  const normalized = (markdownLinkMatch?.[1] ?? value).replace(/\/$/, "");
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "https:") {
+      return {
+        value: normalized,
+        wasMarkdownLink: Boolean(markdownLinkMatch),
+        issue: "must_use_https",
+      };
+    }
+
+    return {
+      value: normalized,
+      wasMarkdownLink: Boolean(markdownLinkMatch),
+      issue: null,
+    };
+  } catch {
+    return {
+      value: normalized,
+      wasMarkdownLink: Boolean(markdownLinkMatch),
+      issue: "invalid_url",
+    };
+  }
 }
 
 export type QuickBooksSourceConfig = {
@@ -109,6 +145,10 @@ export function getQuickBooksPublicConfig() {
     hasExplicitRedirectUri: Boolean(
       (process.env.QUICKBOOKS_REDIRECT_URI || "").trim()
     ),
+    appUrlWasMarkdownLink: env.appUrlWasMarkdownLink,
+    redirectUriWasMarkdownLink: env.redirectUriWasMarkdownLink,
+    appUrlIssue: env.appUrlIssue,
+    redirectUriIssue: env.redirectUriIssue,
   };
 }
 
@@ -116,20 +156,25 @@ export function getQuickBooksEnv() {
   const clientId = (process.env.QUICKBOOKS_CLIENT_ID || "").trim();
   const clientSecret = (process.env.QUICKBOOKS_CLIENT_SECRET || "").trim();
   const environment = quickBooksEnvironmentFromEnv();
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://drifthq.co").replace(
-    /\/$/,
-    ""
+  const appUrlResult = normalizeEnvUrl(
+    process.env.NEXT_PUBLIC_APP_URL || "",
+    "https://drifthq.co"
   );
-  const redirectUri =
-    (process.env.QUICKBOOKS_REDIRECT_URI || "").trim() ||
-    `${appUrl}/api/quickbooks/callback`;
+  const redirectUriResult = normalizeEnvUrl(
+    process.env.QUICKBOOKS_REDIRECT_URI || "",
+    `${appUrlResult.value}/api/quickbooks/callback`
+  );
 
   return {
     clientId,
     clientSecret,
     environment,
-    appUrl,
-    redirectUri,
+    appUrl: appUrlResult.value,
+    redirectUri: redirectUriResult.value,
+    appUrlWasMarkdownLink: appUrlResult.wasMarkdownLink,
+    redirectUriWasMarkdownLink: redirectUriResult.wasMarkdownLink,
+    appUrlIssue: appUrlResult.issue,
+    redirectUriIssue: redirectUriResult.issue,
   };
 }
 

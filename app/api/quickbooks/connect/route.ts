@@ -26,7 +26,13 @@ export async function GET(req: Request) {
       );
     }
 
-    const { clientId, redirectUri, environment } = getQuickBooksEnv();
+    const {
+      clientId,
+      redirectUri,
+      environment,
+      appUrlIssue,
+      redirectUriIssue,
+    } = getQuickBooksEnv();
 
     if (!clientId) {
       return NextResponse.json(
@@ -41,6 +47,18 @@ export async function GET(req: Request) {
         {
           ok: false,
           error: `QUICKBOOKS_CLIENT_ID is invalid: ${clientIdIssue}.`,
+        },
+        { status: 500 }
+      );
+    }
+
+    if (appUrlIssue || redirectUriIssue) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "QuickBooks URL environment variables are invalid.",
+          appUrlIssue,
+          redirectUriIssue,
         },
         { status: 500 }
       );
