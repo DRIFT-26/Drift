@@ -71,6 +71,25 @@ function quickBooksApiBaseUrl(environment: QuickBooksEnvironment) {
   return environment === "sandbox" ? SANDBOX_API_BASE_URL : PRODUCTION_API_BASE_URL;
 }
 
+export function getQuickBooksPublicConfig() {
+  const env = getQuickBooksEnv();
+
+  return {
+    environment: env.environment,
+    appUrl: env.appUrl,
+    redirectUri: env.redirectUri,
+    authorizationEndpoint: AUTH_BASE_URL,
+    tokenEndpoint: TOKEN_URL,
+    apiBaseUrl: quickBooksApiBaseUrl(env.environment),
+    accountingScope: ACCOUNTING_SCOPE,
+    hasClientId: Boolean(env.clientId),
+    hasClientSecret: Boolean(env.clientSecret),
+    hasExplicitRedirectUri: Boolean(
+      (process.env.QUICKBOOKS_REDIRECT_URI || "").trim()
+    ),
+  };
+}
+
 export function getQuickBooksEnv() {
   const clientId = (process.env.QUICKBOOKS_CLIENT_ID || "").trim();
   const clientSecret = (process.env.QUICKBOOKS_CLIENT_SECRET || "").trim();
