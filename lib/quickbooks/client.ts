@@ -112,6 +112,16 @@ type QuickBooksReport = {
   };
 };
 
+type QuickBooksApiErrorPayload = {
+  Fault?: {
+    Error?: Array<{
+      Message?: string;
+      Detail?: string;
+      code?: string;
+    }>;
+  };
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -380,6 +390,57 @@ export async function fetchQuickBooksProfitAndLoss(args: {
   }
 
   return report;
+}
+
+export async function quickBooksApiRequest<T>(args: {
+  accessToken: string;
+  realmId: string;
+  environment: QuickBooksEnvironment;
+  path: string;
+  method?: "GET" | "POST";
+  body?: Record<string, unknown>;
+}) {
+  const normalizedPath = args.path.startsWith("/")
+    ? args.path
+    : `/${args.path}`;
+  const url = new URL(
+    `${quickBooksApiBaseUrl(args.environment)}/v3/company/${encodeURIComponent(
+      args.realmId
+    )}${normalizedPath}`
+  );
+
+  url.searchParams.set("minorversion", "75");
+
+  const res = await fetch(url.toString(), {
+    method: args.method ?? "GET",
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${args.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: args.body ? JSON.stringify(args.body) : undefined,
+  });
+
+  const text = await res.text();
+  let json: unknown = null;
+
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = null;
+  }
+
+  if (!res.ok) {
+    const payload = json as QuickBooksApiErrorPayload | null;
+    const error = payload?.Fault?.Error?.[0];
+    const message =
+      error?.Detail || error?.Message || text.slice(0, 240) || "Unknown error";
+
+    throw new Error(`quickbooks_api_failed: ${res.status} ${message}`);
+  }
+
+  return json as T;
 }
 
 function numericValue(raw: unknown) {
