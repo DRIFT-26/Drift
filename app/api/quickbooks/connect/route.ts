@@ -182,7 +182,7 @@ export async function GET(req: Request) {
       });
     }
 
-    return NextResponse.redirect(connectUrl);
+    return NextResponse.redirect(connectUrl, 302);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected server error";
