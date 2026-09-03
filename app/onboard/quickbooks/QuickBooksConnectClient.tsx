@@ -108,6 +108,34 @@ export default function QuickBooksConnectClient({
             can disconnect access later from QuickBooks or by contacting support.
           </div>
 
+          <div className="mt-6 rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+            <div className="text-xs font-semibold tracking-wide text-cyan-100/80">
+              TESTING WITH A SANDBOX
+            </div>
+            <p className="mt-2 text-sm leading-6 text-white/70">
+              If Intuit sends you to Account Manager, open your sandbox company
+              first, then return here and connect QuickBooks.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <a
+                href="https://developer.intuit.com/app/developer/sandbox"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-md border border-cyan-200/30 bg-cyan-200/10 px-4 py-2.5 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-200/15"
+              >
+                Open Intuit Sandbox
+              </a>
+              <a
+                href="https://developer.intuit.com/dashboard"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+              >
+                Open Developer Dashboard
+              </a>
+            </div>
+          </div>
+
           <button
             type="button"
             disabled={!businessId || connecting}
