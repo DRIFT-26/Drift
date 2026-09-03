@@ -13,6 +13,7 @@ export default async function QuickBooksPage({
   }>;
 }) {
   const params = await searchParams;
+  const showSandboxHelper = process.env.QUICKBOOKS_ENVIRONMENT === "sandbox";
 
   return (
     <Suspense fallback={null}>
@@ -22,6 +23,7 @@ export default async function QuickBooksPage({
         email={params.email ?? ""}
         timezone={params.timezone ?? ""}
         error={params.error ?? ""}
+        showSandboxHelper={showSandboxHelper}
       />
     </Suspense>
   );
