@@ -14,6 +14,9 @@ const TIMEZONE_OPTIONS = [
   { value: "Pacific/Honolulu", label: "Hawaii — Pacific/Honolulu" },
 ] as const;
 
+const QUICKBOOKS_ONBOARDING_ENABLED =
+  process.env.NEXT_PUBLIC_QUICKBOOKS_ONBOARDING === "enabled";
+
 export default function OnboardPage() {
   const router = useRouter();
 
@@ -39,6 +42,13 @@ export default function OnboardPage() {
 
     if (!company || !email || !timezone || !source) {
       alert("Please complete all required fields.");
+      return;
+    }
+
+    if (source === "quickbooks" && !QUICKBOOKS_ONBOARDING_ENABLED) {
+      alert(
+        "QuickBooks is in private setup while we finish Intuit verification. Please choose Stripe, Google Sheets, or CSV for launch."
+      );
       return;
     }
 
@@ -260,8 +270,12 @@ export default function OnboardPage() {
                     <option className="bg-[#070B18]" value="csv">
                       CSV
                     </option>
-                    <option className="bg-[#070B18]" value="quickbooks">
-                      QuickBooks
+                    <option
+                      className="bg-[#070B18]"
+                      value="quickbooks"
+                      disabled={!QUICKBOOKS_ONBOARDING_ENABLED}
+                    >
+                      QuickBooks {QUICKBOOKS_ONBOARDING_ENABLED ? "" : "(early access)"}
                     </option>
                     <option className="bg-[#070B18]" value="toast" disabled>
                       Toast (coming soon)
@@ -276,6 +290,16 @@ export default function OnboardPage() {
 
                   <p className="mt-3 text-xs text-white/45">
                     Stripe is the fastest direct connection. Google Sheets is best if your POS exports or syncs daily revenue. CSV works well for quick setup and historical onboarding.
+                  </p>
+
+                  <p className="mt-2 text-[11px] text-white/40">
+                    Want to see DRIFT before connecting data?{" "}
+                    <Link
+                      href="/demo"
+                      className="text-white/60 underline underline-offset-4 hover:text-white"
+                    >
+                      Open the sample demo
+                    </Link>
                   </p>
 
                   <p className="mt-2 text-[11px] text-white/35">
@@ -356,7 +380,21 @@ export default function OnboardPage() {
                       Best for operators using Toast, Aloha, Square, Clover, QuickBooks, Shopify, or any system that can send daily revenue into a sheet.
                   </p>
                   )}
-                  {source === "quickbooks" && (
+                  {QUICKBOOKS_ONBOARDING_ENABLED ? null : (
+                    <p className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-[11px] leading-5 text-amber-50/80">
+                      QuickBooks is in private setup while DRIFT completes Intuit
+                      verification. Customers who need QuickBooks can request
+                      early access at{" "}
+                      <a
+                        href="mailto:support@drifthq.co?subject=QuickBooks%20early%20access"
+                        className="underline underline-offset-4 hover:text-white"
+                      >
+                        support@drifthq.co
+                      </a>
+                      .
+                    </p>
+                  )}
+                  {source === "quickbooks" && QUICKBOOKS_ONBOARDING_ENABLED && (
                     <p className="mt-2 text-[11px] text-white/45">
                       You will review what DRIFT reads from QuickBooks before
                       signing in with Intuit.

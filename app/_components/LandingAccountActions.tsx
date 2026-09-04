@@ -102,6 +102,13 @@ export default function LandingAccountActions() {
         >
           Command Center Login
         </Link>
+
+        <Link
+          href="/demo"
+          className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+        >
+          View Sample Demo
+        </Link>
       </div>
 
       <div className="mt-4 text-sm text-white/65">

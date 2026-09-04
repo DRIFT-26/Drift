@@ -165,12 +165,18 @@ export default function Home() {
         </div>
 
         {/* CTA */}
-        <div className="mt-10 flex justify-center">
+        <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link
+            href="/onboard"
+            className="inline-flex items-center justify-center rounded-md bg-white px-6 py-3 text-sm font-semibold text-[#0B1220] transition hover:bg-white/90"
+          >
+            Start 30 Days of DRIFT
+          </Link>
           <a
             href="#demo"
-            className="inline-flex items-center justify-center rounded-md bg-[#0A2A66] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#09306F]"
+            className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
-            See how DRIFT detects revenue shifts
+            View Sample Demo
           </a>
         </div>
 

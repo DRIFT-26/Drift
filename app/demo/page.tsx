@@ -23,11 +23,11 @@ export default function DemoPage() {
 
         <div className="mt-10">
           <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">
-            Control Tower Preview
+            Sample DRIFT Signal
           </h1>
           <p className="mt-3 max-w-2xl text-white/70">
-            This is the “Executive-Level” experience: one signal, the reason, and the decision prompt —
-            without digging through dashboards.
+            Explore the core DRIFT experience with sample revenue behavior. No
+            QuickBooks, Stripe, Google Sheets, or CSV connection required.
           </p>
 
           <div className="mt-8">
@@ -45,7 +45,7 @@ export default function DemoPage() {
               href="/onboard"
               className="rounded-xl bg-white px-4 py-2 text-sm font-black text-[#0B1220] hover:bg-white/90"
             >
-              Start DRIFT
+              Start With Your Data
             </Link>
           </div>
         </div>
