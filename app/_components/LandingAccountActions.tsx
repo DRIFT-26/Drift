@@ -112,7 +112,7 @@ export default function LandingAccountActions() {
       </div>
 
       <div className="mt-4 text-sm text-white/65">
-        30 days of DRIFT watching your revenue. No card required.
+        30 days free. Then $299/month if you choose to continue. No card required.
       </div>
 
       <div className="mt-2 text-xs text-white/50">

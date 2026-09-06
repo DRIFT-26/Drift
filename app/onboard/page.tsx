@@ -254,6 +254,10 @@ export default function OnboardPage() {
                   <p className="mb-2 text-xs text-white/45">
                     If you can export daily sales, you’re ready.
                   </p>
+                  <p className="mb-3 rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-[11px] leading-5 text-emerald-50/80">
+                    30 days free. Then $299/month if you choose to continue. No
+                    card required.
+                  </p>
                   <label className="text-xs text-white/60">Choose how you want to connect</label>
                   <select
                     value={source}
