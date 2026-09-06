@@ -62,7 +62,7 @@ export default function PricingPage() {
             <div>Revenue drift alerts when meaningful changes appear</div>
             <div>Weekly operator briefing</div>
             <div>Stripe, Google Sheets, and CSV supported at launch</div>
-            <div>QuickBooks available through private early access</div>
+            <div>QuickBooks support is in verification with Intuit</div>
           </div>
 
           <div className="mt-6 border-t border-white/10 pt-5 text-sm text-white/60">

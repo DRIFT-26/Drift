@@ -47,7 +47,7 @@ export default function OnboardPage() {
 
     if (source === "quickbooks" && !QUICKBOOKS_ONBOARDING_ENABLED) {
       alert(
-        "QuickBooks is in private setup while we finish Intuit verification. Please choose Stripe, Google Sheets, or CSV for launch."
+        "QuickBooks support is in verification with Intuit. Please choose Stripe, Google Sheets, or CSV for launch."
       );
       return;
     }
@@ -386,11 +386,11 @@ export default function OnboardPage() {
                   )}
                   {QUICKBOOKS_ONBOARDING_ENABLED ? null : (
                     <p className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-[11px] leading-5 text-amber-50/80">
-                      QuickBooks is in private setup while DRIFT completes Intuit
-                      verification. Customers who need QuickBooks can request
-                      early access at{" "}
+                      QuickBooks support is in verification with Intuit. For
+                      launch, please connect with Stripe, Google Sheets, or CSV.
+                      Questions can be sent to{" "}
                       <a
-                        href="mailto:support@drifthq.co?subject=QuickBooks%20early%20access"
+                        href="mailto:support@drifthq.co?subject=QuickBooks%20support"
                         className="underline underline-offset-4 hover:text-white"
                       >
                         support@drifthq.co
