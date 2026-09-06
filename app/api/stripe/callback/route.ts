@@ -6,7 +6,21 @@ import { sendDriftEmail } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
 
-function jsonError(message: string, status = 400, extra?: any) {
+type StripeTokenResponse = {
+  access_token?: string;
+  refresh_token?: string | null;
+  stripe_user_id?: string;
+  scope?: string | null;
+  livemode?: boolean;
+  error?: string;
+  error_description?: string;
+};
+
+function jsonError(
+  message: string,
+  status = 400,
+  extra?: Record<string, unknown>
+) {
   return NextResponse.json({ ok: false, error: message, ...(extra ?? {}) }, { status });
 }
 
@@ -74,18 +88,28 @@ export async function GET(req: Request) {
     });
 
     const tokenText = await tokenRes.text();
-    let tokenJson: any = null;
+    let tokenJson: StripeTokenResponse | null = null;
 
     try {
-      tokenJson = JSON.parse(tokenText);
+      tokenJson = JSON.parse(tokenText) as StripeTokenResponse;
     } catch {
       tokenJson = null;
     }
 
     if (!tokenRes.ok) {
+      const stripeError = tokenJson?.error;
+      const likelyEnvMismatch =
+        stripeError === "invalid_grant" &&
+        String(tokenJson?.error_description || "")
+          .toLowerCase()
+          .includes("does not belong to you");
+
       return jsonError("Stripe token exchange failed.", 400, {
         status: tokenRes.status,
         stripe: tokenJson ?? tokenText.slice(0, 300),
+        hint: likelyEnvMismatch
+          ? "The Stripe authorization code was likely created with a Connect Client ID from a different Stripe account or mode than STRIPE_SECRET_KEY. Confirm both values come from the same Stripe account and both are live or both are test."
+          : undefined,
       });
     }
 
