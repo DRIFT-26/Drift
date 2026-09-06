@@ -232,6 +232,9 @@ export default function Home() {
         <div className="mx-auto flex max-w-5xl flex-col gap-3 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <div>© {new Date().getFullYear()} DRIFT</div>
           <div className="flex gap-4">
+            <Link href="/pricing" className="hover:text-white">
+              Pricing
+            </Link>
             <Link href="/terms" className="hover:text-white">
               Terms
             </Link>

@@ -12,6 +12,9 @@ export default function DemoPage() {
           </Link>
 
           <div className="flex items-center gap-3">
+            <Link href="/pricing" className="text-sm text-white/65 hover:text-white">
+              Pricing
+            </Link>
             <Link
               href="/onboard"
               className="rounded-xl bg-white px-4 py-2 text-sm font-black text-[#0B1220] hover:bg-white/90"
