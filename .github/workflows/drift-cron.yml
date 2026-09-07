@@ -18,35 +18,35 @@ jobs:
     steps:
       - name: Dispatch Daily (timezone-aware)
         run: |
-          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/daily?dispatch=1" \
+          curl -sS -X POST "https://drifthq.co/api/jobs/daily?dispatch=1" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Daily Stripe Ingest (14d)
         if: github.event.schedule == '0 6 * * *'
         run: |
-          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=14" \
+          curl -sS -X POST "https://drifthq.co/api/jobs/stripe-ingest?days=14" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Daily QuickBooks Ingest (14d)
         if: github.event.schedule == '0 6 * * *'
         run: |
-          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/quickbooks-ingest?days=14" \
+          curl -sS -X POST "https://drifthq.co/api/jobs/quickbooks-ingest?days=14" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Weekly Baseline Refresh (90d)
         if: github.event.schedule == '0 7 * * 0'
         run: |
-          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/stripe-ingest?days=90" \
+          curl -sS -X POST "https://drifthq.co/api/jobs/stripe-ingest?days=90" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Weekly QuickBooks Baseline Refresh (90d)
         if: github.event.schedule == '0 7 * * 0'
         run: |
-          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/quickbooks-ingest?days=90" \
+          curl -sS -X POST "https://drifthq.co/api/jobs/quickbooks-ingest?days=90" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
 
       - name: Dispatch Weekly (timezone-aware)
         if: github.event.schedule == '0 7 * * 0'
         run: |
-          curl -sS -X POST "https://drift-app-indol.vercel.app/api/jobs/weekly?dispatch=1" \
+          curl -sS -X POST "https://drifthq.co/api/jobs/weekly?dispatch=1" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | jq
