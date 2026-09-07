@@ -57,8 +57,7 @@ function requireCronAuth(req: Request) {
 }
 
 type StripeSourceConfig = {
-  // Future: Stripe Connect support
-  // stripe_account_id?: string;
+  stripe_account_id?: string;
 };
 
 function clamp01(n: number) {

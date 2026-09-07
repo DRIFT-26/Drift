@@ -191,7 +191,7 @@ export default async function SignalPreview({
 
   const expired =
     !!alert.share_expires_at &&
-    new Date(alert.share_expires_at).getTime() < Date.now();
+    new Date(alert.share_expires_at).getTime() < new Date().getTime();
 
   if (expired) {
     return (
