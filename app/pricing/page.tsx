@@ -1,8 +1,30 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Pricing | DRIFT",
-  description: "DRIFT founding cohort pricing",
+  title: "Pricing",
+  description:
+    "DRIFT founding cohort pricing: 30 days free, then $299/month for revenue monitoring, weekly briefings, and Operator Score.",
+  openGraph: {
+    title: "DRIFT Pricing",
+    description:
+      "30 days free, then $299/month during the founding cohort. Built for multi-location operators who need early warning.",
+    url: "https://drifthq.co/pricing",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "DRIFT signal preview showing revenue monitoring for multi-location operators.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DRIFT Pricing",
+    description:
+      "30 days free, then $299/month during the founding cohort. Built for multi-location operators who need early warning.",
+    images: ["/og-image.svg"],
+  },
 };
 
 export default function PricingPage() {
@@ -13,9 +35,17 @@ export default function PricingPage() {
           <Link href="/" className="text-sm font-semibold text-white/85">
             DRIFT
           </Link>
-          <Link href="/demo" className="text-sm text-white/65 hover:text-white">
-            View Demo
-          </Link>
+          <div className="flex items-center gap-5 text-sm text-white/65">
+            <Link href="/#demo" className="hover:text-white">
+              Demo
+            </Link>
+            <Link href="/about" className="hover:text-white">
+              About
+            </Link>
+            <Link href="/onboard" className="font-semibold text-white">
+              Start Free
+            </Link>
+          </div>
         </div>
 
         <div className="mx-auto mt-16 max-w-3xl text-center">

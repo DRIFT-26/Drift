@@ -1,0 +1,18 @@
+# DRIFT
+
+DRIFT is a revenue monitoring product for operators. It catches meaningful
+revenue movement before it compounds and sends clear signals when something
+needs attention.
+
+Primary URL: https://drifthq.co
+Pricing URL: https://drifthq.co/pricing
+Demo URL: https://drifthq.co/demo
+Contact: hello@drifthq.co
+
+Positioning:
+- Revenue monitoring and anomaly detection for operators.
+- Built for multi-location operators who need early warning across revenue streams.
+- Weekly operator briefings instead of dashboard digging.
+- 30 days free, then $299/month for the first 12 months during the founding cohort.
+- Stripe, Google Sheets, and CSV are supported at launch.
+- QuickBooks support is in verification with Intuit.

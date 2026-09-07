@@ -1,0 +1,16 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#0B1220"/>
+  <rect x="76" y="70" width="1048" height="490" rx="28" fill="#101827" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+  <text x="118" y="135" fill="rgba(255,255,255,0.55)" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" letter-spacing="4">DRIFT SIGNAL</text>
+  <rect x="878" y="103" width="182" height="54" rx="27" fill="rgba(249,115,22,0.12)" stroke="rgba(251,146,60,0.3)"/>
+  <text x="921" y="138" fill="#FDBA74" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Softening</text>
+  <text x="118" y="236" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="800">Revenue is down 14%</text>
+  <text x="118" y="294" fill="rgba(255,255,255,0.72)" font-family="Arial, Helvetica, sans-serif" font-size="32">Below expected range for 4 consecutive days.</text>
+  <rect x="118" y="350" width="430" height="104" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)"/>
+  <text x="148" y="392" fill="rgba(255,255,255,0.55)" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">OPERATOR SCORE</text>
+  <text x="148" y="435" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="800">71</text>
+  <rect x="590" y="350" width="470" height="104" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)"/>
+  <text x="620" y="392" fill="rgba(255,255,255,0.55)" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">MONDAY BRIEFING</text>
+  <text x="620" y="432" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">One thing to watch, no dashboards.</text>
+  <text x="118" y="514" fill="rgba(255,255,255,0.62)" font-family="Arial, Helvetica, sans-serif" font-size="26">Revenue monitoring for multi-location operators.</text>
+</svg>
