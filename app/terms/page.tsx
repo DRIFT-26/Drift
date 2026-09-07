@@ -110,10 +110,10 @@ export default function TermsPage() {
             <p className="mt-3">
               Questions about these terms can be sent to{" "}
               <a
-                href="mailto:support@drifthq.co"
+                href="mailto:hello@drifthq.co"
                 className="text-white underline underline-offset-4"
               >
-                support@drifthq.co
+                hello@drifthq.co
               </a>
               .
             </p>

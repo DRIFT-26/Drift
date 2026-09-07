@@ -390,10 +390,10 @@ export default function OnboardPage() {
                       launch, please connect with Stripe, Google Sheets, or CSV.
                       Questions can be sent to{" "}
                       <a
-                        href="mailto:support@drifthq.co?subject=QuickBooks%20support"
+                        href="mailto:hello@drifthq.co?subject=QuickBooks%20support"
                         className="underline underline-offset-4 hover:text-white"
                       >
-                        support@drifthq.co
+                        hello@drifthq.co
                       </a>
                       .
                     </p>

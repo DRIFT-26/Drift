@@ -108,10 +108,10 @@ export default function PrivacyPage() {
             <p className="mt-3">
               Questions about this policy can be sent to{" "}
               <a
-                href="mailto:support@drifthq.co"
+                href="mailto:hello@drifthq.co"
                 className="text-white underline underline-offset-4"
               >
-                support@drifthq.co
+                hello@drifthq.co
               </a>
               .
             </p>
